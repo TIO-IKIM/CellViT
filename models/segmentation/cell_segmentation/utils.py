@@ -8,7 +8,7 @@ import torch.nn as nn
 from typing import Callable, Tuple, Type, List
 
 
-class ViTUNETR2d(VisionTransformer):
+class ViTCellViT(VisionTransformer):
     def __init__(
         self,
         extract_layers: List[int],
@@ -96,7 +96,7 @@ class ViTUNETR2d(VisionTransformer):
         return output, x[:, 0], extracted_layers
 
 
-class ViTUNETR2dDeit(ImageEncoderViT):
+class ViTCellViTDeit(ImageEncoderViT):
     def __init__(
         self,
         extract_layers: List[int],

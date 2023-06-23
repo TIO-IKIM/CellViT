@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# UNETR2d Inference Method for Patch-Wise Inference on a patches test set/Whole WSI
+# CellViT Inference Method for Patch-Wise Inference on a patches test set/Whole WSI
 #
 # Detect Cells with our Networks
 # Patches dataset needs to have the follwoing requirements:
@@ -52,13 +52,13 @@ from cell_segmentation.utils.template_geojson import (
     get_template_segmentation,
 )
 from datamodel.wsi_datamodel import WSI
-from models.segmentation.cell_segmentation.unetr2d import (
-    UNETR2d,
-    UNETR2dSAM,
-    UNETR2dSAMUnshared,
-    UNETR2dUnshared,
-    UNETR2dVIT256,
-    UNETR2dVIT256Unshared,
+from models.segmentation.cell_segmentation.cellvit import (
+    CellViT,
+    CellViTSAM,
+    CellViTSAMUnshared,
+    CellViTUnshared,
+    CellViT256,
+    CellViT256Unshared,
 )
 from preprocessing.encoding.datasets.patched_wsi_inference import PatchedWSIInference
 from utils.file_handling import load_wsi_files_from_csv
@@ -130,39 +130,39 @@ class CellSegmentationInference:
     def __get_model(
         self, model_type: str
     ) -> Union[
-        UNETR2d,
-        UNETR2dUnshared,
-        UNETR2dVIT256,
-        UNETR2dVIT256Unshared,
-        UNETR2dSAM,
-        UNETR2dSAMUnshared,
+        CellViT,
+        CellViTUnshared,
+        CellViT256,
+        CellViTUnshared,
+        CellViTSAM,
+        CellViTSAMUnshared,
     ]:
         """Return the trained model for inference
 
         Args:
             model_type (str): Name of the model. Must either be one of:
-                UNETR2d, UNETR2dUnshared, UNETR2dVIT256, UNETR2dVIT256Unshared, UNETR2dSAM, UNETR2dSAMUnshared
+                CellViT, CellViTUnshared, CellViT256, CellViT256Unshared, CellViTSAM, CellViTSAMUnshared
 
         Returns:
-            Union[UNETR2d, UNETR2dUnshared, UNETR2dVIT256, UNETR2dVIT256Unshared, UNETR2dSAM, UNETR2dSAMUnshared]: Model
+            Union[CellViT, CellViTUnshared, CellViT256, CellViT256Unshared, CellViTSAM, CellViTSAMUnshared]: Model
         """
         implemented_models = [
-            "UNETR2d",
-            "UNETR2dUnshared",
-            "UNETR2dVIT256",
-            "UNETR2dVIT256Unshared",
-            "UNETR2dSAM",
-            "UNETR2dSAMUnshared",
+            "CellViT",
+            "CellViTUnshared",
+            "CellViT256",
+            "CellViT256Unshared",
+            "CellViTSAM",
+            "CellViTSAMUnshared",
         ]
         if model_type not in implemented_models:
             raise NotImplementedError(
                 f"Unknown model type. Please select one of {implemented_models}"
             )
-        if model_type in ["UNETR2d", "UNETR2dUnshared"]:
-            if model_type == "UNETR2d":
-                model_class = UNETR2d
-            elif model_type == "UNETR2dUnshared":
-                model_class = UNETR2dUnshared
+        if model_type in ["CellViT", "CellViTUnshared"]:
+            if model_type == "CellViT":
+                model_class = CellViT
+            elif model_type == "CellViTUnshared":
+                model_class = CellViTUnshared
             model = model_class(
                 num_nuclei_classes=self.run_conf["data"]["num_nuclei_classes"],
                 num_tissue_classes=self.run_conf["data"]["num_tissue_classes"],
@@ -173,21 +173,21 @@ class CellSegmentationInference:
                 extract_layers=self.run_conf["model"]["extract_layers"],
             )
 
-        elif model_type in ["UNETR2dVIT256", "UNETR2dVIT256Unshared"]:
-            if model_type == "UNETR2dVIT256":
-                model_class = UNETR2dVIT256
-            elif model_type == "UNETR2dVIT256Unshared":
-                model_class = UNETR2dVIT256Unshared
+        elif model_type in ["CellViT256", "CellViT256Unshared"]:
+            if model_type == "CellViT256":
+                model_class = CellViT256
+            elif model_type == "CellViTVIT256Unshared":
+                model_class = CellViT256Unshared
             model = model_class(
                 model256_path=None,
                 num_nuclei_classes=self.run_conf["data"]["num_nuclei_classes"],
                 num_tissue_classes=self.run_conf["data"]["num_tissue_classes"],
             )
-        elif model_type in ["UNETR2dSAM", "UNETR2dSAMUnshared"]:
-            if model_type == "UNETR2dSAM":
-                model_class = UNETR2dSAM
-            elif model_type == "UNETR2dSAMUnshared":
-                model_class = UNETR2dSAMUnshared
+        elif model_type in ["CellViTSAM", "CellViTSAMUnshared"]:
+            if model_type == "CellViTSAM":
+                model_class = CellViTSAM
+            elif model_type == "CellViTSAMUnshared":
+                model_class = CellViTSAMUnshared
             model = model_class(
                 model_path=None,
                 num_nuclei_classes=self.run_conf["data"]["num_nuclei_classes"],
@@ -844,15 +844,14 @@ class InferenceWSIParser:
     def __init__(self) -> None:
         parser = argparse.ArgumentParser(
             formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-            description="Perform UNETR2d inference for given run-directory with model checkpoints and logs",
+            description="Perform CellViT inference for given run-directory with model checkpoints and logs",
         )
         requiredNamed = parser.add_argument_group("required named arguments")
         requiredNamed.add_argument(
             "--model",
             type=str,
             help="Model checkpoint file that is used for inference",
-            default="/homes/fhoerst/histo-projects/DigitalHistologyHub/outputs/cell_seg_runs/baseline-results/ViT256/2023-05-17T153418_UNetr2D-Vit-256-baseline-fold-3/checkpoints/model_best.pth",
-            # required=True,
+            required=True,
         )
         parser.add_argument(
             "--gpu", type=int, help="Cuda-GPU ID for inference. Default: 0", default=0

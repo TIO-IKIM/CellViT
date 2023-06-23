@@ -24,21 +24,6 @@ This repository contains the code implementation of CellViT, a deep learning-bas
   <img src="./docs/figures/network_large.png"/>
 </p>
 
-## Table of Contents
-- [CellViT: Expanding Horizons with Vision Transformers for Precise Cell Segmentation and Classification](#cellvit-expanding-horizons-with-vision-transformers-for-precise-cell-segmentation-and-classification)
-  - [Table of Contents](#table-of-contents)
-  - [Key Features](#key-features)
-      - [Detection Results](#detection-results)
-      - [Segmentation Results](#segmentation-results)
-      - [Visualization](#visualization)
-  - [Installation](#installation)
-  - [Usage:](#usage)
-    - [Project Structure](#project-structure)
-  - [Folder Structure](#folder-structure)
-    - [Training](#training)
-    - [Inference](#inference)
-    - [Preprocessing](#preprocessing)
-      - [Resulting Dataset Structure](#resulting-dataset-structure)
 
 ## Key Features
 - Utilizes Vision Transformer (ViT) for nuclei instance segmentation.
@@ -48,28 +33,10 @@ This repository contains the code implementation of CellViT, a deep learning-bas
   - Mean panoptic quality: 0.51
   - F1-detection score: 0.83
 
-#### Detection Results
-
-#### Segmentation Results
-|                     	| Neoplastic 	| Inflammatory 	| Connective 	| Dead Cell 	| Epithelial 	|
-|---------------------	|:----------:	|:------------:	|:----------:	|:---------:	|:----------:	|
-| DIST                	|    0.439   	|     0.343    	|    0.275   	|   0.000   	|    0.290   	|
-| Mask-RCNN           	|    0.472   	|     0.290    	|    0.300   	|   0.069   	|    0.403   	|
-| Micro-Net           	|    0.504   	|     0.333    	|    0.334   	|   0.051   	|    0.442   	|
-| HoVer-Net           	|    0.551   	|     0.417    	|    0.388   	|   0.139   	|    0.491   	|
-| TSFD-Net*           	|    0.572   	|     0.453    	|    0.423   	|   0.214   	|    0.566   	|
-| CellViT-256         	|    0.578   	|     0.431    	|    0.423   	|   0.172   	|    0.582   	|
-| **CellViT-SAM-H**   	|  **0.591** 	|   **0.432**  	|  **0.428** 	| **0.181** 	|  **0.587** 	|
-| CellViT-256 (x20)   	|    0.505   	|     0.300    	|    0.298   	|   0.020   	|    0.483   	|
-| CellViT-SAM-H (x20) 	|    0.539   	|     0.324    	|    0.325   	|   0.029   	|    0.510   	|
-
-Average PQ across three dataset splits for each nuclear
-category on the PanNuke datase. *TSFD-Net was not evaluated on the official 3-fold splits of the PanNuke dataset and is therefore not considered a SOTA-network
-
 #### Visualization
 <div align="center">
 
-![Example](docs/figures/overlay.gif)
+![Example](docs/figures/qupath.gif)
 
 </div>
 
@@ -92,31 +59,22 @@ for preprocessing during inference.
 
 ### Project Structure
 
-## Folder Structure
 We are currently using the following folder structure:
 
 ```bash
 ├── base_ml               # Basic Machine Learning Code: CLI, Trainer, Experiment, ...
-├── cell_segmentation     #  
+├── cell_segmentation     # Cell Segmentation training and inference files
 ├── configs               # Config files
-│   ├── examples            # Example config files with explanations
-│   ├── projects            # Project specific configuration file (e.g., Cell detection)
-│   └── python              # Python configuration file for global Python settings
+│   ├── examples          # Example config files with explanations
+│   └── python            # Python configuration file for global Python settings
 ├── datamodel             # Datamodels of WSI, Patientes etc. (not ML specific)
 ├── docs                  # Documentation files (in addition to this main README.md)
-├── file_handling         # File handling code, e.g., for creating splits
 ├── models                # Machine Learning Models (PyTorch implementations)
-│   ├── decoders            # Decoder networks (see ML structure below)
-│   ├── encoders            # Encoder networks (see ML structure below)
-│   ├── pretrained          # Checkpoint of important pretrained models
-├── notebooks             # Folder for additional notebooks
+│   ├── encoders          # Encoder networks (see ML structure below)
+│   ├── pretrained        # Checkpoint of important pretrained models (needs to be downloaded from Google drive)
+│   └── segmentation      # CellViT Code
 ├── preprocessing         # Preprocessing code
-│   ├── encoding            # Encoding code to create embeddings of patches
-│   └── patch_extraction    # Code to extract patches from WSI
-├── test_database         # Test database for testing purposes
-│   ├── examples            # Example files
-│   ├── input               # WSI files and annotations
-├── tests                 # Unittests
+│   └── patch_extraction  # Code to extract patches from WSI
 ```
 
 
