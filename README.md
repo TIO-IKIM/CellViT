@@ -11,6 +11,11 @@ ___
 ___
 
 # CellViT: Expanding Horizons with Vision Transformers for Precise Cell Segmentation and Classification
+<div align="center">
+
+[Key Features](#key-features) • [Installation](#installation) • [Usage](#usage) • [Training](#training) • [Inference](#inference)
+
+</div>
 This is the official PyTorch implementation of the cell detection and instance segmentation algorithm using a comination of Vision Transformer image encoder and U-Net network structure, titled: "CellViT: Expanding Horizons with Vision Transformers for Precise Cell Segmentation and Classification" (Fabian Hörst, Moritz Rempe, Lukas Heine, Constantin Seibold, Julius Keyl, Giulia Baldini, Selma Ugurel, Jens Siveke, Barbara Grünwald, Jan Egger, and Jens Kleesiek, 2023)
 
 This repository contains the code implementation of CellViT, a deep learning-based method for automated instance segmentation of cell nuclei in digitized tissue samples. CellViT utilizes a Vision Transformer architecture and achieves state-of-the-art performance on the PanNuke dataset, a challenging nuclei instance segmentation benchmark.
@@ -19,6 +24,18 @@ This repository contains the code implementation of CellViT, a deep learning-bas
   <img src="./docs/figures/network_large.png"/>
 </p>
 
+## Table of Contents
+- [CellViT: Expanding Horizons with Vision Transformers for Precise Cell Segmentation and Classification](#cellvit-expanding-horizons-with-vision-transformers-for-precise-cell-segmentation-and-classification)
+  - [Table of Contents](#table-of-contents)
+  - [Key Features](#key-features)
+  - [Installation](#installation)
+  - [Usage:](#usage)
+    - [Project Structure](#project-structure)
+  - [Folder Structure](#folder-structure)
+    - [Training](#training)
+    - [Inference](#inference)
+    - [Preprocessing](#preprocessing)
+      - [Resulting Dataset Structure](#resulting-dataset-structure)
 
 ## Key Features
 - Utilizes Vision Transformer (ViT) for nuclei instance segmentation.
@@ -28,6 +45,8 @@ This repository contains the code implementation of CellViT, a deep learning-bas
   - F1-detection score: 0.83
 
 ![Example](docs/figures/overlay.gif)
+
+
 
 ## Installation
 
@@ -45,25 +64,14 @@ for preprocessing during inference.
 
 ## Usage:
 
-
-Model checkpoints can be downloaded here:
-
-- [CellViT-SAM-H](https://drive.google.com/uc?export=download&id=1MvRKNzDW2eHbQb5rAgTEp6s2zAXHixRV) 🚀
-- [CellViT-256](https://drive.google.com/uc?export=download&id=1tVYAapUo1Xt8QgCN22Ne1urbbCZkah8q)
-- [CellViT-SAM-H-x20](https://drive.google.com/uc?export=download&id=1wP4WhHLNwyJv97AK42pWK8kPoWlrqi30)
-- [CellViT-256-x20](https://drive.google.com/uc?export=download&id=1w99U4sxDQgOSuiHMyvS_NYBiz6ozolN2)
-
-License: [Apache 2.0 with Commons Clause](./LICENSE)
-
-Pre-trained ViT models for training initialization can be downloaded here: [ViT-Models](https://drive.google.com/drive/folders/1zFO4bgo7yvjT9rCJi_6Mt6_07wfr0CKU?usp=sharing)
-Please check out the corresponding licenses before distribution and further usage!
-
+### Project Structure
 
 ## Folder Structure
 We are currently using the following folder structure:
 
 ```bash
 ├── base_ml               # Basic Machine Learning Code: CLI, Trainer, Experiment, ...
+├── cell_segmentation     #  
 ├── configs               # Config files
 │   ├── examples            # Example config files with explanations
 │   ├── projects            # Project specific configuration file (e.g., Cell detection)
@@ -86,16 +94,65 @@ We are currently using the following folder structure:
 ```
 
 
+### Training
+The CLI for a ML-experiment is as follows (here the [```run_clam.py```](./classification/run_clam.py) script is used):
+```bash
+usage: run_clam.py [-h] --config CONFIG [--gpu GPU] [--sweep | --agent AGENT | --checkpoint CHECKPOINT]
+
+Start an experiment with given configuration file.
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --gpu GPU             Cuda-GPU ID (default: None)
+  --sweep               Starting a sweep. For this the configuration file must be structured according to WandB sweeping. Compare
+                        https://docs.wandb.ai/guides/sweeps and https://community.wandb.ai/t/nested-sweep-configuration/3369/3 for further
+                        information. This parameter cannot be set in the config file! (default: False)
+  --agent AGENT         Add a new agent to the sweep. Please pass the sweep ID as argument in the way entity/project/sweep_id, e.g.,
+                        user1/test_project/v4hwbijh. The agent configuration can be found in the WandB dashboard for the running sweep in
+                        the sweep overview tab under launch agent. Just paste the entity/project/sweep_id given there. The provided config
+                        file must be a sweep config file.This parameter cannot be set in the config file! (default: None)
+  --checkpoint CHECKPOINT
+                        Path to a PyTorch checkpoint file. The file is loaded and continued to train with the provided settings. If this is
+                        passed, no sweeps are possible. This parameter cannot be set in the config file! (default: None)
+
+required named arguments:
+  --config CONFIG       Path to a config file (default: None)
+```
+
+The important file is the configuration file, in which all paths are set, the model configuration is given and the hyperparameters or sweeps are defined. For each specific run file, there exists an example file in the [./configs/examples/classification](./configs/examples/classification) folder with the same naming as well as a configuration file that explains how to run WandB sweeps for hyperparameter search. A general configuration for all experiments is given one section below.
+
+All metrics defined in your trainer are logged to WandB. The WandB configuration needs to be set up in the configuration file.
+
+!!!! Insert link to example yaml file!!!!!
+
+### Inference
+
+Model checkpoints can be downloaded here:
+
+- [CellViT-SAM-H](https://drive.google.com/uc?export=download&id=1MvRKNzDW2eHbQb5rAgTEp6s2zAXHixRV) 🚀
+- [CellViT-256](https://drive.google.com/uc?export=download&id=1tVYAapUo1Xt8QgCN22Ne1urbbCZkah8q)
+- [CellViT-SAM-H-x20](https://drive.google.com/uc?export=download&id=1wP4WhHLNwyJv97AK42pWK8kPoWlrqi30)
+- [CellViT-256-x20](https://drive.google.com/uc?export=download&id=1w99U4sxDQgOSuiHMyvS_NYBiz6ozolN2)
+
+License: [Apache 2.0 with Commons Clause](./LICENSE)
+
+Pre-trained ViT models for training initialization can be downloaded here: [ViT-Models](https://drive.google.com/drive/folders/1zFO4bgo7yvjT9rCJi_6Mt6_07wfr0CKU?usp=sharing)
+Please check out the corresponding licenses before distribution and further usage!
+
+
+
 ### Preprocessing
-Whole-slide image preprocessing is an essential step in digital pathology that involves preparing digital images of entire tissue slides for analysis by pathologists and machine learning algorithms. Whole-slide images are typically high-resolution digital images of tissue slides, which can range in size from hundreds of megabytes to several gigabytes. The large size of these images presents a challenge for analysis, as processing them directly can be computationally intensive and time-consuming.
+In our Pre-Processing pipeline, we are able to extract quadratic patches from detected tissue areas, load annotation files (`.json`) and apply color normlizations. We make use of the popular [OpenSlide](https://openslide.org/) library, but extended it with the [RAPIDS cuCIM](https://github.com/rapidsai/cucim) framework for an x8 speedup in patch-extraction. The documentation for the preprocessing can be found [here](./docs/readmes/preprocessing.md).
 
-Preprocessing whole-slide images typically involves dividing the images into smaller, more manageable patches or tiles. These patches are typically square or rectangular, and can be selected using a regular grid pattern or using more sophisticated methods that take into account the content of the image. Once the patches are extracted, various techniques can be applied to improve the quality and consistency of the image data.
+Preprocessing is necessary to extract patches for our inference pipeline. We use squred patches of size 1024 pixels with an overlap of 64 px.
 
-In our Pre-Processing pipeline, we are able to extract quadratic patches from detected tissue areas, load annotation files (`.json`) and apply color normlizations. We make use of the popular [OpenSlide](https://openslide.org/) library, but extended it with the [RAPIDS cuCIM](https://github.com/rapidsai/cucim) framework for an x8 speedup in patch-extraction.
+**Please make sure that you select the following properties for our CellViT inference**
+| Parameter     	| Value 	|
+|---------------	|-------	|
+| patch_size    	| 1024  	|
+| patch_overlap 	| 6.25  	|
 
-The documentation for the preprocessing can be found [here](./docs/readmes/preprocessing.md).
-
-### Resulting Dataset Structure
+#### Resulting Dataset Structure
 In general, the folder structure for a preprocessed dataset looks like this:
 The aim of pre-processing is to create one dataset per WSI in the following structure:
 ```bash
@@ -138,47 +195,70 @@ WSI_Name
 ├── patch_metadata.json   # Patch metadata of WSI merged in one file
 └── thumbnail.png         # WSI thumbnail
 ```
-For later usage with two-stage models (see [Encoding](#encoding) section), another folder is created for slide-embeddings:
-```bash
-WSI_Name
-├── annotation_masks  
-│   └── ...  
-├── embeddings          # Embeddings of the WSI
-│   ├── # Embedding vector for all patches as torch tensor with given backbone name and comment (defined during encoding phase)
-│   ├── # Each embedding vector has the shape [num_patches, embedding_dimension]
-│   ├── embedding_{backbone+comment}.pt  
-│   ├── # Important metadata such like row, col position of each patch, wsi_metadata, intersected labels etc.
-│   ├── embedding_{backbone+comment}_metadata.json
-...
+
+The cell detection and segmentation results are stored in a newly created `cell_detection` folder for each WSI.
+
+
+
+**Configuration Structure**
+```yaml
+# Base configuration for all ML experiments
+
+# comment and project setup for wandb
+logging:
+  mode:                     # "online" or "offline" [str]
+  project:                  # Name of project to use [str]
+  notes:                    # Notes about the run, verbose description [str]
+  log_comment:              # Comment to add to name the local logging folder [str]
+  tags:                     # List of tags, e.g., ["baseline", "run1"] [str]
+    - "tag1"
+    - "tag2"
+    - "..."
+  wandb_dir:                # Direcotry to store the wandb file. CAREFUL: Directory must exists [str]
+  log_dir:                  # Direcotry to store all logging related files and outputs [str]
+  level:                    # Level of logging must be either ["critical", "error", "warning", "info", "debug"] [str]
+
+# seeding
+random_seed: 19             # Seed for numpy, pytorch etc. [int]
+
+# hardware
+gpu:                        # Number of GPU to run experiment on [int]
+
+# setting paths and dataset
+wsi_paths:                  # Path to WSI files [str]
+patch_dataset_path:         # Path to patched dataset (parent path of dataset) [str]
+filelist:                   # Filelists with all files (not splitted). Required columns are "Patient", "Filename" and one type of label as defined in the label key.
+                            #   An example filelist is provided here: ./test_database/examples/filelist.csv and below [str]
+split_path:                 # Path to splitting filelist. Either parent path of a train-val-test split or parent path of folding with fold1 ... fold n as subfolders
+                            #   Each subfolder must contain the following files: test_split, train_split and val_split
+                            #   An example split is provided here: ./test_database/examples/split and here:
+                            #   [str]
+label:                      # Training label name, must be a column name that is apparent in the splits and the filelist. [str]
+label_map:                  # Verbose label map, below is an example given [dict]
+  # e.g.,
+  # Healthy: 0
+  # Tumor: 1
+  # ...
+
+# model options
+model:
+  # some model options, specific for experiment
+  pretrained:               # Path to a pretrained model (.pt file) [str, default None]
+
+embeddings:
+  feature_dimensions:       # Input embedding dimensions. e.g., 512 for ResNet34, 1024 for ResNet50Bottleneck and 2048 for ResNet50 [int] [Optional, default 1024]
+  backbone:                 # Name of backbone used, necessary to load embeddings from the patched folder. Embeddings must be calculated in advance [str]
+  embedding_comment:        # [Optional, defaults to None] If an embedding comment has been used during encoding, please also give it here [str]
+
+# training options
+training:
+  # loss, dropout, scheduling are specific for experiments
+  epochs:                   # Number of Training Epochs to use
+  accumulation_steps:       # Gradient accumulation steps. Used for gradient accumulation, because batch-size is always 1 in training. 1 means no accumulation.
+                            # See here: https://towardsdatascience.com/what-is-gradient-accumulation-in-deep-learning-ec034122cfa
+                            # [int] [Optional, default 1]
+  optimizer:                # Pytorch Optimizer Name. All pytorch optimizers (v1.13) are supported. [str]
+  optimizer_hyperparameter: # Hyperparamaters for the optimizers, must be named exactly as in the pytorch documation given for the selected optimizer
+  early_stopping_patience:  # Number of epochs before applying early stopping after metric has not been improved. Metric used is AUC. [int]
+
 ```
-
-#### CLI
-The CLI for a ML-experiment is as follows (here the [```run_clam.py```](./classification/run_clam.py) script is used):
-```bash
-usage: run_clam.py [-h] --config CONFIG [--gpu GPU] [--sweep | --agent AGENT | --checkpoint CHECKPOINT]
-
-Start an experiment with given configuration file.
-
-optional arguments:
-  -h, --help            show this help message and exit
-  --gpu GPU             Cuda-GPU ID (default: None)
-  --sweep               Starting a sweep. For this the configuration file must be structured according to WandB sweeping. Compare
-                        https://docs.wandb.ai/guides/sweeps and https://community.wandb.ai/t/nested-sweep-configuration/3369/3 for further
-                        information. This parameter cannot be set in the config file! (default: False)
-  --agent AGENT         Add a new agent to the sweep. Please pass the sweep ID as argument in the way entity/project/sweep_id, e.g.,
-                        user1/test_project/v4hwbijh. The agent configuration can be found in the WandB dashboard for the running sweep in
-                        the sweep overview tab under launch agent. Just paste the entity/project/sweep_id given there. The provided config
-                        file must be a sweep config file.This parameter cannot be set in the config file! (default: None)
-  --checkpoint CHECKPOINT
-                        Path to a PyTorch checkpoint file. The file is loaded and continued to train with the provided settings. If this is
-                        passed, no sweeps are possible. This parameter cannot be set in the config file! (default: None)
-
-required named arguments:
-  --config CONFIG       Path to a config file (default: None)
-```
-
-The important file is the configuration file, in which all paths are set, the model configuration is given and the hyperparameters or sweeps are defined. For each specific run file, there exists an example file in the [./configs/examples/classification](./configs/examples/classification) folder with the same naming as well as a configuration file that explains how to run WandB sweeps for hyperparameter search. A general configuration for all experiments is given one section below.
-
-All metrics defined in your trainer are logged to WandB. The WandB configuration needs to be set up in the configuration file.
-
-!!!! Insert link to example yaml file!!!!!

@@ -153,4 +153,4 @@ A CLI is used to start the preprocessing. The entry-point is the [main_extractio
 ```bash
 python3 main_extraction.py --config path/to/config.yaml
 ```
-An exemplary configuration [file](configs/examples/preprocessing/patch_extraction/patch_extraction.yaml) is provided in the [preprocessing/examples/config](configs/examples/preprocessing) folder.
+Exemplary configuration file: [patch_extraction.yaml](/configs/examples/preprocessing/patch_extraction/patch_extraction.yaml)
