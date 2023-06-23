@@ -5,7 +5,7 @@
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 ___
 <p align="center">
-  <img src="./docs/figures/DigitalHistologyHub.png"/>
+  <img src="./docs/figures/banner.png"/>
 </p>
 
 ___
@@ -146,6 +146,8 @@ WSI_Name
 ```
 
 ## Machine Learning Pipeline
+![Alt Text](docs/figures/overlay.gif)
+
 
 ### Structure
 The Base Machine Learning Code can be found in the [`base_ml`](./base_ml) folder.
