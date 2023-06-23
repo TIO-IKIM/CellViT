@@ -28,6 +28,9 @@ This repository contains the code implementation of CellViT, a deep learning-bas
 - [CellViT: Expanding Horizons with Vision Transformers for Precise Cell Segmentation and Classification](#cellvit-expanding-horizons-with-vision-transformers-for-precise-cell-segmentation-and-classification)
   - [Table of Contents](#table-of-contents)
   - [Key Features](#key-features)
+      - [Detection Results](#detection-results)
+      - [Segmentation Results](#segmentation-results)
+      - [Visualization](#visualization)
   - [Installation](#installation)
   - [Usage:](#usage)
     - [Project Structure](#project-structure)
@@ -40,12 +43,35 @@ This repository contains the code implementation of CellViT, a deep learning-bas
 ## Key Features
 - Utilizes Vision Transformer (ViT) for nuclei instance segmentation.
 - Trained and evaluated on the PanNuke dataset, a challenging nuclei segmentation benchmark.
+- We provide a fast inference pipeline with connection to current Viewing Software such as *QuPath*
 – Achieves state-of-the-art performance on the PanNuke dataset:
   - Mean panoptic quality: 0.51
   - F1-detection score: 0.83
 
+#### Detection Results
+
+#### Segmentation Results
+|                     	| Neoplastic 	| Inflammatory 	| Connective 	| Dead Cell 	| Epithelial 	|
+|---------------------	|:----------:	|:------------:	|:----------:	|:---------:	|:----------:	|
+| DIST                	|    0.439   	|     0.343    	|    0.275   	|   0.000   	|    0.290   	|
+| Mask-RCNN           	|    0.472   	|     0.290    	|    0.300   	|   0.069   	|    0.403   	|
+| Micro-Net           	|    0.504   	|     0.333    	|    0.334   	|   0.051   	|    0.442   	|
+| HoVer-Net           	|    0.551   	|     0.417    	|    0.388   	|   0.139   	|    0.491   	|
+| TSFD-Net*           	|    0.572   	|     0.453    	|    0.423   	|   0.214   	|    0.566   	|
+| CellViT-256         	|    0.578   	|     0.431    	|    0.423   	|   0.172   	|    0.582   	|
+| **CellViT-SAM-H**   	|  **0.591** 	|   **0.432**  	|  **0.428** 	| **0.181** 	|  **0.587** 	|
+| CellViT-256 (x20)   	|    0.505   	|     0.300    	|    0.298   	|   0.020   	|    0.483   	|
+| CellViT-SAM-H (x20) 	|    0.539   	|     0.324    	|    0.325   	|   0.029   	|    0.510   	|
+
+Average PQ across three dataset splits for each nuclear
+category on the PanNuke datase. *TSFD-Net was not evaluated on the official 3-fold splits of the PanNuke dataset and is therefore not considered a SOTA-network
+
+#### Visualization
+<div align="center">
+
 ![Example](docs/figures/overlay.gif)
 
+</div>
 
 
 ## Installation
