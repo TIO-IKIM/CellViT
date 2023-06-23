@@ -1,0 +1,61 @@
+# dataset paths
+wsi_paths:                    # Path to the folder where all WSI are stored or path to a single WSI-file [str]
+output_path:                  # Path to the folder where the resulting dataset should be stored [str]
+wsi_extensions:               # The extension of the WSI-files [str] [Optional, defaults to "svs]
+
+# basic setups
+patch_size:                   # The size of the patches in pixel that will be retrieved from the WSI, e.g. 256 for 256px. [][Optional, defaults to 256]
+patch_overlap:                # The percentage amount pixels that should overlap between two different patches.
+                              # Please Provide as integer between 0 and 100, indicating overlap in percentage.
+                              # [int][Optional, defaults to 0]
+downsample:                   # Each WSI level is downsampled by a factor of 2, downsample
+                              # expresses which kind of downsampling should be used with
+                              # respect to the highest possible resolution. [int][Optional, defaults to 0]
+target_mag:                   # If this parameter is provided, the output level of the WSI
+                              # corresponds to the level that is at the target magnification of the WSI.
+                              # Alternative to downsaple and level. [int][Optional, defaults to None]
+level:                        # The tile level for sampling, alternative to downsample. [int][Optional, defaults to None]
+context_scales:               # Define context scales for context patches. Context patches are centered around a central patch.
+                              # The context-patch size is equal to the patch-size, but downsampling is different.
+                              # [List[int]][Optional, defaults to None]
+check_resolution:             # If a float value is supplies, the program checks whether
+                              # the resolution of all images corresponds to the given value.
+                              # [float][Optional, defaults to None]
+processes:                    # The number of processes to use. [int][Optional, defaults to 24]
+patches_per_batch:            # The number of patches to process in each concurrent batch. [int][Optional, defaults to 10]
+overwrite:                    # Overwrite the patches that have already been created in
+                              # case they already exist. Removes dataset. Handle with care! If false, skips already processed files from "processed.json".
+                              # [bool][Optional, defaults to False]
+
+# annotation specific settings
+annotation_paths:             # Path to the subfolder where the annotations are
+                              # stored or path to a file. [str][Optional, defaults to None]
+annotation_extension:         # The extension types used for the annotation files. [str][Optional, defaults to None]
+incomplete_annotations:       # Set to allow WSI without annotation file. [bool][Optional, defaults to False]
+label_map_file:               # The path to a json file that contains the mapping between
+                              # he annotation labels and some integers; an example can be found in examples. [str][Optional, defaults to None]
+save_only_annotated_patches:  # If true only patches containing annotations will be stored. [bool][Optional, defaults to False]
+exclude_classes:              # Can be used to exclude annotation classes. [List[str]][Optional, defaults to []].
+store_masks:                  # Set to store masks per patch. [bool][Optional, defaults to False]
+overlapping_labels:           # Per default, labels (annotations) are mutually exclusive.
+                              # If labels overlap, they are overwritten according to the label_map.json ordering (highest number = highest priority).
+                              # True means that the mask array is 3D with shape [patch_size, patch_size, len(label_map)], otherwise just [patch_size, patch_size].
+                              # [bool][Optional, defaults to False]
+
+# macenko stain normalization
+normalize_stains:             # Uses Macenko normalization on a portion of the whole slide images. [bool][Optional, defaults to False]
+normalization_vector_json:    # The path to a JSON file where the normalization vectors are stored. [str][Optional, defaults to None]
+adjust_brightness:            # Normalize brightness in a batch by clipping to 90 percent. [bool][Optional, defaults to False]
+
+# finding patches
+min_intersection_ratio:       # The minimum intersection between the tissue mask and the patch.
+                              # Must be between 0 and 1. 0 means that all patches are extracted. [float][Optional, defaults to 0.01]
+tissue_annotation:            # Can be used to name a polygon annotation to determine the tissue area
+                              # If a tissue annotation is provided, no Otsu-thresholding is performed. [str][Optional, defaults to None]
+masked_otsu:                  # Use annotation to mask the thumbnail before otsu-thresholding is used. [bool][Optional, defaults to False]
+otsu_annotation:              # Can be used to name a polygon annotation to determine the area
+                              # for masked otsu thresholding. [List][Optional, defaults to None]
+
+# logging
+log_path:                     # Path where log files should be stored. Otherwise, log files are stored in the output folder. [str][Optional, defaults to None]
+log_level:                    # Set the logging level. [str][Optional, defaults to info]

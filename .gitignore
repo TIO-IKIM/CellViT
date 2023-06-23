@@ -1,0 +1,35 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+# *.py[cod]
+# *$py.class
+
+# development
+.vscode
+
+# test folder with test files
+debug
+
+# logs
+cufile.log
+outputs
+
+# coverage
+htmlcov
+
+# other
+docs/build
+docs/source
+docs/make.bat
+docs/Makefile
+
+# local configs
+configs/projects
+
+# pretrained models
+models/pretrained
+
+# WSI
+*.svs
+
+# Notebooks
+notebooks/

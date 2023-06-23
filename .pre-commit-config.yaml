@@ -1,0 +1,94 @@
+# Bare minimum
+# pre-commit will only ever lint files which are checked into your git repository, so the laundry list of exclusion
+# is unnecessary here (.git / .mypy_cache / etc.)
+# https://stackoverflow.com/questions/61032281/exclude-some-files-on-running-black-using-pre-commit
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.4.0
+    hooks:
+      - id: check-added-large-files
+        args: ['--maxkb=100000']
+      - id: check-docstring-first
+      - id: check-merge-conflict
+      - id: trailing-whitespace
+        args: [--markdown-linebreak-ext=md]
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-json
+      - id: check-ast
+      - id: detect-private-key
+      - id: fix-encoding-pragma
+      # Prevent pushes to 'master' and 'main' branch by default
+#      - id: no-commit-to-branch
+
+  - repo: https://github.com/psf/black
+    rev: 23.1.0
+    hooks:
+      - id: black
+
+    # Mainly relevant for production code
+  - repo: https://github.com/charliermarsh/ruff-pre-commit
+    rev: 'v0.0.239'
+    hooks:
+      - id: ruff
+        args:
+          - --fix
+          - --select
+          - F401
+          - F402
+          - F403
+          - F504
+          - F522
+          - F541
+          - F601
+          - F602
+          - F631
+          - F632
+          - F701
+          - F702
+          - F704
+          - F706
+          - F821
+          - F841
+          - F901
+          - E711
+          - E712
+          - E713
+          - E714
+          - E721
+          - E722
+          - W292
+          - W605
+          - I001
+          - I002
+          - N805
+#          - D100
+          - D101
+          - D102
+          - D103
+          - D104
+          - D200
+          - D201
+          - D207
+          - D208
+          - D209
+          - D211
+          - D213
+          - D214
+          - D215
+          - D403
+          - D405
+          - D414
+          - D419
+
+  - repo: https://github.com/compilerla/conventional-pre-commit
+    rev: v2.1.1
+    hooks:
+      - id: conventional-pre-commit
+        stages: [commit-msg]
+        # args: [] # optional: list of Conventional Commits types to allow e.g. [feat, fix, ci, chore, test]
+  - repo: https://github.com/pycqa/flake8
+    rev: 6.0.0
+    hooks:
+      - id: flake8
