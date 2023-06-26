@@ -3,7 +3,7 @@
 
 **Configuration Structure**
 ```yaml
-# Base configuration for all ML experiments
+# Example configuration for HoverNet-Cell-Segmentation
 
 # comment and project setup for wandb
 logging:
@@ -18,6 +18,8 @@ logging:
   wandb_dir:                # Direcotry to store the wandb file. CAREFUL: Directory must exists [str]
   log_dir:                  # Direcotry to store all logging related files and outputs [str]
   level:                    # Level of logging must be either ["critical", "error", "warning", "info", "debug"] [str]
+  log_images:               # If images should be logged to WandB for this run. [bool] [Optional, defaults to False]
+  group:                    # WandB group tag [str] [Optional, defaults to None]
 
 # seeding
 random_seed: 19             # Seed for numpy, pytorch etc. [int]
@@ -26,40 +28,96 @@ random_seed: 19             # Seed for numpy, pytorch etc. [int]
 gpu:                        # Number of GPU to run experiment on [int]
 
 # setting paths and dataset
-wsi_paths:                  # Path to WSI files [str]
-patch_dataset_path:         # Path to patched dataset (parent path of dataset) [str]
-filelist:                   # Filelists with all files (not splitted). Required columns are "Patient", "Filename" and one type of label as defined in the label key.
-                            #   An example filelist is provided here: ./test_database/examples/filelist.csv and below [str]
-split_path:                 # Path to splitting filelist. Either parent path of a train-val-test split or parent path of folding with fold1 ... fold n as subfolders
-                            #   Each subfolder must contain the following files: test_split, train_split and val_split
-                            #   An example split is provided here: ./test_database/examples/split and here:
-                            #   [str]
-label:                      # Training label name, must be a column name that is apparent in the splits and the filelist. [str]
-label_map:                  # Verbose label map, below is an example given [dict]
-  # e.g.,
-  # Healthy: 0
-  # Tumor: 1
-  # ...
+data:
+  dataset:                  # Name of dataset, currently supported: PanNuke [str]
+  dataset_path:             # Path to dataset, compare ./docs/readmes/cell_segmentation.md for further details [str]
+  train_folds: [...]        # List of fold Numbers to use for training [list[int]]
+  val_split:                # Percentage of training set that should be used for validation. Either val_split or val_fold must be provided, not both. [float]
+  val_folds:                # List of fold Numbers to use for validation [list[int]]
+  test_folds:               # List of fold Numbers to use for final testing [list[int]]
+  num_nuclei_classes:       # Number of different nuclei classes (including background!, e.g. 5 nuclei classes + background = 6) [int]
 
 # model options
 model:
-  # some model options, specific for experiment
+  backbone:                 # Backbone Type: Options are: default, ViT256, SAM-B, SAM-L, SAM-H
+  pretrained_encoder:       # Set path to a pretrained encoder [str]
   pretrained:               # Path to a pretrained model (.pt file) [str, default None]
+  embed_dim:                # Embedding dimension for ViT - typical values are 384 (ViT-S), 768 (ViT-B), 1024 (ViT-L), 1280 (ViT-H) [int]
+  input_channels:           # Number of input channels, usually 3 for RGB [int, default 3]
+  depth:                    # Number of Transformer Blocks to use - typical values are 12 (ViT-S), 12 (ViT-B), 24 (ViT-L), 32 (ViT-H) [int]
+  num_heads:                # Number of attention heads for MHA - typical values are 6 (ViT-S), 12 (ViT-B), 16 (ViT-L), 16 (ViT-H) [int]
+  extract_layers:           # List of layers to extract for skip connections - starting from 1 with a maximum value equals the depth [int]
+  shared_skip_connections:  # If skip connections should be share accross all upsampling branches [bool] [Optional, defaults to False]
 
-embeddings:
-  feature_dimensions:       # Input embedding dimensions. e.g., 512 for ResNet34, 1024 for ResNet50Bottleneck and 2048 for ResNet50 [int] [Optional, default 1024]
-  backbone:                 # Name of backbone used, necessary to load embeddings from the patched folder. Embeddings must be calculated in advance [str]
-  embedding_comment:        # [Optional, defaults to None] If an embedding comment has been used during encoding, please also give it here [str]
+# loss function settings (best shown by an example). See all implemented loss functions in base_ml.base_loss module
+loss:
+  nuclei_binary_map:        # Name of the branch. Possible branches are "nuclei_binary_map", "hv_map", "nuclei_type_map", "tissue_types". If not defined default HoverNet settings are used [str]
+    bce:                    # Name of the loss [str]
+      loss_fn: xentropy_loss  # Loss_fn, name is defined in LOSS_DICT in base_ml.base_loss module [str]
+      weight: 1               # Weight parameter [int] [Optional, defaults to 1]
+      args:                   # Parameters for the loss function if necessary. Does not need to be set, can also be empty. Just given as an example here
+        arg1:                 # 1. Parameter etc. (Name must match to the initialization parameter given for the loss)
+    dice:                   # Name of the loss [str]
+      loss_fn: dice_loss    # Loss_fn, name is defined in LOSS_DICT in base_ml.base_loss module [str]
+      weight: 1             # Weight parameter [int] [Optional, defaults to 1]
+    focaltverskyloss:       # Name of the loss [str]
+      loss_fn: FocalTverskyLoss # Loss_fn, name is defined in LOSS_DICT in base_ml.base_loss module [str]
+      weight: 1             # Weight parameter [int] [Optional, defaults to 1]
+      # optional parameters, not implemented yet
+  # hv_map:                   another branch
+  # nuclei_type_map:          another branch
+  # tissue_types:             another branch
+
 
 # training options
 training:
-  # loss, dropout, scheduling are specific for experiments
-  epochs:                   # Number of Training Epochs to use
-  accumulation_steps:       # Gradient accumulation steps. Used for gradient accumulation, because batch-size is always 1 in training. 1 means no accumulation.
-                            # See here: https://towardsdatascience.com/what-is-gradient-accumulation-in-deep-learning-ec034122cfa
-                            # [int] [Optional, default 1]
+  batch_size: 32            # Training Batch size [int]
+  epochs: 100               # Number of Training Epochs to use [int]
+  unfreeze_epoch:           # Epoch Number to unfreeze backbone [int]
+  drop_rate:                # Dropout rate [float] [Optional, defaults to 0]
+  attn_drop_rate:           # Dropout rate in attention layer [float] [Optional, defaults to 0]
+  drop_path_rate:           # Dropout rate in paths [float] [Optional, defaults to 0]
   optimizer:                # Pytorch Optimizer Name. All pytorch optimizers (v1.13) are supported. [str]
   optimizer_hyperparameter: # Hyperparamaters for the optimizers, must be named exactly as in the pytorch documation given for the selected optimizer
-  early_stopping_patience:  # Number of epochs before applying early stopping after metric has not been improved. Metric used is AUC. [int]
+    lr: 0.001               # e.g. learning-rate for Adam
+    betas: [0.85, 0.9]      # e.g. betas for Adam
+  early_stopping_patience:  # Number of epochs before applying early stopping after metric has not been improved. Metric used is total loss. [int]
+  scheduler:                # Learning rate scheduler. If no scheduler is selected here, then the learning rate stays constant
+    scheduler_type:         # Name of learning rate scheduler. Currently implemented: "constant", "exponential", "cosine". [str]
+    # hyperparameters       # gamma [default 0.95] for "exponential", "eta_min" [default 1e-5] for CosineAnnealingLR
+  sampling_strategy:        # Sampling strategy. Implemented are "random", "cell", "tissue" and "cell+tissue" [str] [Optional, defaults to "random"]
+  sampling_gamma:           # Gamma for balancing sampling. Must be between 0 (equal weights) and 1 (100% oversampling) [float] [Optional, defaults to 1]
 
+# transformations, here all options are given. Remove transformations by removing them from this section
+transformations:
+  randomrotate90:           # RandomRotation90
+    p:                      # Probability [float, between 0 and 1]
+  horizontalflip:           # HorizontalFlip
+    p:                      # Probability [float, between 0 and 1]
+  verticalflip:             # VerticalFlip
+    p:                      # Probability [float, between 0 and 1]
+  downscale:                # Downscaling
+    p:                      # Probability [float, between 0 and 1]
+    scale:                  # Scaling factor, maximum should be 0.5. Must be smaller than 1 [float, between 0 and 1]
+  blur:                     # Blur
+    p:                      # Probability [float, between 0 and 1]
+    blur_limit:             # Bluring limit, maximum should be 10, recommended 10 [float]
+  gaussnoise:               # GaussianNoise
+    p:                      # Probability [float, between 0 and 1]
+    var_limit:              # Variance limit, maxmimum should be 50, recommended 10 [float]
+  colorjitter:              # ColorJitter
+    p:                      # Probability [float, between 0 and 1]
+    scale_setting:          # Scaling for contrast and brightness, recommended 0.25 [float]
+    scale_color:            # Scaling for hue and saturation, recommended 0.1 [float]
+  superpixels:              # SuperPixels
+    p:                      # Probability [float, between 0 and 1]
+  zoomblur:                 # ZoomBlur
+    p:                      # Probability [float, between 0 and 1]
+  randomsizedcrop:          # RandomResizeCrop
+    p:                      # Probability [float, between 0 and 1]
+  elastictransform:         # ElasticTransform
+    p:                      # Probability [float, between 0 and 1]
+  normalize:                # Normalization
+    mean:                   # Mean for Normalizing, default to (0.5, 0.5, 0.5) [list[float], between 0 and 1 for each entry]
+    std:                    # STD for Normalizing, default to (0.5, 0.5, 0.5) [list[float], between 0 and 1 for each entry]
 ```

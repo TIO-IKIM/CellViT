@@ -898,7 +898,7 @@ class InferenceWSIParser:
         # Dataset
         subparser_dataset = subparsers.add_parser(
             "process_dataset",
-            description="Process a whole dataset",  # TODO: link dataset documentation
+            description="Process a whole dataset",
         )
         subparser_dataset.add_argument(
             "--wsi_paths", type=str, help="Path to the folder where all WSI are stored"

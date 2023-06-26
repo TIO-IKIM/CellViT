@@ -26,12 +26,14 @@ This repository contains the code implementation of CellViT, a deep learning-bas
 
 
 ## Key Features
-- Utilizes Vision Transformer (ViT) for nuclei instance segmentation.
-- Trained and evaluated on the PanNuke dataset, a challenging nuclei segmentation benchmark.
-- We provide a fast inference pipeline with connection to current Viewing Software such as *QuPath*
-– Achieves state-of-the-art performance on the PanNuke dataset:
-  - Mean panoptic quality: 0.51
-  - F1-detection score: 0.83
+  - State-of-the-Art Performance: CellViT outperforms existing methods for nuclei instance segmentation by a substantial margin, delivering superior results on the PanNuke dataset:
+    - Mean panoptic quality: 0.51
+    - F1-detection score: 0.83
+  - Vision Transformer Encoder: The project incorporates pre-trained Vision Transformer (ViT) encoders, which are known for their effectiveness in various computer vision tasks. This choice enhances the segmentation performance of CellViT.
+  - U-Net Architecture: CellViT adopts a U-Net-shaped encoder-decoder network structure, allowing for efficient and accurate nuclei instance segmentation. The network architecture facilitates both high-level and low-level feature extraction for improved segmentation results.
+  - Weighted Sampling Strategy: To enhance the performance of CellViT, a novel weighted sampling strategy is introduced. This strategy improves the representation of challenging nuclei instances, leading to more accurate segmentation results.
+  - Fast Inference on Gigapixel WSI: The framework provides fast inference results by utilizing a large inference patch size of $1024 \times 1024$ pixels, in contrast to the conventional $256$-pixel-sized patches. This approach enables efficient analysis of Gigapixel Whole Slide Images (WSI) and generates localizable deep features that hold potential value for downstream tasks. We provide a fast inference pipeline with connection to current Viewing Software such as *QuPath*
+
 
 #### Visualization
 <div align="center">
@@ -46,6 +48,7 @@ This repository contains the code implementation of CellViT, a deep learning-bas
 1. Clone the repository:
   `git clone https://github.com/TIO-IKIM/CellViT.git`
 2. Create a conda environment with Python 3.9.7 version and install conda requirements: `conda create --name pathology_env --file ./requirements_conda.txt python=3.9.7`
+This step is necessary, as we need to install `Openslide` with binary files. This is easier with conda. Otherwise, installation from [source](https://openslide.org/api/python/) needs to be performed and then with pip.
 3. Activate environment: `conda activate pathology_env`
 4. Install torch for for system, as described [here](https://pytorch.org/get-started/locally/). Preferred version is 1.13, see [optional_dependencies](./optional_dependencies.txt) for help.
 5. Install pip dependencies: `pip install -r requirements.txt`
@@ -63,6 +66,12 @@ We are currently using the following folder structure:
 ```bash
 ├── base_ml               # Basic Machine Learning Code: CLI, Trainer, Experiment, ...
 ├── cell_segmentation     # Cell Segmentation training and inference files
+│   ├── datasets          # Datasets (PyTorch)
+│   ├── experiments       # Specific Experiment Code for different experiments
+│   ├── inference         # Inference code for experiment statistics and plots
+│   ├── trainer           # Trainer functions to train networks
+│   ├── utils             # Utils code
+│   └── run_xxx.py        # Run file to start an experiment
 ├── configs               # Config files
 │   ├── examples          # Example config files with explanations
 │   └── python            # Python configuration file for global Python settings
@@ -102,11 +111,10 @@ required named arguments:
   --config CONFIG       Path to a config file (default: None)
 ```
 
-The important file is the configuration file, in which all paths are set, the model configuration is given and the hyperparameters or sweeps are defined. For each specific run file, there exists an example file in the [./configs/examples/classification](configs/examples/cell_segmentation) folder with the same naming as well as a configuration file that explains how to run WandB sweeps for hyperparameter search. A general configuration for all experiments is given one section below.
+The important file is the configuration file, in which all paths are set, the model configuration is given and the hyperparameters or sweeps are defined. For each specific run file, there exists an example file in the [./configs/examples/classification](configs/examples/cell_segmentation) folder with the same naming as well as a configuration file that explains how to run WandB sweeps for hyperparameter search. All metrics defined in your trainer are logged to WandB. The WandB configuration needs to be set up in the configuration file, but also turned off by the user.
 
-All metrics defined in your trainer are logged to WandB. The WandB configuration needs to be set up in the configuration file.
 
-!!! Insert link to example yaml file !!! (/homes/fhoerst/histo-projects/CellViT/docs/readmes/example_train_config.md)
+An example config file is given [here](configs/examples/cell_segmentation/train_cellvit.yaml) with explanations [here](docs/readmes/example_train_config.md):
 
 ### Inference
 
@@ -122,10 +130,17 @@ License: [Apache 2.0 with Commons Clause](./LICENSE)
 Pre-trained ViT models for training initialization can be downloaded here: [ViT-Models](https://drive.google.com/drive/folders/1zFO4bgo7yvjT9rCJi_6Mt6_07wfr0CKU?usp=sharing)
 Please check out the corresponding licenses before distribution and further usage!
 
-#### Preprocessing
-In our Pre-Processing pipeline, we are able to extract quadratic patches from detected tissue areas, load annotation files (`.json`) and apply color normlizations. We make use of the popular [OpenSlide](https://openslide.org/) library, but extended it with the [RAPIDS cuCIM](https://github.com/rapidsai/cucim) framework for an x8 speedup in patch-extraction. The documentation for the preprocessing can be found [here](./docs/readmes/preprocessing.md).
+##### Steps
+The following steps are necessary for preprocessing:
+1. Prepare WSI with our preprocessing pipeline
+2. Run inference with the [`inference/cell_detection.py`](/cell_segmentation/inference/cell_detection.py) script
 
-Preprocessing is necessary to extract patches for our inference pipeline. We use squred patches of size 1024 pixels with an overlap of 64 px.
+Results are stored at preprocessing locations
+
+#### 1. Preprocessing
+In our Pre-Processing pipeline, we are able to extract quadratic patches from detected tissue areas, load annotation files (`.json`) and apply color normlizations. We make use of the popular [OpenSlide](https://openslide.org/) library, but extended it with the [RAPIDS cuCIM](https://github.com/rapidsai/cucim) framework for an x8 speedup in patch-extraction. The documentation for the preprocessing can be found [here](/docs/readmes/preprocessing.md).
+
+Preprocessing is necessary to extract patches for our inference pipeline. We use squared patches of size 1024 pixels with an overlap of 64 px.
 
 **Please make sure that you select the following properties for our CellViT inference**
 | Parameter     	| Value 	|
@@ -179,8 +194,69 @@ WSI_Name
 
 The cell detection and segmentation results are stored in a newly created `cell_detection` folder for each WSI.
 
-#### cell_detection.py
-TBD
+#### 2. Cell detection script
+If the data is prepared, use the [`cell_detection.py`](inference/cell_detection.py) script inside the `cell_segmentation/inference` folder to perform inference:
 
-## Docker
-TBD
+```bash
+usage: cell_detection.py --model MODEL [--gpu GPU] [--magnification MAGNIFICATION] [--outdir_subdir OUTDIR_SUBDIR]
+                          [--geojson] {process_wsi,process_dataset} ...
+
+Perform CellViT inference for given run-directory with model checkpoints and logs
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --gpu GPU             Cuda-GPU ID for inference. Default: 0 (default: 0)
+  --magnification MAGNIFICATION
+                        Network magnification. Is used for checking patch magnification such that
+                        we use the correct resolution for network. Default: 40 (default: 40)
+  --outdir_subdir OUTDIR_SUBDIR
+                        If provided, a subdir with the given name is created in the cell_detection folder
+                        where the results are stored. Default: None (default: None)
+  --geojson             Set this flag to export results as additional geojson files for
+                        loading them into Software like QuPath. (default: False)
+
+required named arguments:
+  --model MODEL         Model checkpoint file that is used for inference (default: None)
+
+subcommands:
+  Main run command for either performing inference on single WSI-file or on whole dataset
+
+  {process_wsi,process_dataset}
+```
+##### Single WSI
+For processing a single WSI file, you need to select the `process_wsi` (`python3 cell_detection.py process_wsi`) subcommand with the following structure:
+```bash
+usage: cell_detection.py process_wsi --wsi_path WSI_PATH --patched_slide_path PATCHED_SLIDE_PATH
+
+Process a single WSI file
+
+arguments:
+  -h, --help            show this help message and exit
+  --wsi_path WSI_PATH   Path to WSI file
+  --patched_slide_path PATCHED_SLIDE_PATH
+                        Path to patched WSI file (specific WSI file, not parent path of patched slide dataset)
+```
+##### Multiple WSI
+To process an entire dataset, select `process_dataset` (`python3 cell_detection.py process_dataset`):
+```bash
+usage: cell_detection.py process_dataset  --wsi_paths WSI_PATHS --patch_dataset_path PATCH_DATASET_PATH [--filelist FILELIST] [--wsi_extension WSI_EXTENSION]
+
+Process a whole dataset
+
+arguments:
+  -h, --help            show this help message and exit
+  --wsi_paths WSI_PATHS
+                        Path to the folder where all WSI are stored
+  --patch_dataset_path PATCH_DATASET_PATH
+                        Path to the folder where the patch dataset is stored
+  --filelist FILELIST   Filelist with WSI to process. Must be a .csv file with one row denoting the filenames (named 'Filename').
+                        If not provided, all WSI files with given ending in the WSI folder are processed. (default: 'None')
+  --wsi_extension WSI_EXTENSION
+                        The extension types used for the WSI files, see configs.python.config (WSI_EXT). (default: 'svs')
+```
+
+## Docker Image (Coming Soon) 🐳
+
+In a future release, we will provide a Docker image that contains all the necessary dependencies and configurations pre-installed. This Docker image will ensure reproducibility and simplify the setup process, allowing for easy installation and usage of the project.
+
+Stay tuned for updates on the availability of the Docker image, as we are actively working on providing this convenient packaging option for our project. 🚀

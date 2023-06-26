@@ -33,3 +33,6 @@ models/pretrained
 
 # Notebooks
 notebooks/
+
+# ruff
+.ruff_cache
