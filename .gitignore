@@ -36,3 +36,9 @@ notebooks/
 
 # ruff
 .ruff_cache
+
+# slurm
+slurm
+
+# example
+example/output

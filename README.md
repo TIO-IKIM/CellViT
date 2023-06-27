@@ -13,7 +13,7 @@ ___
 # CellViT: Expanding Horizons with Vision Transformers for Precise Cell Segmentation and Classification
 <div align="center">
 
-[Key Features](#key-features) • [Installation](#installation) • [Usage](#usage) • [Training](#training) • [Inference](#inference)
+[Key Features](#key-features) • [Installation](#installation) • [Usage](#usage) • [Training](#training) • [Inference](#inference) • [Examples](#examples)
 
 </div>
 This is the official PyTorch implementation of the cell detection and instance segmentation algorithm using a comination of Vision Transformer image encoder and U-Net network structure, titled: "CellViT: Expanding Horizons with Vision Transformers for Precise Cell Segmentation and Classification" (Fabian Hörst, Moritz Rempe, Lukas Heine, Constantin Seibold, Julius Keyl, Giulia Baldini, Selma Ugurel, Jens Siveke, Barbara Grünwald, Jan Egger, and Jens Kleesiek, 2023)
@@ -47,15 +47,16 @@ This repository contains the code implementation of CellViT, a deep learning-bas
 
 1. Clone the repository:
   `git clone https://github.com/TIO-IKIM/CellViT.git`
-2. Create a conda environment with Python 3.9.7 version and install conda requirements: `conda create --name pathology_env --file ./requirements_conda.txt python=3.9.7`
-This step is necessary, as we need to install `Openslide` with binary files. This is easier with conda. Otherwise, installation from [source](https://openslide.org/api/python/) needs to be performed and then with pip.
-3. Activate environment: `conda activate pathology_env`
-4. Install torch for for system, as described [here](https://pytorch.org/get-started/locally/). Preferred version is 1.13, see [optional_dependencies](./optional_dependencies.txt) for help.
-5. Install pip dependencies: `pip install -r requirements.txt`
----
-Optional:
-Install optional dependencies `pip install -r optional_dependencies.txt` to get a speedup using [NVIDIA-Clara](https://www.nvidia.com/de-de/clara/) and [CuCIM](https://github.com/rapidsai/cucim) for preprocessing during inference.
+2. Create a conda environment with Python 3.9.7 version and install conda requirements: `conda env create -f environment.yml`. You can change the environment name by editing the `name` tag in the environment.yaml file.
+This step is necessary, as we need to install `Openslide` with binary files. This is easier with conda. Otherwise, installation from [source](https://openslide.org/api/python/) needs to be performed and packages installed with pi
+3. Activate environment: `conda activate cellvit_env`
+4. Install torch for for system, as described [here](https://pytorch.org/get-started/locally/). Preferred version is 1.13, see [optional_dependencies](./optional_dependencies.txt) for help. You can find all version here: https://pytorch.org/get-started/previous-versions/
 
+5. Install optional dependencies `pip install -r optional_dependencies.txt` to get a speedup using [NVIDIA-Clara](https://www.nvidia.com/de-de/clara/) and [CuCIM](https://github.com/rapidsai/cucim) for preprocessing during inference. Please select your cude versions. Help for installing cucim can be found [online](https://github.com/rapidsai/cucim).
+**Note: cannot import name CuImage from cucim**
+If you get this error, install cucim from conda to get all binary files.
+First remove your previous dependeny with `pip uninstall cupy-cuda117` and reinstall with `
+conda install -c rapidsai cucim` inside your conda environment. Also follow their [official guideline](https://github.com/rapidsai/cucim).
 
 ## Usage:
 
@@ -254,6 +255,31 @@ arguments:
   --wsi_extension WSI_EXTENSION
                         The extension types used for the WSI files, see configs.python.config (WSI_EXT). (default: 'svs')
 ```
+
+#### 3. Example
+We provide an example TCGA file to show the performance and usage of our algorithms.
+Files and scripts can be found in the [example](example) folder.
+
+**Preprocessing:**
+```bash
+python3 ./preprocessing/patch_extraction/main_extraction.py --config ./example/preprocessing_example.yaml
+```
+
+Output is stored inside `./example/output/preprocessing`
+
+**Inference:**
+Download the models and store them in `` or on your preferred location and change the model parameter.
+
+```bash
+python3 ./cell_segmentation/inference/cell_detection.py \
+  --model ./models/pretrained/CellViT/CellViT-SAM-H-x40.pth\
+  --gpu 1 \
+  --geojson \
+  process_wsi \
+  --wsi_path ./example/TCGA-V5-A7RE-11A-01-TS1.57401526-EF9E-49AC-8FF6-B4F9652311CE.svs \
+  --patched_slide_path ./example/output/preprocessing/TCGA-V5-A7RE-11A-01-TS1.57401526-EF9E-49AC-8FF6-B4F9652311CE
+```
+You can import your results (.geojson files) into [QuPath](https://qupath.github.io/).
 
 ## Docker Image (Coming Soon) 🐳
 

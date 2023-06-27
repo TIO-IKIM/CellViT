@@ -1,0 +1,16 @@
+# dataset paths
+wsi_paths: ./example/TCGA-V5-A7RE-11A-01-TS1.57401526-EF9E-49AC-8FF6-B4F9652311CE.svs
+output_path: ./example/output/preprocessing
+
+# basic setups
+patch_size: 1024
+patch_overlap: 6.25
+target_mag: 40
+processes: 6
+patches_per_batch: 4
+overwrite: True
+# macenko stain normalization
+normalize_stains: True
+
+# finding patches
+min_intersection_ratio: 0.05
