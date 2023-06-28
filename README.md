@@ -296,3 +296,15 @@ You can import your results (.geojson files) into [QuPath](https://qupath.github
 In a future release, we will provide a Docker image that contains all the necessary dependencies and configurations pre-installed. This Docker image will ensure reproducibility and simplify the setup process, allowing for easy installation and usage of the project.
 
 Stay tuned for updates on the availability of the Docker image, as we are actively working on providing this convenient packaging option for our project. 🚀
+
+## Citation
+```latex
+@misc{hörst2023cellvit,
+      title={CellViT: Vision Transformers for Precise Cell Segmentation and Classification},
+      author={Fabian Hörst and Moritz Rempe and Lukas Heine and Constantin Seibold and Julius Keyl and Giulia Baldini and Selma Ugurel and Jens Siveke and Barbara Grünwald and Jan Egger and Jens Kleesiek},
+      year={2023},
+      eprint={2306.15350},
+      archivePrefix={arXiv},
+      primaryClass={eess.IV}
+}
+```
