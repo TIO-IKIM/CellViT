@@ -25,7 +25,7 @@ gpu:                        # Number of GPU to run experiment on [int]
 # setting paths and dataset
 data:
   dataset:                  # Name of dataset, currently supported: PanNuke [str]
-  dataset_path:             # Path to dataset, compare ./docs/readmes/cell_segmentation.md for further details [str]
+  dataset_path:             # Path to dataset, compare ./docs/readmes/pannuke.md for further details [str]
   train_folds: [...]        # List of fold Numbers to use for training [list[int]]
   val_split:                # Percentage of training set that should be used for validation. Either val_split or val_fold must be provided, not both. [float]
   val_folds:                # List of fold Numbers to use for validation [list[int]]
