@@ -22,7 +22,6 @@ dependencies:
     - keras==2.12.0
     - matplotlib==3.7.1
     - numpy>1.22,<1.24
-    #- opencv_python==4.6.0.66
     - opencv_python_headless==4.5.4.58
     - openslide_python==1.2.0
     - pandarallel==1.6.5
@@ -43,5 +42,4 @@ dependencies:
     - tabulate==0.9.0
     - tensorflow==2.12.0
     - tqdm==4.65.0
-
-# configs==3.0.3
+    - ujson==5.8.0
