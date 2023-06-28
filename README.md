@@ -11,7 +11,7 @@ ___
 
 ___
 
-# CellViT: Expanding Horizons with Vision Transformers for Precise Cell Segmentation and Classification
+# CellViT: Vision Transformers for Precise Cell Segmentation and Classification
 <div align="center">
 
 [Key Features](#key-features) • [Installation](#installation) • [Usage](#usage) • [Training](#training) • [Inference](#inference) • [Examples](#examples)
