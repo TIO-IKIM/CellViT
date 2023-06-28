@@ -2,7 +2,7 @@
 # MoNuSeg Dataset
 #
 # Dataset information: https://monuseg.grand-challenge.org/Home/
-# Please Prepare Dataset as described here
+# Please Prepare Dataset as described here: docs/readmes/monuseg.md
 #
 # @ Fabian Hörst, fabian.hoerst@uk-essen.de
 # Institute for Artifical Intelligence in Medicine,
