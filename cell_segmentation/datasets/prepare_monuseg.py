@@ -13,13 +13,16 @@ from pathlib import Path
 from typing import Union
 import argparse
 
-# input_path = ""
-# output_path = ""
 
-
-def convert_pannuke(
+def convert_monuseg(
     input_path: Union[Path, str], output_path: Union[Path, str]
 ) -> None:
+    """Convert the MoNuSeg dataset to a new format (1000 -> 1024, tiff to png and xml to npy)
+
+    Args:
+        input_path (Union[Path, str]): Input dataset
+        output_path (Union[Path, str]): Output path
+    """
     input_path = Path(input_path)
     output_path = Path(output_path)
     output_path.mkdir(exist_ok=True, parents=True)
@@ -87,21 +90,19 @@ def convert_pannuke(
 
 parser = argparse.ArgumentParser(
     formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-    description="Perform CellViT inference for given run-directory with model checkpoints and logs",
+    description="Convert the MoNuSeg dataset",
 )
 parser.add_argument(
     "--input_path",
     type=str,
     help="Input path of the original MoNuSeg dataset",
-    default="/projects/datashare/tio/histopathology/public-datasets/MoNuSeg/Orig",
-    # required=True,
+    required=True,
 )
 parser.add_argument(
     "--output_path",
     type=str,
     help="Output path to store the processed MoNuSeg dataset",
-    default="/projects/datashare/tio/histopathology/public-datasets/MoNuSeg/Test",
-    # required=True,
+    required=True,
 )
 
 if __name__ == "__main__":
@@ -111,4 +112,4 @@ if __name__ == "__main__":
     input_path = Path(configuration["input_path"])
     output_path = Path(configuration["output_path"])
 
-    convert_pannuke(input_path=input_path, output_path=output_path)
+    convert_monuseg(input_path=input_path, output_path=output_path)

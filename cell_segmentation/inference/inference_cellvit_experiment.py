@@ -13,8 +13,6 @@ import inspect
 import os
 import sys
 
-from sklearn.metrics import accuracy_score
-
 currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
 parentdir = os.path.dirname(currentdir)
 sys.path.insert(0, parentdir)
@@ -38,6 +36,7 @@ import yaml
 from matplotlib import pyplot as plt
 from PIL import Image, ImageDraw
 from skimage.color import rgba2rgb
+from sklearn.metrics import accuracy_score
 from tabulate import tabulate
 from torch.utils.data import DataLoader
 from torchmetrics.functional import dice
@@ -56,11 +55,11 @@ from cell_segmentation.utils.post_proc import calculate_instances
 from cell_segmentation.utils.tools import cropping_center, pair_coordinates
 from models.segmentation.cell_segmentation.cellvit import (
     CellViT,
+    CellViT256,
+    CellViT256Unshared,
     CellViTSAM,
     CellViTSAMUnshared,
     CellViTUnshared,
-    CellViT256,
-    CellViT256Unshared,
 )
 from utils.logger import Logger
 from utils.tools import AverageMeter
