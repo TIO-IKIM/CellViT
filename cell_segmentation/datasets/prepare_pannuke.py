@@ -75,15 +75,13 @@ parser.add_argument(
     "--input_path",
     type=str,
     help="Input path of the original PanNuke dataset",
-    default="/projects/datashare/tio/histopathology/public-datasets/PanNuke/orig_structure",
-    # required=True,
+    required=True,
 )
 parser.add_argument(
     "--output_path",
     type=str,
     help="Output path to store the processed PanNuke dataset",
-    default="/projects/datashare/tio/histopathology/public-datasets/PanNuke/test",
-    # required=True,
+    required=True,
 )
 
 if __name__ == "__main__":

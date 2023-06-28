@@ -139,7 +139,7 @@ License: [Apache 2.0 with Commons Clause](./LICENSE)
 
 Pre-trained ViT models for training initialization can be downloaded here: [ViT-Models](https://drive.google.com/drive/folders/1zFO4bgo7yvjT9rCJi_6Mt6_07wfr0CKU?usp=sharing)
 Please check out the corresponding licenses before distribution and further usage!
-Note: We just used the teacher models for ViT-256.
+Note: We just used the teacher models for ViT-256. Proved checkpoints have been trained on 90% of the data from all folds with the settings described in the publication.
 
 ##### Steps
 The following steps are necessary for preprocessing:
