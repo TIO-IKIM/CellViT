@@ -22,11 +22,15 @@ ___
 ---
 
 > **Update**:
-> :white_check_mark: Inference speed improved by x100 for postprocessing
-> :white_check_mark: Fixed bug in postprocessing that may insert doubled cells during cell-detection
-> :white_check_mark: Added mixed-mrecision training
-> :white_check_mark: Added batch-size and mixed-precision options to inference cli to support RAM limited GPUs
-> :white_check_mark: Extended configuration and added sweep configuration
+> :ballot_box_with_check: Inference speed improved by x100 for postprocessing
+>
+> :ballot_box_with_check: Fixed bug in postprocessing that may insert doubled cells during cell-detection
+>
+> :ballot_box_with_check: Added mixed-mrecision training
+>
+> :ballot_box_with_check: Added batch-size and mixed-precision options to inference cli to support RAM limited GPUs
+>
+> :ballot_box_with_check: Extended configuration and added sweep configuration
 ---
 
 *Hörst, F., Rempe, M., Heine, L., Seibold, C., Keyl, J., Baldini, G., Ugurel, S., Siveke, J., Grünwald, B., Egger, J., & Kleesiek, J. (2023). CellViT: Vision Transformers for precise cell segmentation and classification. https://doi.org/10.48550/ARXIV.2306.15350*
