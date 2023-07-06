@@ -15,9 +15,19 @@ ___
 # CellViT: Vision Transformers for Precise Cell Segmentation and Classification
 <div align="center">
 
-[Key Features](#key-features) • [Installation](#installation) • [Usage](#usage) • [Training](#training) • [Inference](#inference) • [Examples](#examples)
+[Key Features](#key-features) • [Installation](#installation) • [Usage](#usage) • [Training](#training) • [Inference](#inference) • [Examples](#examples) • [Roadmap](#Roadmap) • [Citation](#Citation)
 
 </div>
+
+---
+
+> **Update**:
+> :white_check_mark: Inference speed improved by x100 for postprocessing
+> :white_check_mark: Fixed bug in postprocessing that may insert doubled cells during cell-detection
+> :white_check_mark: Added mixed-mrecision training
+> :white_check_mark: Added batch-size and mixed-precision options to inference cli to support RAM limited GPUs
+> :white_check_mark: Extended configuration and added sweep configuration
+---
 
 *Hörst, F., Rempe, M., Heine, L., Seibold, C., Keyl, J., Baldini, G., Ugurel, S., Siveke, J., Grünwald, B., Egger, J., & Kleesiek, J. (2023). CellViT: Vision Transformers for precise cell segmentation and classification. https://doi.org/10.48550/ARXIV.2306.15350*
 
@@ -121,6 +131,8 @@ required named arguments:
 The important file is the configuration file, in which all paths are set, the model configuration is given and the hyperparameters or sweeps are defined. For each specific run file, there exists an example file in the [./configs/examples/cell_segmentation](configs/examples/cell_segmentation) folder with the same naming as well as a configuration file that explains how to run WandB sweeps for hyperparameter search. All metrics defined in your trainer are logged to WandB. The WandB configuration needs to be set up in the configuration file, but also turned off by the user.
 
 An example config file is given [here](configs/examples/cell_segmentation/train_cellvit.yaml) with explanations [here](docs/readmes/example_train_config.md).
+For sweeps, we provide a sweep example file [train_cellvit_sweep.yaml](/configs/examples/cell_segmentation/train_cellvit_sweep.yaml).
+
 
 #### Dataset preparation
 We use a customized dataset structure for the PanNuke and the MoNuSeg dataset.
@@ -297,7 +309,12 @@ You can import your results (.geojson files) into [QuPath](https://qupath.github
 
 </div>
 
-## Docker Image (Coming Soon) 🐳
+## Roadmap
+
+### Inference Speed
+We are currently optimizing the inference speed. Code will be updated in a few weeks.
+
+### Docker Image (Coming Soon) 🐳
 
 In a future release, we will provide a Docker image that contains all the necessary dependencies and configurations pre-installed. This Docker image will ensure reproducibility and simplify the setup process, allowing for easy installation and usage of the project.
 
