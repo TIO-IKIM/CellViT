@@ -111,6 +111,7 @@ class CellViTTrainer(BaseTrainer):
                     f"{branch}_{loss_name}", ":.4f"
                 )
         self.batch_avg_tissue_acc = AverageMeter("Batch_avg_tissue_ACC", ":4.f")
+        self.scaler = torch.cuda.amp.GradScaler(enabled=True)
 
     def train_epoch(
         self, epoch: int, train_dataloader: DataLoader, unfreeze_epoch: int = 50
@@ -233,28 +234,31 @@ class CellViTTrainer(BaseTrainer):
         ]  # dict: keys: "instance_map", "nuclei_map", "nuclei_binary_map", "hv_map"
         tissue_types = batch[2]  # list[str]
 
-        # make predictions
-        predictions_ = self.model.forward(imgs)
+        with torch.autocast(device_type="cuda", dtype=torch.float16):
+            # make predictions
+            predictions_ = self.model.forward(imgs)
 
-        # reshaping and postprocessing
-        predictions = self.unpack_predictions(predictions=predictions_)
-        gt = self.unpack_masks(masks=masks, tissue_types=tissue_types)
+            # reshaping and postprocessing
+            predictions = self.unpack_predictions(predictions=predictions_)
+            gt = self.unpack_masks(masks=masks, tissue_types=tissue_types)
 
-        # calculate loss
-        total_loss = self.calculate_loss(predictions, gt)
+            # calculate loss
+            total_loss = self.calculate_loss(predictions, gt)
 
         # backward pass
-        total_loss.backward()
+        self.scaler.scale(total_loss).backward()
+
         if (
             ((batch_idx + 1) % self.accum_iter == 0)
             or ((batch_idx + 1) == num_batches)
             or (self.accum_iter == 1)
         ):
-            self.optimizer.step()
+            self.scaler.step(self.optimizer)
+            self.scaler.update()
             self.optimizer.zero_grad(set_to_none=True)
             self.model.zero_grad()
-            with torch.cuda.device(self.device):
-                torch.cuda.empty_cache()
+            # with torch.cuda.device(self.device):
+            #     torch.cuda.empty_cache()
 
         batch_metrics = self.calculate_step_metric_train(predictions, gt)
 

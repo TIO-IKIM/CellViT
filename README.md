@@ -14,7 +14,7 @@ ___
 # CellViT: Vision Transformers for Precise Cell Segmentation and Classification
 <div align="center">
 
-[Key Features](#key-features) • [Installation](#installation) • [Usage](#usage) • [Training](#training) • [Inference](#inference) • [Examples](#examples)
+[Key Features](#key-features) • [Installation](#installation) • [Usage](#usage) • [Training](#training) • [Inference](#inference) • [Examples](#examples) • [Roadmap](#Roadmap) • [Citation](#Citation)
 
 </div>
 
@@ -296,7 +296,12 @@ You can import your results (.geojson files) into [QuPath](https://qupath.github
 
 </div>
 
-## Docker Image (Coming Soon) 🐳
+## Roadmap
+
+### Inference Speed
+We are currently optimizing the inference speed. Code will be updated in a few weeks.
+
+### Docker Image (Coming Soon) 🐳
 
 In a future release, we will provide a Docker image that contains all the necessary dependencies and configurations pre-installed. This Docker image will ensure reproducibility and simplify the setup process, allowing for easy installation and usage of the project.
 
