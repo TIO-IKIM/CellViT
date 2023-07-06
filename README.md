@@ -22,6 +22,7 @@ ___
 ---
 
 > **Update**:
+>
 > :ballot_box_with_check: Inference speed improved by x100 for postprocessing
 >
 > :ballot_box_with_check: Fixed bug in postprocessing that may insert doubled cells during cell-detection
