@@ -227,7 +227,8 @@ The cell detection and segmentation results are stored in a newly created `cell_
 If the data is prepared, use the [`cell_detection.py`](inference/cell_detection.py) script inside the `cell_segmentation/inference` folder to perform inference:
 
 ```bash
-usage: cell_detection.py --model MODEL [--gpu GPU] [--magnification MAGNIFICATION] [--outdir_subdir OUTDIR_SUBDIR]
+usage: cell_detection.py --model MODEL [--gpu GPU] [--magnification MAGNIFICATION] [--mixed_precision]
+                          [--batch_size BATCH_SIZE] [--outdir_subdir OUTDIR_SUBDIR]
                           [--geojson] {process_wsi,process_dataset} ...
 
 Perform CellViT inference for given run-directory with model checkpoints and logs
@@ -238,6 +239,9 @@ optional arguments:
   --magnification MAGNIFICATION
                         Network magnification. Is used for checking patch magnification such that
                         we use the correct resolution for network. Default: 40 (default: 40)
+  --mixed_precision     Whether to use mixed precision for inference. Default: False (default: False)
+  --batch_size BATCH_SIZE
+                        Inference batch-size. Default: 8 (default: 8)
   --outdir_subdir OUTDIR_SUBDIR
                         If provided, a subdir with the given name is created in the cell_detection folder
                         where the results are stored. Default: None (default: None)
