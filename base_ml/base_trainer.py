@@ -37,6 +37,7 @@ class BaseTrainer:
         early_stopping (EarlyStopping, optional): Early Stopping Class. Defaults to None.
         accum_iter (int, optional): Accumulation steps for gradient accumulation.
             Provide a number greater than 1 for activating gradient accumulation. Defaults to 1.
+        mixed_precision (bool, optional): If mixed-precision should be used. Defaults to False.
         log_images (bool, optional): If images should be logged to WandB. Defaults to False.
     """
 
@@ -52,6 +53,7 @@ class BaseTrainer:
         experiment_config: dict,
         early_stopping: EarlyStopping = None,
         accum_iter: int = 1,
+        mixed_precision: bool = False,
         log_images: bool = False,
     ) -> None:
         self.model = model
@@ -66,6 +68,11 @@ class BaseTrainer:
         self.start_epoch = 0
         self.experiment_config = experiment_config
         self.log_images = log_images
+        self.mixed_precision = mixed_precision
+        if self.mixed_precision:
+            self.scaler = torch.cuda.amp.GradScaler(enabled=True)
+        else:
+            self.scaler = None
 
     @abstractmethod
     def train_epoch(
@@ -231,6 +238,9 @@ class BaseTrainer:
             "wandb_id": wandb.run.id,
             "logdir": str(self.logdir.resolve()),
             "run_name": str(Path(self.logdir).name),
+            "scaler_state_dict": self.scaler.state_dict()
+            if self.scaler is not None
+            else None,
         }
 
         checkpoint_dir = self.logdir / "checkpoints"
@@ -250,6 +260,9 @@ class BaseTrainer:
         if self.early_stopping is not None:
             self.early_stopping.best_metric = checkpoint["best_metric"]
             self.early_stopping.best_epoch = checkpoint["best_epoch"]
+        if self.scaler is not None:
+            self.scaler.load_state_dict(checkpoint["scaler_state_dict"])
+
         self.logger.info(f"Checkpoint epoch: {int(checkpoint['epoch'])}")
         self.start_epoch = int(checkpoint["epoch"])
         self.logger.info(f"Next epoch is: {self.start_epoch + 1}")
