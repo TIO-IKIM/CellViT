@@ -64,6 +64,8 @@ class CellViTTrainer(BaseTrainer):
         experiment_config (dict): Configuration of this experiment
         early_stopping (EarlyStopping, optional):  Early Stopping Class. Defaults to None.
         log_images (bool, optional): If images should be logged to WandB. Defaults to False.
+        magnification (int, optional): Image magnification. Please select either 40 or 20. Defaults to 40.
+        mixed_precision (bool, optional): If mixed-precision should be used. Defaults to False.
     """
 
     def __init__(
@@ -81,6 +83,7 @@ class CellViTTrainer(BaseTrainer):
         early_stopping: EarlyStopping = None,
         log_images: bool = False,
         magnification: int = 40,
+        mixed_precision: bool = False,
     ):
         super().__init__(
             model=model,
@@ -94,6 +97,7 @@ class CellViTTrainer(BaseTrainer):
             early_stopping=early_stopping,
             accum_iter=1,
             log_images=log_images,
+            mixed_precision=mixed_precision,
         )
         self.loss_fn_dict = loss_fn_dict
         self.num_classes = num_classes
@@ -111,7 +115,6 @@ class CellViTTrainer(BaseTrainer):
                     f"{branch}_{loss_name}", ":.4f"
                 )
         self.batch_avg_tissue_acc = AverageMeter("Batch_avg_tissue_ACC", ":4.f")
-        self.scaler = torch.cuda.amp.GradScaler(enabled=True)
 
     def train_epoch(
         self, epoch: int, train_dataloader: DataLoader, unfreeze_epoch: int = 50
@@ -234,31 +237,37 @@ class CellViTTrainer(BaseTrainer):
         ]  # dict: keys: "instance_map", "nuclei_map", "nuclei_binary_map", "hv_map"
         tissue_types = batch[2]  # list[str]
 
-        with torch.autocast(device_type="cuda", dtype=torch.float16):
-            # make predictions
-            predictions_ = self.model.forward(imgs)
+        if self.mixed_precision:
+            with torch.autocast(device_type="cuda", dtype=torch.float16):
+                # make predictions
+                predictions_ = self.model.forward(imgs)
 
-            # reshaping and postprocessing
+                # reshaping and postprocessing
+                predictions = self.unpack_predictions(predictions=predictions_)
+                gt = self.unpack_masks(masks=masks, tissue_types=tissue_types)
+
+                # calculate loss
+                total_loss = self.calculate_loss(predictions, gt)
+
+                # backward pass
+                self.scaler.scale(total_loss).backward()
+
+                if (
+                    ((batch_idx + 1) % self.accum_iter == 0)
+                    or ((batch_idx + 1) == num_batches)
+                    or (self.accum_iter == 1)
+                ):
+                    self.scaler.step(self.optimizer)
+                    self.scaler.update()
+                    self.optimizer.zero_grad(set_to_none=True)
+                    self.model.zero_grad()
+        else:
+            predictions_ = self.model.forward(imgs)
             predictions = self.unpack_predictions(predictions=predictions_)
             gt = self.unpack_masks(masks=masks, tissue_types=tissue_types)
 
             # calculate loss
             total_loss = self.calculate_loss(predictions, gt)
-
-        # backward pass
-        self.scaler.scale(total_loss).backward()
-
-        if (
-            ((batch_idx + 1) % self.accum_iter == 0)
-            or ((batch_idx + 1) == num_batches)
-            or (self.accum_iter == 1)
-        ):
-            self.scaler.step(self.optimizer)
-            self.scaler.update()
-            self.optimizer.zero_grad(set_to_none=True)
-            self.model.zero_grad()
-            # with torch.cuda.device(self.device):
-            #     torch.cuda.empty_cache()
 
         batch_metrics = self.calculate_step_metric_train(predictions, gt)
 

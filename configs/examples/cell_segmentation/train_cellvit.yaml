@@ -82,6 +82,7 @@ training:
     # hyperparameters       # gamma [default 0.95] for "exponential", "eta_min" [default 1e-5] for CosineAnnealingLR
   sampling_strategy:        # Sampling strategy. Implemented are "random", "cell", "tissue" and "cell+tissue" [str] [Optional, defaults to "random"]
   sampling_gamma:           # Gamma for balancing sampling. Must be between 0 (equal weights) and 1 (100% oversampling) [float] [Optional, defaults to 1]
+  mixed_precision:          # Mixed precision Flag. [bool] [Optional, default False]
 
 # transformations, here all options are given. Remove transformations by removing them from this section
 transformations:

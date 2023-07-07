@@ -3,6 +3,7 @@
 [![Flake8 Status](./reports/flake8/flake8-badge.svg)](./reports/flake8/index.html)
 <img src="https://img.shields.io/badge/PyTorch-EE4C2C?style=flat-square&logo=Pytorch&logoColor=white"/></a>
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![Visitors](https://api.visitorbadge.io/api/visitors?path=https%3A%2F%2Fgithub.com%2FTIO-IKIM%2FCellViT&label=Visitors&countColor=%23263759&style=flat)](https://visitorbadge.io/status?path=https%3A%2F%2Fgithub.com%2FTIO-IKIM%2FCellViT)
 [![PWC](https://img.shields.io/endpoint.svg?url=https://paperswithcode.com/badge/cellvit-vision-transformers-for-precise-cell/panoptic-segmentation-on-pannuke)](https://paperswithcode.com/sota/panoptic-segmentation-on-pannuke?p=cellvit-vision-transformers-for-precise-cell)
 ___
 <p align="center">
@@ -21,11 +22,16 @@ ___
 ---
 
 > **Update**:
-> :white_check_mark: Inference speed improved by x100 for postprocessing
-> :white_check_mark: Fixed bug in postprocessing that may insert doubled cells during cell-detection
-> :white_check_mark: Added mixed-mrecision training
-> :white_check_mark: Added batch-size and mixed-precision options to inference cli to support RAM limited GPUs
-> :white_check_mark: Extended configuration and added sweep configuration
+>
+> :ballot_box_with_check: Inference speed improved by x100 for postprocessing
+>
+> :ballot_box_with_check: Fixed bug in postprocessing that may insert doubled cells during cell-detection
+>
+> :ballot_box_with_check: Added mixed-mrecision training
+>
+> :ballot_box_with_check: Added batch-size and mixed-precision options to inference cli to support RAM limited GPUs
+>
+> :ballot_box_with_check: Extended configuration and added sweep configuration
 ---
 
 *Hörst, F., Rempe, M., Heine, L., Seibold, C., Keyl, J., Baldini, G., Ugurel, S., Siveke, J., Grünwald, B., Egger, J., & Kleesiek, J. (2023). CellViT: Vision Transformers for precise cell segmentation and classification. https://doi.org/10.48550/ARXIV.2306.15350*
