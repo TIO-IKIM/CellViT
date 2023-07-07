@@ -25,6 +25,7 @@ import argparse
 import logging
 import uuid
 import warnings
+from collections import deque
 from pathlib import Path
 from typing import List, Tuple, Union
 
@@ -54,11 +55,11 @@ from cell_segmentation.utils.template_geojson import (
 from datamodel.wsi_datamodel import WSI
 from models.segmentation.cell_segmentation.cellvit import (
     CellViT,
+    CellViT256,
+    CellViT256Unshared,
     CellViTSAM,
     CellViTSAMUnshared,
     CellViTUnshared,
-    CellViT256,
-    CellViT256Unshared,
 )
 from preprocessing.encoding.datasets.patched_wsi_inference import PatchedWSIInference
 from utils.file_handling import load_wsi_files_from_csv
@@ -67,6 +68,7 @@ from utils.tools import unflatten_dict
 
 warnings.filterwarnings("ignore", category=ShapelyDeprecationWarning)
 pandarallel.initialize(progress_bar=False, nb_workers=12)
+
 
 # color setup
 COLOR_DICT = {
@@ -87,7 +89,9 @@ TYPE_NUCLEI_DICT = {
 
 
 class CellSegmentationInference:
-    def __init__(self, model_path: Union[Path, str], gpu: int) -> None:
+    def __init__(
+        self, model_path: Union[Path, str], gpu: int, mixed_precision: bool = False
+    ) -> None:
         """Cell Segmentation Inference class.
 
         After setup, a WSI can be processed by calling process_wsi method
@@ -95,8 +99,11 @@ class CellSegmentationInference:
         Args:
             model_path (Union[Path, str]): Path to model checkpoint
             gpu (int): CUDA GPU id to use
+            mixed_precision (bool, optional): Using PyTorch autocasting with dtype float16 to speed up inference. Also good for trained amp networks.
+                Defaults to False.
         """
         self.model_path = Path(model_path)
+        self.mixed_precision = mixed_precision
         self.device = f"cuda:{gpu}"
         self.__instantiate_logger()
         self.__load_model()
@@ -217,6 +224,7 @@ class CellSegmentationInference:
         subdir_name: str = None,
         patch_size: int = 1024,
         overlap: int = 64,
+        batch_size: int = 8,
         geojson: bool = False,
     ) -> None:
         """Process WSI file
@@ -227,6 +235,7 @@ class CellSegmentationInference:
                 Helpful if you need to store different cell detection results next to each other. Defaults to None (no subdir).
             patch_size (int, optional): Patch-Size. Default to 1024.
             overlap (int, optional): Overlap between patches. Defaults to 64.
+            batch_size (int, optional): Batch-size for inference. Defaults to 8.
             geosjon (bool, optional): If a geojson export should be performed. Defaults to False.
         """
         self.logger.info(f"Processing WSI: {wsi.name}")
@@ -234,10 +243,16 @@ class CellSegmentationInference:
         wsi_inference_dataset = PatchedWSIInference(
             wsi, transform=self.inference_transforms
         )
+
+        num_workers = int(3 / 4 * os.cpu_count())
+        if num_workers is None:
+            num_workers = 16
+        num_workers = int(np.clip(num_workers, 1, 2 * batch_size))
+
         wsi_inference_dataloader = DataLoader(
             dataset=wsi_inference_dataset,
-            batch_size=8,
-            num_workers=16,
+            batch_size=batch_size,
+            num_workers=num_workers,
             shuffle=False,
             collate_fn=wsi_inference_dataset.collate_batch,
             pin_memory=False,
@@ -269,8 +284,11 @@ class CellSegmentationInference:
                 patches = batch[0].to(self.device)
 
                 metadata = batch[1]
-                predictions_ = self.model.forward(patches, retrieve_tokens=True)
-
+                if self.mixed_precision:
+                    with torch.autocast(device_type="cuda", dtype=torch.float16):
+                        predictions_ = self.model.forward(patches, retrieve_tokens=True)
+                else:
+                    predictions_ = self.model.forward(patches, retrieve_tokens=True)
                 # reshape, apply softmax to segmentation maps
                 predictions = self.model.reshape_model_output(predictions_, self.device)
                 instance_types, tokens = self.get_cell_predictions_with_tokens(
@@ -564,7 +582,7 @@ class CellPostProcessor:
             logger (logging.Logger): Logger
         """
         self.logger = logger
-        self.logger.info("Initializing Cell-Postprocessor - This may take a while")
+        self.logger.info("Initializing Cell-Postprocessor")
         self.cell_df = pd.DataFrame(cell_list)
         self.cell_df = self.cell_df.parallel_apply(convert_coordinates, axis=1)
 
@@ -581,7 +599,7 @@ class CellPostProcessor:
         Returns:
             pd.DataFrame: DataFrame with post-processed and cleaned cells
         """
-        self.logger.info("Finding edge-cells")
+        self.logger.info("Finding edge-cells for merging")
         cleaned_edge_cells = self._clean_edge_cells()
         self.logger.info("Removal of cells detected multiple times")
         cleaned_edge_cells = self._remove_overlap(cleaned_edge_cells)
@@ -590,7 +608,6 @@ class CellPostProcessor:
         postprocessed_cells = pd.concat(
             [self.mid_cells, cleaned_edge_cells]
         ).sort_index()
-
         return postprocessed_cells
 
     def _clean_edge_cells(self) -> pd.DataFrame:
@@ -600,33 +617,28 @@ class CellPostProcessor:
         Returns:
             pd.DataFrame: Cleaned DataFrame
         """
-        edge_cells = pd.DataFrame(
+
+        margin_cells = self.cell_df_margin[
+            self.cell_df_margin["edge_position"] == 0
+        ]  # cells at the margin, but not touching the border
+        edge_cells = self.cell_df_margin[
+            self.cell_df_margin["edge_position"] == 1
+        ]  # cells touching the border
+        existing_patches = list(set(self.cell_df_margin["patch_coordinates"].to_list()))
+
+        edge_cells_unique = pd.DataFrame(
             columns=self.cell_df_margin.columns
         )  # cells torching the border without having an overlap from other patches
-        margin_cells = pd.DataFrame(
-            columns=self.cell_df_margin.columns
-        )  # cells at the margin
 
-        for idx, cell_info in tqdm.tqdm(
-            self.cell_df_margin.iterrows(), total=len(self.cell_df_margin)
-        ):
-            if cell_info["edge_position"]:
-                # edge cell
-                edge_information = dict(cell_info["edge_information"])
-                edge_patch = edge_information["edge_patches"][0]
-                cells = self.cell_df_margin[
-                    self.cell_df_margin["patch_coordinates"]
-                    == f"{edge_patch[0]}_{edge_patch[1]}"
-                ]
-                # i think we need to transform the coordinates first
-                if len(cells) == 0:
-                    # the edge patch does not exist, insert at for cleaned edge cells
-                    edge_cells.loc[idx, :] = cell_info
-            else:
-                # margin cell
-                margin_cells.loc[idx, :] = cell_info
+        for idx, cell_info in edge_cells.iterrows():
+            edge_information = dict(cell_info["edge_information"])
+            edge_patch = edge_information["edge_patches"][0]
+            edge_patch = f"{edge_patch[0]}_{edge_patch[1]}"
+            if edge_patch not in existing_patches:
+                edge_cells_unique.loc[idx, :] = cell_info
 
-        cleaned_edge_cells = pd.concat([margin_cells, edge_cells])
+        cleaned_edge_cells = pd.concat([margin_cells, edge_cells_unique])
+
         return cleaned_edge_cells.sort_index()
 
     def _remove_overlap(self, cleaned_edge_cells: pd.DataFrame) -> pd.DataFrame:
@@ -638,7 +650,7 @@ class CellPostProcessor:
         Returns:
             pd.DataFrame: Cleaned DataFrame
         """
-        merged_cells = pd.DataFrame(columns=self.cell_df_margin.columns)
+        # merged_cells = pd.DataFrame(columns=self.cell_df_margin.columns)
 
         poly_list = []
         for idx, cell_info in cleaned_edge_cells.iterrows():
@@ -652,11 +664,11 @@ class CellPostProcessor:
         # use an strtree for fast querying
         tree = strtree.STRtree(poly_list)
 
-        # keep track of checked cells
-        iterated_cells = []
+        merged_idx = deque()
+        iterated_cells = set()
 
         for query_poly in tqdm.tqdm(poly_list, total=len(poly_list)):
-            if query_poly not in iterated_cells:
+            if query_poly.uid not in iterated_cells:
                 intersected_polygons = tree.query(
                     query_poly
                 )  # this also contains a self-intersection
@@ -678,27 +690,24 @@ class CellPostProcessor:
                                 > 0.5
                             ):
                                 submergers.append(inter_poly)
-                                iterated_cells.append(inter_poly.uid)
+                                iterated_cells.add(inter_poly.uid)
                     # catch block: empty list -> some cells are touching, but not overlapping strongly enough
                     if len(submergers) == 0:
-                        merged_cells.loc[query_poly.uid, :] = cleaned_edge_cells.loc[
-                            query_poly.uid
-                        ]
+                        merged_idx.append(query_poly.uid)
                     else:  # merging strategy: take the biggest cell, other merging strategies needs to get implemented
                         selected_poly_index = np.argmax(
                             np.array([p.area for p in submergers])
                         )
                         selected_poly_uid = submergers[selected_poly_index].uid
-                        merged_cells.loc[selected_poly_uid, :] = cleaned_edge_cells.loc[
-                            selected_poly_uid
-                        ]
+                        merged_idx.append(selected_poly_uid)
                 else:
                     # no intersection, just add
-                    merged_cells.loc[query_poly.uid, :] = cleaned_edge_cells.loc[
-                        query_poly.uid
-                    ]
-                iterated_cells.append(query_poly.uid)
+                    merged_idx.append(query_poly.uid)
+                iterated_cells.add(query_poly.uid)
 
+        merged_cells = cleaned_edge_cells.loc[
+            cleaned_edge_cells.index.isin(merged_idx)
+        ].sort_index()
         return merged_cells.sort_index()
 
 
@@ -863,6 +872,17 @@ class InferenceWSIParser:
             default=40,
         )
         parser.add_argument(
+            "--mixed_precision",
+            action="store_true",
+            help="Whether to use mixed precision for inference. Default: False",
+        )
+        parser.add_argument(
+            "--batch_size",
+            type=int,
+            help="Inference batch-size. Default: 8",
+            default=8,
+        )
+        parser.add_argument(
             "--outdir_subdir",
             type=str,
             help="If provided, a subdir with the given name is created in the cell_detection folder where the results are stored. Default: None",
@@ -968,7 +988,9 @@ if __name__ == "__main__":
     command = configuration["command"]
 
     cell_segmentation = CellSegmentationInference(
-        model_path=configuration["model"], gpu=configuration["gpu"]
+        model_path=configuration["model"],
+        gpu=configuration["gpu"],
+        mixed_precision=configuration["mixed_precision"],
     )
 
     if command.lower() == "process_wsi":
@@ -986,6 +1008,7 @@ if __name__ == "__main__":
             wsi_file,
             subdir_name=configuration["outdir_subdir"],
             geojson=configuration["geojson"],
+            batch_size=configuration["batch_size"],
         )
 
     elif command.lower() == "process_dataset":
@@ -1027,4 +1050,5 @@ if __name__ == "__main__":
                 wsi_file,
                 subdir_name=configuration["outdir_subdir"],
                 geojson=configuration["geojson"],
+                batch_size=configuration["batch_size"],
             )
