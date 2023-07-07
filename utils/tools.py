@@ -192,39 +192,6 @@ def unflatten_dict(d: dict, sep: str = ".") -> dict:
     return output_dict
 
 
-def insert_parameter_tag(d: dict, sep: str = ".") -> dict:
-    """Insert a parameter tag at every important point
-
-    Args:
-        d (dict): Dictionary with flattened keys
-        sep (str, optional): Key separator. Defaults to ".".
-
-    Returns:
-        dict: dict with parameter inserted
-    """
-    param_dict = {}
-    for k, v in d.items():
-        unflattened_keys = k.split(sep)
-        new_keys = []
-        max_num_insert = len(unflattened_keys) - 2
-
-        for i, k in enumerate(unflattened_keys):
-            if i % 2 == 0:
-                new_keys.append(k)
-            elif i + 1 > max_num_insert:
-                new_keys.append(k)
-            elif k == "parameters":
-                new_keys.append(k)
-            else:
-                new_keys.append("parameters")
-                new_keys.append(k)
-
-        joined_key = sep.join(new_keys)
-        param_dict[joined_key] = v
-
-    return param_dict
-
-
 def remove_parameter_tag(d: dict, sep: str = ".") -> dict:
     """Remove all paramter tags from dictionary
 
