@@ -27,7 +27,7 @@ ___
 >
 > :ballot_box_with_check: Fixed bug in postprocessing that may insert doubled cells during cell-detection
 >
-> :ballot_box_with_check: Added mixed-mrecision training
+> :ballot_box_with_check: Added mixed-precision training
 >
 > :ballot_box_with_check: Added batch-size and mixed-precision options to inference cli to support RAM limited GPUs
 >
