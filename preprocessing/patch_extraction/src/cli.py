@@ -488,6 +488,11 @@ class PreProcessingParser(ABCParser):
             choices=LOGGING_EXT,
             help=f"Set the logging level. Options are {LOGGING_EXT}",
         )
+        parser.add_argument(
+            "--fast_mode",
+            action="store_true",
+            help="Set the mode to fast mode (no thumbnails, just inevitably elements).",
+        )
 
         self.parser = parser
 

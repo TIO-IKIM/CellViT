@@ -28,9 +28,7 @@ configs/projects
 # pretrained models
 models/pretrained
 
-# WSI
-*.svs
-
+docker/
 # Notebooks
 notebooks/
 

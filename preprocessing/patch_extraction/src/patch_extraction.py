@@ -245,6 +245,7 @@ class PreProcessor(object):
                 save_context=self.config.context_scales is not None,
                 context_scales=self.config.context_scales,
             )
+            logger.info("Start extracting patches...")
 
             # Multiprocessing
             asyncs = []
@@ -595,7 +596,7 @@ class PreProcessor(object):
             context_scales=self.config.context_scales,
         )
 
-        # generate thumbnails
+        logger.info("Generate thumbnails")
         thumbnails = generate_thumbnails(slide, sample_factors=[32, 64, 128])
 
         return (
