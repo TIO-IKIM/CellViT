@@ -290,6 +290,8 @@ arguments:
 #### 3. Example
 We provide an example TCGA file to show the performance and usage of our algorithms.
 Files and scripts can be found in the [example](example) folder.
+The TCGA slide must be downloaded here: https://portal.gdc.cancer.gov/files/f9147f06-2902-4a64-b293-5dbf9217c668
+Please place this file in the example folder
 
 **Preprocessing:**
 ```bash
