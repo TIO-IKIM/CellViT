@@ -1,6 +1,7 @@
 [![Python 3.9.7](https://img.shields.io/badge/python-3.9.7-blue.svg)](https://www.python.org/downloads/release/python-360/)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 [![Flake8 Status](./reports/flake8/flake8-badge.svg)](./reports/flake8/index.html)
+[![CodeFactor](https://www.codefactor.io/repository/github/tio-ikim/cellvit/badge)](https://www.codefactor.io/repository/github/tio-ikim/cellvit)
 <img src="https://img.shields.io/badge/PyTorch-EE4C2C?style=flat-square&logo=Pytorch&logoColor=white"/></a>
 [![Visitors](https://api.visitorbadge.io/api/visitors?path=https%3A%2F%2Fgithub.com%2FTIO-IKIM%2FCellViT&label=Visitors&countColor=%23263759&style=flat)](https://visitorbadge.io/status?path=https%3A%2F%2Fgithub.com%2FTIO-IKIM%2FCellViT)
 [![PWC](https://img.shields.io/endpoint.svg?url=https://paperswithcode.com/badge/cellvit-vision-transformers-for-precise-cell/panoptic-segmentation-on-pannuke)](https://paperswithcode.com/sota/panoptic-segmentation-on-pannuke?p=cellvit-vision-transformers-for-precise-cell)
