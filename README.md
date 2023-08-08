@@ -22,6 +22,9 @@ ___
 ---
 
 > **Update 08.08.2023**:
+>
+> :bangbang: We fixed a severe training bug and uploaded new checkpoints. Please make sure to pull all changes and redownload your CellViT checkpoints to get the best results :bangbang:
+> 
 > :ballot_box_with_check: Improved reproducability by providing config and log files for best models (CellViT-SAM-H and CellViT-256) and adopted PanNuke inference script for an easier evaluation
 >
 > :ballot_box_with_check: Inference speed improved by x100 for postprocessing, added new preprocessing with CuCIM speedup
