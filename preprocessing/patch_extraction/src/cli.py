@@ -28,6 +28,7 @@ class PreProcessingYamlConfig(BaseModel):
     wsi_paths: Optional[str]
     output_path: Optional[str]
     wsi_extension: Optional[str]
+    wsi_filelist: Optional[str]
 
     # basic setups
     patch_size: Optional[int]
@@ -38,7 +39,6 @@ class PreProcessingYamlConfig(BaseModel):
     context_scales: Optional[List[int]]
     check_resolution: Optional[float]
     processes: Optional[int]
-    patches_per_batch: Optional[int]
     overwrite: Optional[bool]
 
     # annotation specific settings
@@ -66,6 +66,7 @@ class PreProcessingYamlConfig(BaseModel):
     # other
     log_path: Optional[str]
     log_level: Optional[str]
+    hardware_selection: Optional[str]
 
 
 class PreProcessingConfig(BaseModel):
@@ -77,6 +78,8 @@ class PreProcessingConfig(BaseModel):
         wsi_paths (str): Path to the folder where all WSI are stored or path to a single WSI-file.
         output_path (str): Path to the folder where the resulting dataset should be stored.
         wsi_extension (str, optional): The extension of the WSI-files. Defaults to "svs.
+        wsi_filelist (str, optional): Path to a csv-filelist with WSI files (separator: `,`), if provided just these files are used. Must include full paths to WSIs, including suffixes.
+            Can be used as an replacement for the wsi_paths option. If both are provided, yields an error. Defaults to None.
         patch_size (int, optional): The size of the patches in pixel that will be retrieved from the WSI, e.g. 256 for 256px. Defaults to 256.
         patch_overlap (float, optional): The percentage amount pixels that should overlap between two different patches.
             Please Provide as integer between 0 and 100, indicating overlap in percentage.
@@ -95,7 +98,6 @@ class PreProcessingConfig(BaseModel):
             the resolution of all images corresponds to the given value.
             Defaults to None.
         processes (int, optional): The number of processes to use. Defaults to 24
-        patches_per_batch (int, optional): The number of patches to process in each concurrent batch. Defaults to 10
         overwrite (bool, optional): Overwrite the patches that have already been created in
             case they already exist. Removes dataset. Handle with care! If false, skips already processed files from "processed.json". Defaults to False.
         annotation_paths (str, optional): Path to the subfolder where the annotations are
@@ -115,7 +117,7 @@ class PreProcessingConfig(BaseModel):
             Defaults to False.
         normalize_stains (bool, optional): Uses Macenko normalization on a portion of the whole slide images. Defaults to False.
         normalization_vector_json (str, optional): The path to a JSON file where the normalization vectors are stored. Defaults to None.
-        adjust_brightness (bool, optional): Normalize brightness in a batch by clipping to 90 percent. Defaults to False.
+        adjust_brightness (bool, optional): Normalize brightness in a batch by clipping to 90 percent. Not recommended, but kept for legacy reasons. Defaults to False.
         min_intersection_ratio (float, optional): The minimum intersection between the tissue mask and the patch.
             Must be between 0 and 1. 0 means that all patches are extracted. Defaults to 0.01.
         tissue_annotation (str, optional): Can be used to name a polygon annotation to determine the tissue area
@@ -125,6 +127,7 @@ class PreProcessingConfig(BaseModel):
             for masked otsu thresholding. Seperate multiple labels with ' ' (whitespace). Defaults to None.
         log_path (str, optional): Path where log files should be stored. Otherwise, log files are stored in the output folder. Defaults to None.
         log_level (str, optional): Set the logging level. Defaults to "info".
+        hardware_selection (str, optional): Select hardware device (just if available, otherwise always cucim). Defaults to "cucim".
 
     Raises:
         ValueError: Patch-size must be positive
@@ -138,8 +141,9 @@ class PreProcessingConfig(BaseModel):
     """
 
     # dataset paths
-    wsi_paths: str
     output_path: str
+    wsi_paths: Optional[str]
+    wsi_filelist: Optional[str]
     wsi_extension: Optional[str] = "svs"
 
     # basic setups
@@ -151,7 +155,6 @@ class PreProcessingConfig(BaseModel):
     context_scales: Optional[List[int]]
     check_resolution: Optional[float]
     processes: Optional[int] = 24
-    patches_per_batch: Optional[int] = 10
     overwrite: Optional[bool] = False
 
     # annotation specific settings
@@ -179,6 +182,7 @@ class PreProcessingConfig(BaseModel):
     # other
     log_path: Optional[str]
     log_level: Optional[str] = "info"
+    hardware_selection: Optional[str] = "cucim"
 
     def __init__(__pydantic_self__, **data: Any) -> None:
         super().__init__(**data)
@@ -203,14 +207,6 @@ class PreProcessingConfig(BaseModel):
     def processes_must_be_positive(cls, v):
         if v <= 0:
             raise ValueError("At least 1 process is needed")
-        return v
-
-    @validator("patches_per_batch")
-    def patches_per_batch_must_be_positive(cls, v):
-        if v <= 0:
-            raise ValueError(
-                "Batch must contain at least 1 patch, recommended are 100-500."
-            )
         return v
 
     @validator("min_intersection_ratio")
@@ -250,8 +246,19 @@ class PreProcessingConfig(BaseModel):
             ValueError: A label map file must be used if annotations are passed
             ValueError: Checking for right label_map format (.json) file.
         """
-        self.wsi_paths = Path(self.wsi_paths).resolve()
+        if (self.wsi_paths is None and self.wsi_filelist is None) or (
+            self.wsi_paths is not None and self.wsi_filelist is not None
+        ):
+            raise RuntimeError(
+                "Please provide either wsi_paths or wsi_filelist argument!"
+            )
+
         self.output_path = Path(self.output_path).resolve()
+
+        if self.wsi_paths is not None:
+            self.wsi_paths = Path(self.wsi_paths).resolve()
+        if self.wsi_filelist is not None:
+            self.wsi_filelist = Path(self.wsi_filelist).resolve()
 
         if self.annotation_paths is not None:
             self.annotation_paths = Path(self.annotation_paths).resolve()
@@ -291,6 +298,14 @@ class PreProcessingParser(ABCParser):
             "--wsi_paths",
             type=str,
             help="Path to the folder where all WSI are stored or path to a single WSI-file.",
+        )
+        parser.add_argument(
+            "--wsi_filelist",
+            type=str,
+            help="Path to a csv-filelist with WSI files (separator: `,`), if provided just these files are used."
+            "Must include full paths to WSIs, including suffixes."
+            "Can be used as an replacement for the wsi_paths option."
+            "If both are provided, yields an error.",
         )
         parser.add_argument(
             "--output_path",
@@ -363,11 +378,6 @@ class PreProcessingParser(ABCParser):
             "--processes",
             type=int,
             help="The number of processes to use.",
-        )
-        parser.add_argument(
-            "--patches_per_batch",
-            type=int,
-            help="The number of patches to process in each concurrent batch",
         )
         parser.add_argument(
             "--overwrite",
@@ -447,7 +457,7 @@ class PreProcessingParser(ABCParser):
             "--adjust_brightness",
             action="store_true",
             default=None,
-            help="Normalize brightness in a batch by clipping to 90 percent",
+            help="Normalize brightness in a batch by clipping to 90 percent. Not recommended, but kept for legacy reasons",
         )
 
         # finding patches
@@ -489,9 +499,10 @@ class PreProcessingParser(ABCParser):
             help=f"Set the logging level. Options are {LOGGING_EXT}",
         )
         parser.add_argument(
-            "--fast_mode",
-            action="store_true",
-            help="Set the mode to fast mode (no thumbnails, just inevitably elements).",
+            "--hardware_selection",
+            type=str,
+            choices=["cucim", "openslide"],
+            help="Select hardware device (just if available, otherwise always cucim). Defaults to cucim.",
         )
 
         self.parser = parser
@@ -683,7 +694,7 @@ class MacenkoParser(ABCParser):
             "--adjust_brightness",
             action="store_true",
             default=None,
-            help="Normalize brightness in a batch by clipping to 90 percent",
+            help="Normalize brightness in a batch by clipping to 90 percen0. Not recommended, but kept for legacy reasonst",
         )
 
         # finding patches
@@ -724,13 +735,13 @@ class MacenkoParser(ABCParser):
             choices=LOGGING_EXT,
             help=f"Set the logging level. Options are {LOGGING_EXT}",
         )
+        parser
 
         self.parser = parser
 
         self.default_dict = {
             "check_resolution": False,
             "processes": 1,
-            "patches_per_batch": 1000,
             "overwrite": False,
             "store_masks": False,
             "overlapping_labels": False,

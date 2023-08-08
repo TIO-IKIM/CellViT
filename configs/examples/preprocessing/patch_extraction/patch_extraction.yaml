@@ -1,7 +1,10 @@
 # dataset paths
 wsi_paths:                    # Path to the folder where all WSI are stored or path to a single WSI-file [str]
+wsi_filelist:                 # Path to a csv-filelist with WSI files (separator: `,`), if provided just these files are
+                              # used.Must include full paths to WSIs, including suffixes.Can be used as an replacement for
+                              # the wsi_paths option.If both are provided, yields an error. [str] [Optional, defaults to None]
 output_path:                  # Path to the folder where the resulting dataset should be stored [str]
-wsi_extensions:               # The extension of the WSI-files [str] [Optional, defaults to "svs]
+wsi_extensions:               # The extension of the WSI-files [str] [Optional, defaults to "svs"]
 
 # basic setups
 patch_size:                   # The size of the patches in pixel that will be retrieved from the WSI, e.g. 256 for 256px. [][Optional, defaults to 256]
@@ -22,7 +25,6 @@ check_resolution:             # If a float value is supplies, the program checks
                               # the resolution of all images corresponds to the given value.
                               # [float][Optional, defaults to None]
 processes:                    # The number of processes to use. [int][Optional, defaults to 24]
-patches_per_batch:            # The number of patches to process in each concurrent batch. [int][Optional, defaults to 10]
 overwrite:                    # Overwrite the patches that have already been created in
                               # case they already exist. Removes dataset. Handle with care! If false, skips already processed files from "processed.json".
                               # [bool][Optional, defaults to False]
@@ -45,7 +47,7 @@ overlapping_labels:           # Per default, labels (annotations) are mutually e
 # macenko stain normalization
 normalize_stains:             # Uses Macenko normalization on a portion of the whole slide images. [bool][Optional, defaults to False]
 normalization_vector_json:    # The path to a JSON file where the normalization vectors are stored. [str][Optional, defaults to None]
-adjust_brightness:            # Normalize brightness in a batch by clipping to 90 percent. [bool][Optional, defaults to False]
+adjust_brightness:            # Normalize brightness in a batch by clipping to 90 percent. Not recommended, but kept for legacy reasons. [bool][Optional, defaults to False]
 
 # finding patches
 min_intersection_ratio:       # The minimum intersection between the tissue mask and the patch.
@@ -59,3 +61,4 @@ otsu_annotation:              # Can be used to name a polygon annotation to dete
 # logging
 log_path:                     # Path where log files should be stored. Otherwise, log files are stored in the output folder. [str][Optional, defaults to None]
 log_level:                    # Set the logging level. [str][Optional, defaults to info]
+hardware_selection:           # Select hardware device (just if available, otherwise always cucim). [str] [Optional, defaults to cucim]

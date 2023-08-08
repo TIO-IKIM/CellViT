@@ -269,6 +269,18 @@ class CellViTTrainer(BaseTrainer):
             # calculate loss
             total_loss = self.calculate_loss(predictions, gt)
 
+            total_loss.backward()
+            if (
+                ((batch_idx + 1) % self.accum_iter == 0)
+                or ((batch_idx + 1) == num_batches)
+                or (self.accum_iter == 1)
+            ):
+                self.optimizer.step()
+                self.optimizer.zero_grad(set_to_none=True)
+                self.model.zero_grad()
+                with torch.cuda.device(self.device):
+                    torch.cuda.empty_cache()
+
         batch_metrics = self.calculate_step_metric_train(predictions, gt)
 
         if return_example_images:

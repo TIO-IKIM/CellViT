@@ -81,6 +81,7 @@ class MoNuSegInference:
         self.__instantiate_logger()
         self.__load_model()
         self.__load_inference_transforms()
+        self.__setup_amp()
         self.inference_dataset = MoNuSegDataset(
             dataset_path=dataset_path,
             transforms=self.inference_transforms,
@@ -205,6 +206,10 @@ class MoNuSegInference:
             std = (0.5, 0.5, 0.5)
         self.inference_transforms = A.Compose([A.Normalize(mean=mean, std=std)])
 
+    def __setup_amp(self) -> None:
+        """Setup automated mixed precision (amp) for inference."""
+        self.mixed_precision = self.run_conf["training"].get("mixed_precision", False)
+
     def run_inference(self, generate_plots: bool = False) -> None:
         self.model.eval()
 
@@ -271,7 +276,12 @@ class MoNuSegInference:
 
         model.zero_grad()
 
-        predictions_ = model.forward(img)
+        if self.mixed_precision:
+            with torch.autocast(device_type="cuda", dtype=torch.float16):
+                predictions_ = model.forward(img)
+        else:
+            predictions_ = model.forward(img)
+
         if img.shape[0] != 1:
             predictions_ = self.post_process_patching(predictions_)
         predictions = self.get_cell_predictions(predictions_)
@@ -464,8 +474,17 @@ class MoNuSegInference:
         binary_cmap = plt.get_cmap("Greys_r")
         instance_map = plt.get_cmap("viridis")
 
+        # invert the normalization of the sample images
+        transform_settings = self.run_conf["transformations"]
+        if "normalize" in transform_settings:
+            mean = transform_settings["normalize"].get("mean", (0.5, 0.5, 0.5))
+            std = transform_settings["normalize"].get("std", (0.5, 0.5, 0.5))
+        else:
+            mean = (0.5, 0.5, 0.5)
+            std = (0.5, 0.5, 0.5)
         inv_normalize = transforms.Normalize(
-            mean=[-0.5 / 0.5, -0.5 / 0.5, -0.5 / 0.5], std=[1 / 0.5, 1 / 0.5, 1 / 0.5]
+            mean=[-0.5 / mean[0], -0.5 / mean[1], -0.5 / mean[2]],
+            std=[1 / std[0], 1 / std[1], 1 / std[2]],
         )
         inv_samples = inv_normalize(torch.tensor(sample_image).permute(0, 3, 1, 2))
         sample_image = inv_samples.permute(0, 2, 3, 1).detach().cpu().numpy()[0]

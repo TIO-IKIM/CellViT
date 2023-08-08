@@ -5,26 +5,23 @@
 # Institute for Artifical Intelligence in Medicine,
 # University Medicine Essen
 
+import csv
 import json
 import multiprocessing
 import os
 import random
-from functools import partial
-from logging import getLogger
-from logging.handlers import QueueHandler, QueueListener
 from pathlib import Path
 from shutil import rmtree
-from typing import Callable, Dict, List, Optional, Tuple, Union
+from typing import Callable, List, Tuple, Union
 
 import numpy as np
 from openslide import OpenSlide
+from PIL import Image
 from shapely.affinity import scale
 from shapely.geometry import Polygon
-from tqdm import tqdm
 
 from preprocessing.patch_extraction import logger
 from preprocessing.patch_extraction.src.cli import PreProcessingConfig
-from preprocessing.patch_extraction.src.process_batch import process_batch
 from preprocessing.patch_extraction.src.storage import Storage
 from preprocessing.patch_extraction.src.utils.exceptions import (
     UnalignedDataException,
@@ -32,34 +29,34 @@ from preprocessing.patch_extraction.src.utils.exceptions import (
 )
 from preprocessing.patch_extraction.src.utils.patch_util import (
     DeepZoomGeneratorOS,
-    chunks,
+    calculate_background_ratio,
     compute_interesting_patches,
     generate_thumbnails,
     get_files_from_dir,
+    get_intersected_labels,
     get_regions_json,
     get_regions_xml,
     is_power_of_two,
     macenko_normalization,
     pad_tile,
     patch_to_tile_size,
-    standardize_brightness,
     target_mag_to_downsample,
 )
 from utils.tools import end_timer, module_exists, start_timer
 
 
-def _worker_init(q: multiprocessing.Queue, log_level: str = "DEBUG") -> None:
-    """Setting up workers and define loggers for them
+def queue_worker(q: multiprocessing.Queue, store: Storage) -> None:
+    """Queue Worker to save patches with metadata
 
     Args:
-        q (multiprocessing.Queue): MP Queue
-        log_level (str, optional): Logger Level. Defaults to "DEBUG".
+        q (multiprocessing.Queue): Queue for input
+        store (Storage): Storage object
     """
-    # All records from worker processes go to qh and then into q
-    qh = QueueHandler(q)
-    curr_logger = getLogger("__main__")
-    curr_logger.setLevel(log_level.upper())
-    curr_logger.addHandler(qh)
+    while True:
+        item = q.get()
+        if item is None:
+            break
+        store.save_elem_to_disk(item)
 
 
 class PreProcessor(object):
@@ -87,7 +84,10 @@ class PreProcessor(object):
 
         # paths
         self.setup_output_path(self.config.output_path)
-        self._set_wsi_paths(self.config.wsi_paths, self.config.wsi_extension)
+        if self.config.wsi_paths is not None:
+            self._set_wsi_paths(self.config.wsi_paths, self.config.wsi_extension)
+        else:
+            self._load_wsi_filelist(self.config.wsi_filelist)
         self._set_annotations_paths(
             self.config.annotation_paths,
             self.config.annotation_extension,
@@ -95,7 +95,7 @@ class PreProcessor(object):
         )
 
         # hardware
-        self._set_hardware()
+        self._set_hardware(self.config.hardware_selection)
 
         # convert overlap from percentage to pixels
         self.config.patch_overlap = int(
@@ -141,6 +141,15 @@ class PreProcessor(object):
         self.files = sorted(self.files, key=lambda x: x.name)
         self.num_files = len(self.files)
 
+    def _load_wsi_filelist(self, wsi_filelist: Union[str, Path]) -> None:
+        self.files = []
+        with open(wsi_filelist, "r") as csv_file:
+            csv_reader = csv.reader(csv_file)
+            for row in csv_reader:
+                self.files.append(Path(row[0]))
+        self.files = sorted(self.files, key=lambda x: x.name)
+        self.num_files = len(self.files)
+
     def _set_annotations_paths(
         self,
         annotation_paths: Union[Path, str],
@@ -178,9 +187,19 @@ class PreProcessor(object):
                         "files to have the same name as the WSI files. Otherwise use incomplete_annotations=True"
                     )
 
-    def _set_hardware(self):
-        """Either load CuCIM (GPU-accelerated) or OpenSlide"""
-        if module_exists("cucim", error="ignore"):
+    def _set_hardware(self, hardware_selection: str = "cucim"):
+        """Either load CuCIM (GPU-accelerated) or OpenSlide
+
+
+        Args:
+            hardware_selection (str, optional): Specify hardware. Just for experiments. Must be either "openslide", or "cucim".
+                Defaults to cucim.
+        """
+        if (
+            module_exists("cucim", error="ignore")
+            and hardware_selection.lower() == "cucim"
+        ):
+            logger.info("Using CuCIM")
             from cucim import CuImage
 
             from preprocessing.patch_extraction.src.cucim_deepzoom import (
@@ -190,6 +209,7 @@ class PreProcessor(object):
             self.deepzoomgenerator = DeepZoomGeneratorCucim
             self.image_loader = CuImage
         else:
+            logger.info("Using OpenSlide")
             self.deepzoomgenerator = DeepZoomGeneratorOS
             self.image_loader = OpenSlide
 
@@ -212,10 +232,6 @@ class PreProcessor(object):
         # remove database or check to continue from checkpoint
         self._check_overwrite(self.config.overwrite)
 
-        # multiprocessing
-        pool_init = self._return_pool_args(self.config.processes, self.config.log_level)
-        pool = multiprocessing.Pool(**pool_init)
-
         total_count = 0
         start_time = start_timer()
         for i, wsi_file in enumerate(self.files):
@@ -229,8 +245,12 @@ class PreProcessor(object):
             (
                 (n_cols, n_rows),
                 (wsi_metadata, mask_images, mask_images_annotations, thumbnails),
-                func,
-                divided,
+                (
+                    interesting_coords_wsi,
+                    level_wsi,
+                    polygons_downsampled_wsi,
+                    region_labels_wsi,
+                ),
             ) = self._prepare_wsi(wsi_file)
 
             # setup storage
@@ -247,54 +267,27 @@ class PreProcessor(object):
             )
             logger.info("Start extracting patches...")
 
-            # Multiprocessing
-            asyncs = []
-            for batch in divided:
-                asyncs.append(pool.apply_async(func, [batch], callback=store.save))
-            patch_count = sum([len(a.get()[0]) for a in tqdm(asyncs)])
+            patch_count, patch_distribution, patch_result_metadata = self.process_queue(
+                batch=interesting_coords_wsi,
+                wsi_file=wsi_file,
+                wsi_metadata=wsi_metadata,
+                level=level_wsi,
+                polygons=polygons_downsampled_wsi,
+                region_labels=region_labels_wsi,
+                store=store,
+            )
 
             if patch_count == 0:
                 logger.warning(f"No patches sampled from {wsi_file.name}")
             logger.info(f"Total patches sampled: {patch_count}")
 
-            store.clean_up()
+            store.clean_up(patch_distribution, patch_result_metadata)
             total_count += patch_count
-
-        pool.close()  # do not accept any more tasks
-        pool.join()  # wait for the completion of all scheduled jobs
 
         logger.info(f"Patches saved to: {self.config.output_path.resolve()}")
         logger.info(f"Total patches sampled for all WSI: {total_count}")
 
         end_timer(start_time)
-
-    @staticmethod
-    def _return_pool_args(processes: Optional[int], log_level: str = "DEBUG") -> Dict:
-        """Setting up the multiprocessing pool
-
-        Args:
-            processes (Optional[int]): Number of processes to use
-            log_level (str, optional): Log level for subprocesses. Defaults to "DEBUG".
-
-        Returns:
-            Dict:
-        Todo:
-            *TODO: how to store dictionary keys and values in docstring (maybe necessary keys. etc)
-        """
-        # Create a multiprocessing pool
-        if processes is None or processes > multiprocessing.cpu_count():
-            # Compute number of processes
-            processes = int((3.0 / 4.0) * multiprocessing.cpu_count())
-        # Handle logger for multiple processes
-        q: multiprocessing.Queue = multiprocessing.Queue()
-        ql = QueueListener(q, *logger.handlers[1:])
-        ql.start()
-        logger.info(f"Using {processes} processes.")
-        return {
-            "processes": processes,
-            "initializer": _worker_init,
-            "initargs": [q, log_level],
-        }
 
     @staticmethod
     def _check_patch_params(
@@ -464,6 +457,10 @@ class PreProcessor(object):
         slide = OpenSlide(str(wsi_file))
         slide_cu = self.image_loader(str(wsi_file))
 
+        # Generate thumbnails
+        logger.info("Generate thumbnails")
+        thumbnails = generate_thumbnails(slide, sample_factors=[32, 64, 128])
+
         # Check whether the resolution of the current image is the same as the given one
         self._check_wsi_resolution(slide.properties)
 
@@ -573,38 +570,220 @@ class PreProcessor(object):
             "level": level,
         }
 
-        # divide the list into chunks
-        divided = list(chunks(interesting_coords, self.config.patches_per_batch))
         logger.info(f"{wsi_file.name}: Processing {len(interesting_coords)} patches.")
-        func = partial(
-            process_batch,
-            wsi_file=wsi_file,
-            wsi_metadata=wsi_metadata,
-            patch_size=self.config.patch_size,
-            patch_overlap=self.config.patch_overlap,
-            level=level,
-            polygons=polygons_downsampled,
-            region_labels=region_labels,
-            label_map=self.config.label_map,
-            min_intersection_ratio=self.config.min_intersection_ratio,
-            save_only_annotated_patches=self.config.save_only_annotated_patches,
-            adjust_brightness=self.config.adjust_brightness,
-            normalize_stains=self.config.normalize_stains,
-            normalization_vector_path=self.config.normalization_vector_json,
-            store_masks=self.config.store_masks,
-            overlapping_labels=self.config.overlapping_labels,
-            context_scales=self.config.context_scales,
-        )
-
-        logger.info("Generate thumbnails")
-        thumbnails = generate_thumbnails(slide, sample_factors=[32, 64, 128])
-
         return (
             (n_cols, n_rows),
             (wsi_metadata, mask_images, mask_images_annotations, thumbnails),
-            func,
-            divided,
+            (list(interesting_coords), level, polygons_downsampled, region_labels),
         )
+
+    def process_queue(
+        self,
+        batch: List[Tuple[int, int, float]],
+        wsi_file: Union[Path, str],
+        wsi_metadata: dict,
+        level: int,
+        polygons: List[Polygon],
+        region_labels: List[str],
+        store: Storage,
+    ) -> int:
+        """Extract patches for a list of coordinates by using multiprocessing queues
+
+        Patches are extracted according to their coordinate with given patch-settings (size, overlap).
+        Patch annotation masks can be stored, as well as context patches with the same shape retrieved.
+        Optionally, stains can be nornalized according to macenko normalization.
+
+        Args:
+            batch (List[Tuple[int, int, float]]): A batch of patch coordinates (row, col, backgropund ratio)
+            wsi_file (Union[Path, str]): Path to the WSI file from which the patches should be extracted from
+            wsi_metadata (dict): Dictionary with important WSI metadata
+            level (int): The tile level for sampling.
+            polygons (List[Polygon]): Annotations of this WSI as a list of polygons (referenced to highest level of WSI).
+                If no annotations, pass an empty list [].
+            region_labels (List[str]): List of labels for the annotations provided as polygons parameter.
+            If no annotations, pass an empty list [].
+            store (Storage): Storage object passed to each worker to store the files
+
+        Returns:
+            int: Number of processed patches
+        """
+        logger.debug(f"Started process {multiprocessing.current_process().name}")
+
+        # store context_tiles
+        context_tiles = {}
+
+        # reload image
+        slide = OpenSlide(str(wsi_file))
+        slide_cu = self.image_loader(str(wsi_file))
+
+        tile_size = patch_to_tile_size(
+            self.config.patch_size, self.config.patch_overlap
+        )
+
+        tiles = self.deepzoomgenerator(
+            osr=slide,
+            cucim_slide=slide_cu,
+            tile_size=tile_size,
+            overlap=self.config.patch_overlap,
+            limit_bounds=True,
+        )
+
+        if self.config.context_scales is not None:
+            for c_scale in self.config.context_scales:
+                overlap_context = (
+                    int((c_scale - 1) * self.config.patch_size / 2)
+                    + self.config.patch_overlap
+                )
+                context_tiles[c_scale] = self.deepzoomgenerator(
+                    osr=slide,
+                    cucim_slide=slide_cu,
+                    tile_size=tile_size,  # tile_size,
+                    overlap=overlap_context,  # (1-c_scale) * tile_size / 2,
+                    limit_bounds=True,
+                )
+        # queue setup
+        queue = multiprocessing.Queue()
+        processes = []
+
+        for _ in range(self.config.processes):
+            p = multiprocessing.Process(target=queue_worker, args=(queue, store))
+            p.start()
+            processes.append(p)
+
+        patches_count = 0
+        patch_result_list = []
+        patch_distribution = self.config.label_map
+        patch_distribution = {v: 0 for k, v in patch_distribution.items()}
+
+        start_time = start_timer()
+        # for row, col, _ in tqdm(batch, total=len(batch)):
+        for row, col, _ in batch:
+            # set name
+            patch_fname = f"{wsi_file.stem}_{row}_{col}.png"
+            patch_yaml_name = f"{wsi_file.stem}_{row}_{col}.yaml"
+
+            if self.config.context_scales is not None:
+                context_patches = {scale: [] for scale in self.config.context_scales}
+            else:
+                context_patches = {}
+            # OpenSlide: Address of the tile within the level as a (column, row) tuple
+            new_tile = np.array(tiles.get_tile(level, (col, row)), dtype=np.uint8)
+
+            # calculate background ratio for every patch
+            background_ratio = calculate_background_ratio(
+                new_tile, self.config.patch_size
+            )
+
+            # patch_label
+            if background_ratio > 1 - self.config.min_intersection_ratio:
+                intersected_labels = []  # Zero means background
+                ratio = []
+                patch_mask = np.zeros((tile_size, tile_size), dtype=np.uint8)
+            else:
+                intersected_labels, ratio, patch_mask = get_intersected_labels(
+                    tile_size=tile_size,
+                    patch_overlap=self.config.patch_overlap,
+                    col=col,
+                    row=row,
+                    polygons=polygons,
+                    label_map=self.config.label_map,
+                    min_intersection_ratio=self.config.min_intersection_ratio,
+                    region_labels=region_labels,
+                    overlapping_labels=self.config.overlapping_labels,
+                    store_masks=self.config.store_masks,
+                )
+            if len(intersected_labels) == 0 and self.config.save_only_annotated_patches:
+                continue
+
+            patch_metadata = {
+                "row": row,
+                "col": col,
+                "background_ratio": float(background_ratio),
+                "intersected_labels": intersected_labels,
+                "label_ratio": ratio,
+                "wsi_metadata": wsi_metadata,
+            }
+
+            if not self.config.store_masks:
+                patch_mask = None
+            else:
+                patch_metadata["mask"] = f"./masks/{Path(patch_fname).stem}_mask.npy"
+
+            patch = pad_tile(new_tile, self.config.patch_size, col, row)
+
+            if self.config.context_scales is not None:
+                patch_metadata["context_scales"] = []
+                for c_scale in self.config.context_scales:
+                    context_patch = np.array(
+                        context_tiles[c_scale].get_tile(level, (col, row)),
+                        dtype=np.uint8,  # TODO change back to level
+                    )
+                    context_patch = pad_tile(
+                        context_patch, self.config.patch_size * c_scale, col, row
+                    )
+                    context_patch = np.array(
+                        Image.fromarray(context_patch).resize(
+                            (self.config.patch_size, self.config.patch_size)
+                        ),
+                        dtype=np.uint8,
+                    )
+                    context_patches[c_scale] = context_patch
+                    patch_metadata["context_scales"].append(c_scale)
+            if self.config.adjust_brightness:
+                logger.warning("Standardize brightness is no longer supported")
+                # patches = standardize_brightness(patches)
+                # for scale, scale_patch in context_patches.items():
+                #     context_patches[scale] = standardize_brightness(scale_patch)
+            if self.config.normalize_stains:
+                patch, _, _ = macenko_normalization(
+                    [patch],
+                    normalization_vector_path=self.config.normalization_vector_json,
+                )
+                patch = patch[0]
+                for c_scale, scale_patch in context_patches.items():
+                    c_patch, _, _ = macenko_normalization(
+                        [scale_patch],
+                        normalization_vector_path=self.config.normalization_vector_json,
+                    )
+                    context_patches[c_scale] = c_patch[0]
+
+            # increase patch_distribution count
+            for patch_label in patch_metadata["intersected_labels"]:
+                patch_distribution[patch_label] += 1
+
+            patches_count = patches_count + 1
+
+            queue_elem = (patch, patch_metadata, patch_mask, context_patches)
+            queue.put(queue_elem)
+
+            # store metadata for all patches
+            patch_metadata.pop("wsi_metadata")
+            patch_metadata["metadata_path"] = f"./metadata/{patch_yaml_name}"
+
+            # context metadata
+            # TODO: Check context saving
+            if self.save_context:
+                patch_metadata["context_scales"] = {}
+                for c_scale, _ in context_patches.items():
+                    context_name = f"{Path(patch_fname).stem}_context_{c_scale}.png"
+                    patch_metadata["context_scales"][
+                        c_scale
+                    ] = f"./context/{context_name}"
+
+            patch_result_list.append({patch_fname: patch_metadata})
+
+        # Add termination markers to the queue
+        for _ in range(self.config.processes):
+            queue.put(None)
+
+        # Wait for all workers to finish
+        for p in processes:
+            p.join()
+            p.close()
+
+        logger.info("Finished Processing and Storing. Took:")
+        end_timer(start_time)
+        return patches_count, patch_distribution, patch_result_list
 
     def save_normalization_vector(
         self, wsi_file: Path, save_json_path: Union[Path, str]
@@ -632,14 +811,11 @@ class PreProcessor(object):
             min_background_ratio=self.config.min_intersection_ratio,
         )
 
-        (
-            (_, _),
-            (_, _, _, _),
-            _,
-            divided,
-        ) = self._prepare_wsi(wsi_file)
+        ((_, _), (_, _, _, _), (interesting_coords_wsi, _, _, _)) = self._prepare_wsi(
+            wsi_file
+        )
         # convert divided back to batch
-        batch = [item for sublist in divided for item in sublist]
+        # batch = [item for sublist in divided for item in sublist]
 
         # open slide
         slide = OpenSlide(str(wsi_file))
@@ -658,14 +834,11 @@ class PreProcessor(object):
             limit_bounds=True,
         )
 
-        for row, col, _ in batch:
+        for row, col, _ in interesting_coords_wsi:
             new_tile = np.array(
                 tiles.get_tile(self.curr_wsi_level, (col, row)), dtype=np.uint8
             )
             patches.append(pad_tile(new_tile, self.config.patch_size, col, row))
-
-        if self.config.adjust_brightness:
-            patches = standardize_brightness(patches)
 
         _, stain_vectors, max_sat = macenko_normalization(patches)
 

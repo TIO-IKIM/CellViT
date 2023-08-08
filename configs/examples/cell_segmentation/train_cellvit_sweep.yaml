@@ -149,3 +149,5 @@ transformations:
   normalize:                # Normalization
     mean:                   # Mean for Normalizing, default to (0.5, 0.5, 0.5) [list[float], between 0 and 1 for each entry]
     std:                    # STD for Normalizing, default to (0.5, 0.5, 0.5) [list[float], between 0 and 1 for each entry]
+
+eval_checkpoint:            # Either select "best_checkpoint.pth", "latest_checkpoint.pth" or one of the intermediate checkpoint names, e.g., "checkpoint_100.pth"

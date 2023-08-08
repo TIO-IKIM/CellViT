@@ -90,7 +90,10 @@ TYPE_NUCLEI_DICT = {
 
 class CellSegmentationInference:
     def __init__(
-        self, model_path: Union[Path, str], gpu: int, mixed_precision: bool = False
+        self,
+        model_path: Union[Path, str],
+        gpu: int,
+        enforce_mixed_precision: bool = False,
     ) -> None:
         """Cell Segmentation Inference class.
 
@@ -99,15 +102,16 @@ class CellSegmentationInference:
         Args:
             model_path (Union[Path, str]): Path to model checkpoint
             gpu (int): CUDA GPU id to use
-            mixed_precision (bool, optional): Using PyTorch autocasting with dtype float16 to speed up inference. Also good for trained amp networks.
+            enforce_mixed_precision (bool, optional): Using PyTorch autocasting with dtype float16 to speed up inference. Also good for trained amp networks.
+                Can be used to enforce amp inference even for networks trained without amp. Otherwise, the network setting is used.
                 Defaults to False.
         """
         self.model_path = Path(model_path)
-        self.mixed_precision = mixed_precision
         self.device = f"cuda:{gpu}"
         self.__instantiate_logger()
         self.__load_model()
         self.__load_inference_transforms()
+        self.__setup_amp(enforce_mixed_precision=enforce_mixed_precision)
 
     def __instantiate_logger(self) -> None:
         """Instantiate logger
@@ -218,6 +222,21 @@ class CellSegmentationInference:
             [T.ToTensor(), T.Normalize(mean=mean, std=std)]
         )
 
+    def __setup_amp(self, enforce_mixed_precision: bool = False) -> None:
+        """Setup automated mixed precision (amp) for inference.
+
+        Args:
+            enforce_mixed_precision (bool, optional): Using PyTorch autocasting with dtype float16 to speed up inference. Also good for trained amp networks.
+                Can be used to enforce amp inference even for networks trained without amp. Otherwise, the network setting is used.
+                Defaults to False.
+        """
+        if enforce_mixed_precision:
+            self.mixed_precision = enforce_mixed_precision
+        else:
+            self.mixed_precision = self.run_conf["training"].get(
+                "mixed_precision", False
+            )
+
     def process_wsi(
         self,
         wsi: WSI,
@@ -309,8 +328,10 @@ class CellSegmentationInference:
                     )
 
                     # calculate coordinate on highest magnifications
-                    wsi_scaling_factor = patch_metadata["wsi_metadata"]["downsampling"]
-                    patch_size = patch_metadata["wsi_metadata"]["patch_size"]
+                    # wsi_scaling_factor = patch_metadata["wsi_metadata"]["downsampling"]
+                    # patch_size = patch_metadata["wsi_metadata"]["patch_size"]
+                    wsi_scaling_factor = wsi.metadata["downsampling"]
+                    patch_size = wsi.metadata["patch_size"]
                     x_global = int(
                         patch_metadata["row"] * patch_size * wsi_scaling_factor
                         - (patch_metadata["row"] + 0.5) * overlap
@@ -896,9 +917,10 @@ class InferenceWSIParser:
             default=40,
         )
         parser.add_argument(
-            "--mixed_precision",
+            "--enforce_amp",
             action="store_true",
-            help="Whether to use mixed precision for inference. Default: False",
+            help="Whether to use mixed precision for inference (enforced). Otherwise network default training settings are used."
+            " Default: False",
         )
         parser.add_argument(
             "--batch_size",
@@ -1014,7 +1036,7 @@ if __name__ == "__main__":
     cell_segmentation = CellSegmentationInference(
         model_path=configuration["model"],
         gpu=configuration["gpu"],
-        mixed_precision=configuration["mixed_precision"],
+        enforce_mixed_precision=configuration["enforce_amp"],
     )
 
     if command.lower() == "process_wsi":

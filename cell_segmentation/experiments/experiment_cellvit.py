@@ -156,10 +156,6 @@ class ExperimentCellViT(BaseExperiment):
                 "shared_skip_connections", False
             ),
         )
-        #
-        # from fvcore.nn import FlopCountAnalysis
-        # flops = FlopCountAnalysis(model, input)
-        # flops.total()
         model.to(device)
 
         # optimizer

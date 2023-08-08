@@ -67,7 +67,11 @@ from utils.tools import AverageMeter
 
 class InferenceCellViT:
     def __init__(
-        self, run_dir: Union[Path, str], gpu: int, magnification: int = 40
+        self,
+        run_dir: Union[Path, str],
+        gpu: int,
+        magnification: int = 40,
+        checkpoint_name: str = "model_best.pth",
     ) -> None:
         """Inference for HoverNet
 
@@ -75,17 +79,20 @@ class InferenceCellViT:
             run_dir (Union[Path, str]): logging directory with checkpoints and configs
             gpu (int): CUDA GPU device to use for inference
             magnification (int, optional): Dataset magnification. Defaults to 40.
+            checkpoint_name (str, optional): Select name of the model to load. Defaults to model_best.pth
         """
         self.run_dir = Path(run_dir)
         self.device = f"cuda:{gpu}"
         self.run_conf: dict = None
         self.logger: Logger = None
         self.magnification = magnification
+        self.checkpoint_name = checkpoint_name
 
         self.__load_run_conf()
         self.__load_dataset_setup(dataset_path=self.run_conf["data"]["dataset_path"])
         self.__instantiate_logger()
-        self.__check_best_model()
+        self.__check_eval_model()
+        self.__setup_amp()
 
         self.logger.info(f"Loaded run: {run_dir}")
         self.loss_fn_dict = {
@@ -144,9 +151,13 @@ class InferenceCellViT:
         )
         self.logger = logger.create_logger()
 
-    def __check_best_model(self) -> None:
+    def __check_eval_model(self) -> None:
         """Check if there is a best model pytorch file"""
-        assert (self.run_dir / "checkpoints" / "model_best.pth").is_file()
+        assert (self.run_dir / "checkpoints" / self.checkpoint_name).is_file()
+
+    def __setup_amp(self) -> None:
+        """Setup automated mixed precision (amp) for inference."""
+        self.mixed_precision = self.run_conf["training"].get("mixed_precision", False)
 
     def get_model(
         self, model_type: str
@@ -247,11 +258,11 @@ class InferenceCellViT:
         """
         # get model for inference
         checkpoint = torch.load(
-            self.run_dir / "checkpoints" / "model_best.pth", map_location="cpu"
+            self.run_dir / "checkpoints" / self.checkpoint_name, map_location="cpu"
         )
         model = self.get_model(model_type=checkpoint["arch"])
         self.logger.info(
-            f"Loading best model from {str(self.run_dir / 'checkpoints' / 'model_best.pth')}"
+            f"Loading best model from {str(self.run_dir / 'checkpoints' / self.checkpoint_name)}"
         )
         self.logger.info(model.load_state_dict(checkpoint["model_state_dict"]))
 
@@ -650,7 +661,11 @@ class InferenceCellViT:
 
         model.zero_grad()
 
-        predictions_ = model.forward(imgs)
+        if self.mixed_precision:
+            with torch.autocast(device_type="cuda", dtype=torch.float16):
+                predictions_ = model.forward(imgs)
+        else:
+            predictions_ = model.forward(imgs)
         predictions = OrderedDict(
             [
                 [k, v.permute(0, 2, 3, 1).contiguous().to(self.device)]
@@ -1047,9 +1062,17 @@ class InferenceCellViT:
         cell_colors = ["#ffffff", "#ff0000", "#00ff00", "#1e00ff", "#feff00", "#ffbf00"]
 
         # invert the normalization of the sample images
+        transform_settings = self.run_conf["transformations"]
+        if "normalize" in transform_settings:
+            mean = transform_settings["normalize"].get("mean", (0.5, 0.5, 0.5))
+            std = transform_settings["normalize"].get("std", (0.5, 0.5, 0.5))
+        else:
+            mean = (0.5, 0.5, 0.5)
+            std = (0.5, 0.5, 0.5)
         inv_normalize = transforms.Normalize(
-            mean=[-0.5 / 0.5, -0.5 / 0.5, -0.5 / 0.5], std=[1 / 0.5, 1 / 0.5, 1 / 0.5]
-        )  # TODO: Exchange by a more generic solution (load from config)
+            mean=[-0.5 / mean[0], -0.5 / mean[1], -0.5 / mean[2]],
+            std=[1 / std[0], 1 / std[1], 1 / std[2]],
+        )
         inv_samples = inv_normalize(torch.tensor(sample_images).permute(0, 3, 1, 2))
         sample_images = inv_samples.permute(0, 2, 3, 1).detach().cpu().numpy()
 
@@ -1218,6 +1241,14 @@ class InferenceCellViTParser:
             required=True,
         )
         parser.add_argument(
+            "--checkpoint_name",
+            type=str,
+            help="Name of the checkpoint.  Either select 'best_checkpoint.pth',"
+            "'latest_checkpoint.pth' or one of the intermediate checkpoint names,"
+            "e.g., 'checkpoint_100.pth'",
+            default="model_best.pth",
+        )
+        parser.add_argument(
             "--gpu", type=int, help="Cuda-GPU ID for inference", default=5
         )
         parser.add_argument(
@@ -1225,7 +1256,7 @@ class InferenceCellViTParser:
             type=int,
             help="Dataset Magnification. Either 20 or 40. Default: 40",
             choices=[20, 40],
-            default=20,
+            default=40,
         )
         parser.add_argument(
             "--plots",
@@ -1246,6 +1277,7 @@ if __name__ == "__main__":
     print(configuration)
     inf = InferenceCellViT(
         run_dir=configuration["run_dir"],
+        checkpoint_name=configuration["checkpoint_name"],
         gpu=configuration["gpu"],
         magnification=configuration["magnification"],
     )

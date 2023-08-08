@@ -20,13 +20,12 @@ ___
 
 ---
 
-> **Update**:
+> **Update 08.08.2023**:
+> :ballot_box_with_check: Improved reproducability by providing config and log files for best models (CellViT-SAM-H and CellViT-256) and adopted PanNuke inference script for an easier evaluation
 >
-> :ballot_box_with_check: Inference speed improved by x100 for postprocessing
+> :ballot_box_with_check: Inference speed improved by x100 for postprocessing, added new preprocessing with CuCIM speedup
 >
 > :ballot_box_with_check: Fixed bug in postprocessing that may insert doubled cells during cell-detection
->
-> :ballot_box_with_check: Added mixed-precision training
 >
 > :ballot_box_with_check: Added batch-size and mixed-precision options to inference cli to support RAM limited GPUs
 >
@@ -132,16 +131,26 @@ required named arguments:
   --config CONFIG       Path to a config file (default: None)
 ```
 
-The important file is the configuration file, in which all paths are set, the model configuration is given and the hyperparameters or sweeps are defined. For each specific run file, there exists an example file in the [./configs/examples/cell_segmentation](configs/examples/cell_segmentation) folder with the same naming as well as a configuration file that explains how to run WandB sweeps for hyperparameter search. All metrics defined in your trainer are logged to WandB. The WandB configuration needs to be set up in the configuration file, but also turned off by the user.
+The important file is the configuration file, in which all paths are set, the model configuration is given and the hyperparameters or sweeps are defined. For each specific run file, there exists an example file in the [`./configs/examples/cell_segmentation`](configs/examples/cell_segmentation) folder with the same naming as well as a configuration file that explains how to run WandB sweeps for hyperparameter search. All metrics defined in your trainer are logged to WandB. The WandB configuration needs to be set up in the configuration file, but also turned off by the user.
 
 An example config file is given [here](configs/examples/cell_segmentation/train_cellvit.yaml) with explanations [here](docs/readmes/example_train_config.md).
-For sweeps, we provide a sweep example file [train_cellvit_sweep.yaml](/configs/examples/cell_segmentation/train_cellvit_sweep.yaml).
+For sweeps, we provide a sweep example file [`train_cellvit_sweep.yaml`](/configs/examples/cell_segmentation/train_cellvit_sweep.yaml).
 
+We also included some exemplary PanNuke configurations files from the paper along with resulting log and inference files:
+- SAM-H: [configuration :page_facing_up:](configs/PanNuke/SAM/SAM-H/), [results :bar_chart:](results/PanNuke/SAM/SAM-H/)
+- ViT-256: [configuration :page_facing_up:](configs/PanNuke/ViT-256/), [results :bar_chart:](results/PanNuke/ViT-256/)
 
+:exclamation: If you training crashes at some point, you can continue from a checkpoint
 #### Dataset preparation
 We use a customized dataset structure for the PanNuke and the MoNuSeg dataset.
 The dataset structures are explained in [pannuke.md](docs/readmes/pannuke.md) and [monuseg.md](docs/readmes/monuseg.md) documentation files.
 We also provide preparation scripts in the [`cell_segmentation/datasets/`](cell_segmentation/datasets/) folder.
+
+#### Evaluation
+In our paper, we did not (!) use early stopping, but rather train all models for 130 to eliminate selection bias but have the largest possible database for training. Therefore, evaluation neeeds to be performed with the `latest_checkpoint.pth` model and not the best early stopping model.
+We provide to script to create evaluation results: [`inference_cellvit_experiment.py`](cell_segmentation/inference/inference_cellvit_experiment.py) for PanNuke and [`inference_cellvit_monuseg.py`](cell_segmentation/inference/inference_cellvit_monuseg.py) for MoNuSeg.
+
+> :exclamation: We recently adapted the evaluation code and added a tag to the config files to select which checkpoint needs to be used. Please make sure to use the right checkpoint and select the appropriate dataset magnification.
 
 ### Inference
 

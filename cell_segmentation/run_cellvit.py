@@ -35,7 +35,12 @@ if __name__ == "__main__":
             default_conf=configuration, checkpoint=configuration["checkpoint"]
         )
         outdir = experiment.run_experiment()
-        inference = InferenceCellViT(run_dir=outdir, gpu=configuration["gpu"])
+        inference = InferenceCellViT(
+            run_dir=outdir,
+            gpu=configuration["gpu"],
+            checkpoint_name=configuration["eval_checkpoint"],
+            magnification=configuration["data"].get("magnification", 40),
+        )
         (
             trained_model,
             inference_dataloader,
@@ -70,7 +75,12 @@ if __name__ == "__main__":
         else:
             # casual run
             outdir = experiment.run_experiment()
-            inference = InferenceCellViT(run_dir=outdir, gpu=configuration["gpu"])
+            inference = InferenceCellViT(
+                run_dir=outdir,
+                gpu=configuration["gpu"],
+                checkpoint_name=configuration["eval_checkpoint"],
+                magnification=configuration["data"].get("magnification", 40),
+            )
             (
                 trained_model,
                 inference_dataloader,

@@ -41,3 +41,5 @@ slurm
 # example
 example/output
 outputs
+results/wandb
+results/slurm
