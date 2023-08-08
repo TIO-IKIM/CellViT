@@ -108,8 +108,6 @@ We are currently using the following folder structure:
 
 
 ### Training
-> :bangbang: We are currently fixing a bug in the training pipeline that prevents the network from training :bangbang:
-
 The CLI for a ML-experiment to train the CellViT-Network is as follows (here the [```run_cellvit.py```](cell_segmentation/run_cellvit.py) script is used):
 ```bash
 usage: run_cellvit.py [-h] --config CONFIG [--gpu GPU] [--sweep | --agent AGENT | --checkpoint CHECKPOINT]
