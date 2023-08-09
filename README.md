@@ -71,12 +71,13 @@ This repository contains the code implementation of CellViT, a deep learning-bas
 This step is necessary, as we need to install `Openslide` with binary files. This is easier with conda. Otherwise, installation from [source](https://openslide.org/api/python/) needs to be performed and packages installed with pi
 3. Activate environment: `conda activate cellvit_env`
 4. Install torch for for system, as described [here](https://pytorch.org/get-started/locally/). Preferred version is 1.13, see [optional_dependencies](./optional_dependencies.txt) for help. You can find all version here: https://pytorch.org/get-started/previous-versions/
+Example for CUDA 11.7: `pip install torch==1.13.0+cu117 torchvision==0.14.0+cu117 torchaudio==0.13.0 --extra-index-url https://download.pytorch.org/whl/cu117`
 
-5. Install optional dependencies `pip install -r optional_dependencies.txt` to get a speedup using [NVIDIA-Clara](https://www.nvidia.com/de-de/clara/) and [CuCIM](https://github.com/rapidsai/cucim) for preprocessing during inference. Please select your cude versions. Help for installing cucim can be found [online](https://github.com/rapidsai/cucim).
-**Note: cannot import name CuImage from cucim**
+5. Install optional dependencies `pip install -r optional_dependencies.txt` to get a speedup using [NVIDIA-Clara](https://www.nvidia.com/de-de/clara/) and [CuCIM](https://github.com/rapidsai/cucim) for preprocessing during inference. Please select your CUDA versions. Help for installing cucim can be found [online](https://github.com/rapidsai/cucim).
+**Note Error: cannot import name CuImage from cucim**
 If you get this error, install cucim from conda to get all binary files.
 First remove your previous dependeny with `pip uninstall cupy-cuda117` and reinstall with `
-conda install -c rapidsai cucim` inside your conda environment. Also follow their [official guideline](https://github.com/rapidsai/cucim).
+conda install -c rapidsai cucim` inside your conda environment. This process is time consuming, so you should be patient. Also follow their [official guideline](https://github.com/rapidsai/cucim).
 
 ## Usage:
 
@@ -141,7 +142,11 @@ We also included some exemplary PanNuke configurations files from the paper alon
 - SAM-H: [configuration :page_facing_up:](configs/PanNuke/SAM/SAM-H/), [results :bar_chart:](results/PanNuke/SAM/SAM-H/)
 - ViT-256: [configuration :page_facing_up:](configs/PanNuke/ViT-256/), [results :bar_chart:](results/PanNuke/ViT-256/)
 
-:exclamation: If you training crashes at some point, you can continue from a checkpoint
+**Pre-trained ViT models** for training initialization can be downloaded from Google Drive: [ViT-Models](https://drive.google.com/drive/folders/1zFO4bgo7yvjT9rCJi_6Mt6_07wfr0CKU?usp=sharing). Please check out the corresponding licenses before distribution and further usage! Note: We just used the teacher models for ViT-256.
+
+:exclamation: If your training crashes at some point, you can continue from a checkpoint
+
+
 #### Dataset preparation
 We use a customized dataset structure for the PanNuke and the MoNuSeg dataset.
 The dataset structures are explained in [pannuke.md](docs/readmes/pannuke.md) and [monuseg.md](docs/readmes/monuseg.md) documentation files.
@@ -164,9 +169,7 @@ Model checkpoints can be downloaded here:
 
 License: [Apache 2.0 with Commons Clause](./LICENSE)
 
-Pre-trained ViT models for training initialization can be downloaded here: [ViT-Models](https://drive.google.com/drive/folders/1zFO4bgo7yvjT9rCJi_6Mt6_07wfr0CKU?usp=sharing)
-Please check out the corresponding licenses before distribution and further usage!
-Note: We just used the teacher models for ViT-256. Proved checkpoints have been trained on 90% of the data from all folds with the settings described in the publication.
+Proved checkpoints have been trained on 90% of the data from all folds with the settings described in the publication.
 
 ##### Steps
 The following steps are necessary for preprocessing:
@@ -300,8 +303,8 @@ arguments:
 #### 3. Example
 We provide an example TCGA file to show the performance and usage of our algorithms.
 Files and scripts can be found in the [example](example) folder.
-The TCGA slide must be downloaded here: https://portal.gdc.cancer.gov/files/f9147f06-2902-4a64-b293-5dbf9217c668
-Please place this file in the example folder
+The TCGA slide must be downloaded here: https://portal.gdc.cancer.gov/files/f9147f06-2902-4a64-b293-5dbf9217c668.
+Please place this file in the example folder.
 
 **Preprocessing:**
 ```bash

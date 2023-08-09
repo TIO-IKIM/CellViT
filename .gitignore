@@ -26,7 +26,7 @@ docs/Makefile
 configs/projects
 
 # pretrained models
-models/pretrained
+*.pth
 
 docker/
 # Notebooks
@@ -43,3 +43,10 @@ example/output
 outputs
 results/wandb
 results/slurm
+
+# results
+results/PanNuke/SAM/SAM-H/2023-08-08T150447_CellViT-SAM-H-SOTA-Fold-1
+results/PanNuke/SAM/SAM-H/2023-08-08T202809_CellViT-SAM-H-SOTA-Fold-2
+results/PanNuke/ViT256/2023-08-08T150612_CellViT-256-SOTA-Fold-1
+results/PanNuke/ViT256/2023-08-08T201151_CellViT-256-SOTA-Fold-3
+results/PanNuke/ViT256/2023-08-08T201154_CellViT-256-SOTA-Fold-2
