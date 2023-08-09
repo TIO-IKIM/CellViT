@@ -24,7 +24,7 @@ ___
 > **Update 08.08.2023**:
 >
 > :bangbang: We fixed a severe training bug and uploaded new checkpoints. Please make sure to pull all changes and redownload your CellViT checkpoints to get the best results :bangbang:
-> 
+>
 > :ballot_box_with_check: Improved reproducability by providing config and log files for best models (CellViT-SAM-H and CellViT-256) and adopted PanNuke inference script for an easier evaluation
 >
 > :ballot_box_with_check: Inference speed improved by x100 for postprocessing, added new preprocessing with CuCIM speedup
@@ -317,7 +317,7 @@ python3 ./preprocessing/patch_extraction/main_extraction.py --config ./example/p
 Output is stored inside `./example/output/preprocessing`
 
 **Inference:**
-Download the models and store them in `` or on your preferred location and change the model parameter.
+Download the models and store them in `./models/pretrained` or on your preferred location and change the model parameter.
 
 ```bash
 python3 ./cell_segmentation/inference/cell_detection.py \
