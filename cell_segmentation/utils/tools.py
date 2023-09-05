@@ -141,3 +141,32 @@ def pair_coordinates(
     unpairedB = np.delete(np.arange(setB.shape[0]), pairedB)
 
     return pairing, unpairedA, unpairedB
+
+
+def fix_duplicates(inst_map: np.ndarray) -> np.ndarray:
+    """Re-label duplicated instances in an instance labelled mask.
+
+    Parameters
+    ----------
+        inst_map : np.ndarray
+            Instance labelled mask. Shape (H, W).
+
+    Returns
+    -------
+        np.ndarray:
+            The instance labelled mask without duplicated indices.
+            Shape (H, W).
+    """
+    current_max_id = np.amax(inst_map)
+    inst_list = list(np.unique(inst_map))
+    if 0 in inst_list:
+        inst_list.remove(0)
+
+    for inst_id in inst_list:
+        inst = np.array(inst_map == inst_id, np.uint8)
+        remapped_ids = ndimage.label(inst)[0]
+        remapped_ids[remapped_ids > 1] += current_max_id
+        inst_map[remapped_ids > 1] = remapped_ids[remapped_ids > 1]
+        current_max_id = np.amax(inst_map)
+
+    return inst_map

@@ -66,6 +66,8 @@ class CellViTTrainer(BaseTrainer):
         log_images (bool, optional): If images should be logged to WandB. Defaults to False.
         magnification (int, optional): Image magnification. Please select either 40 or 20. Defaults to 40.
         mixed_precision (bool, optional): If mixed-precision should be used. Defaults to False.
+        regression_loss (bool, optional): Use regressive loss for predicting vector components.
+            Adds two additional channels to the binary and hv decoder. Defaults to False.
     """
 
     def __init__(
@@ -84,6 +86,7 @@ class CellViTTrainer(BaseTrainer):
         log_images: bool = False,
         magnification: int = 40,
         mixed_precision: bool = False,
+        regression_loss: bool = False,
     ):
         super().__init__(
             model=model,
@@ -106,6 +109,7 @@ class CellViTTrainer(BaseTrainer):
         self.reverse_tissue_types = {v: k for k, v in self.tissue_types.items()}
         self.nuclei_types = dataset_config["nuclei_types"]
         self.magnification = magnification
+        self.regression_loss = regression_loss
 
         # setup logging objects
         self.loss_avg_tracker = {"Total_Loss": AverageMeter("Total_Loss", ":.4f")}
@@ -148,8 +152,10 @@ class CellViTTrainer(BaseTrainer):
         self.batch_avg_tissue_acc.reset()
 
         # randomly select a batch that should be displayed
-        select_example_image = int(torch.randint(0, len(train_dataloader), (1,)))
-
+        if self.log_images:
+            select_example_image = int(torch.randint(0, len(train_dataloader), (1,)))
+        else:
+            select_example_image = None
         train_loop = tqdm.tqdm(enumerate(train_dataloader), total=len(train_dataloader))
 
         for batch_idx, batch in train_loop:
@@ -325,7 +331,10 @@ class CellViTTrainer(BaseTrainer):
         self.batch_avg_tissue_acc.reset()
 
         # randomly select a batch that should be displayed
-        select_example_image = int(torch.randint(0, len(val_dataloader), (1,)))
+        if self.log_images:
+            select_example_image = int(torch.randint(0, len(val_dataloader), (1,)))
+        else:
+            select_example_image = None
 
         val_loop = tqdm.tqdm(enumerate(val_dataloader), total=len(val_dataloader))
 
@@ -510,6 +519,16 @@ class CellViTTrainer(BaseTrainer):
                 if k != "tissue_types"
             ]
         )
+        if self.regression_loss:
+            predictions_["nuclei_binary_map"] = predictions_["nuclei_binary_map"][
+                :, :, :, :2
+            ]
+            predictions_["nuclei_binary_map_regression"] = predictions_[
+                "nuclei_binary_map"
+            ][:, :, :, 3:]
+            predictions_["hv_map"] = predictions_["hv_map"][:, :, :, :2]
+            predictions_["hv_map_regression"] = predictions_["hv_map"][:, :, :, 3:]
+
         predictions_["tissue_types"] = predictions["tissue_types"].to(self.device)
         predictions_["nuclei_binary_map"] = F.softmax(
             predictions_["nuclei_binary_map"], dim=-1
@@ -617,7 +636,10 @@ class CellViTTrainer(BaseTrainer):
                 "instance_map",
                 "instance_types",
                 "instance_types_nuclei",
-            ]:  # TODO: rather select branch from loss functions?
+            ]:
+                continue
+            if branch not in self.loss_fn_dict:
+                # self.logger.debug
                 continue
             branch_loss_fns = self.loss_fn_dict[branch]
             for loss_name, loss_setting in branch_loss_fns.items():

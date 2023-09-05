@@ -157,9 +157,6 @@ class ExperimentCellViT(BaseExperiment):
             ),
         )
         model.to(device)
-        model = torch.compile(
-            model, backend="aot_eager", mode="max-autotune", fullgraph=True
-        )
 
         # optimizer
         optimizer = self.get_optimizer(
@@ -208,15 +205,15 @@ class ExperimentCellViT(BaseExperiment):
             train_dataset,
             batch_size=self.run_conf["training"]["batch_size"],
             sampler=training_sampler,
-            num_workers=8,
+            num_workers=16,
             pin_memory=False,
             worker_init_fn=self.seed_worker,
         )
 
         val_dataloader = DataLoader(
             val_dataset,
-            batch_size=128,
-            num_workers=8,
+            batch_size=16,
+            num_workers=16,
             pin_memory=True,
             worker_init_fn=self.seed_worker,
         )
@@ -238,6 +235,7 @@ class ExperimentCellViT(BaseExperiment):
             log_images=self.run_conf["logging"].get("log_images", False),
             magnification=self.run_conf["data"].get("magnification", 40),
             mixed_precision=self.run_conf["training"].get("mixed_precision", False),
+            regression_loss=self.run_conf["model"].get("regression_loss", False),
         )
 
         # Load checkpoint if provided
@@ -273,7 +271,6 @@ class ExperimentCellViT(BaseExperiment):
         """Load the configuration of the cell segmentation dataset.
 
         The dataset must have a dataset_config.yaml file in their dataset path with the following entries:
-            * tissue_types: describing the present tissue types with corresponding integer
             * nuclei_types: describing the present nuclei types with corresponding integer
 
         Args:
@@ -287,7 +284,7 @@ class ExperimentCellViT(BaseExperiment):
     def get_loss_fn(self, loss_fn_settings: dict) -> dict:
         """Create a dictionary with loss functions for all branches
 
-        Branches: "nuclei_binary_map", "hv_map", "nuclei_type_map", "tissue_types"
+        Branches: "nuclei_binary_map", "hv_map", "nuclei_type_map"
 
         Args:
             loss_fn_settings (dict): Dictionary with the loss function settings. Structure
@@ -346,10 +343,6 @@ class ExperimentCellViT(BaseExperiment):
                 dice:
                     loss_fn: dice_loss
                     weight: 1
-            tissue_types
-                ce:
-                    loss_fn: nn.CrossEntropyLoss()
-                    weight: 1
         """
         loss_fn_dict = {}
         if "nuclei_binary_map" in loss_fn_settings.keys():
@@ -391,18 +384,7 @@ class ExperimentCellViT(BaseExperiment):
                 "bce": {"loss_fn": retrieve_loss_fn("xentropy_loss"), "weight": 1},
                 "dice": {"loss_fn": retrieve_loss_fn("dice_loss"), "weight": 1},
             }
-        if "tissue_types" in loss_fn_settings.keys():
-            loss_fn_dict["tissue_types"] = {}
-            for loss_name, loss_sett in loss_fn_settings["tissue_types"].items():
-                parameters = loss_sett.get("args", {})
-                loss_fn_dict["tissue_types"][loss_name] = {
-                    "loss_fn": retrieve_loss_fn(loss_sett["loss_fn"], **parameters),
-                    "weight": loss_sett["weight"],
-                }
-        else:
-            loss_fn_dict["tissue_types"] = {
-                "ce": {"loss_fn": nn.CrossEntropyLoss(), "weight": 1},
-            }
+
         return loss_fn_dict
 
     def get_scheduler(self, scheduler_type: str, optimizer: Optimizer) -> _LRScheduler:
@@ -473,19 +455,16 @@ class ExperimentCellViT(BaseExperiment):
         Returns:
             Tuple[Dataset, Dataset]: Training dataset and validation dataset
         """
-        if (
-            "val_split" in self.run_conf["data"]
-            and "val_folds" in self.run_conf["data"]
-        ):
+        if "val_split" in self.run_conf["data"] and "val_fold" in self.run_conf["data"]:
             raise RuntimeError(
-                "Provide either val_split or val_folds in configuration file, not both."
+                "Provide either val_split or val_fold in configuration file, not both."
             )
         if (
             "val_split" not in self.run_conf["data"]
-            and "val_folds" not in self.run_conf["data"]
+            and "val_fold" not in self.run_conf["data"]
         ):
             raise RuntimeError(
-                "Provide either val_split or val_folds in configuration file, one is necessary."
+                "Provide either val_split or val_fold in configuration file, one is necessary."
             )
         full_dataset = select_dataset(
             dataset_name=dataset_name,
@@ -546,7 +525,7 @@ class ExperimentCellViT(BaseExperiment):
                 model_class = CellViTUnshared
             model = model_class(
                 num_nuclei_classes=self.run_conf["data"]["num_nuclei_classes"],
-                num_tissue_classes=self.run_conf["data"]["num_tissue_classes"],
+                num_tissue_classes=1,
                 embed_dim=self.run_conf["model"]["embed_dim"],
                 input_channels=self.run_conf["model"].get("input_channels", 3),
                 depth=self.run_conf["model"]["depth"],
@@ -555,6 +534,7 @@ class ExperimentCellViT(BaseExperiment):
                 drop_rate=self.run_conf["training"].get("drop_rate", 0),
                 attn_drop_rate=self.run_conf["training"].get("attn_drop_rate", 0),
                 drop_path_rate=self.run_conf["training"].get("drop_path_rate", 0),
+                regression_loss=self.run_conf["model"].get("regression_loss", False),
             )
 
             if pretrained_model is not None:
@@ -573,10 +553,11 @@ class ExperimentCellViT(BaseExperiment):
             model = model_class(
                 model256_path=pretrained_encoder,
                 num_nuclei_classes=self.run_conf["data"]["num_nuclei_classes"],
-                num_tissue_classes=self.run_conf["data"]["num_tissue_classes"],
+                num_tissue_classes=1,
                 drop_rate=self.run_conf["training"].get("drop_rate", 0),
                 attn_drop_rate=self.run_conf["training"].get("attn_drop_rate", 0),
                 drop_path_rate=self.run_conf["training"].get("drop_path_rate", 0),
+                regression_loss=self.run_conf["model"].get("regression_loss", False),
             )
             model.load_pretrained_encoder(model.model256_path)
             if pretrained_model is not None:
@@ -595,9 +576,10 @@ class ExperimentCellViT(BaseExperiment):
             model = model_class(
                 model_path=pretrained_encoder,
                 num_nuclei_classes=self.run_conf["data"]["num_nuclei_classes"],
-                num_tissue_classes=self.run_conf["data"]["num_tissue_classes"],
+                num_tissue_classes=1,
                 vit_structure=backbone_type,
                 drop_rate=self.run_conf["training"].get("drop_rate", 0),
+                regression_loss=self.run_conf["model"].get("regression_loss", False),
             )
             model.load_pretrained_encoder(model.model_path)
             if pretrained_model is not None:
@@ -647,7 +629,6 @@ class ExperimentCellViT(BaseExperiment):
                 - A.ColorJitter: Key in transform_settings: colorjitter, parameters: p, scale_setting, scale_color
                 - A.Superpixels: Key in transform_settings: superpixels, parameters: p
                 - A.ZoomBlur: Key in transform_settings: zoomblur, parameters: p
-                - A.RandomSizedCrop: Key in transform_settings: randomsizedcrop, parameters: p
                 - A.ElasticTransform: Key in transform_settings: elastictransform, parameters: p
             Always implemented at the end of the pipeline:
                 - A.Normalize with given mean (default: (0.5, 0.5, 0.5)) and std (default: (0.5, 0.5, 0.5))
@@ -723,17 +704,6 @@ class ExperimentCellViT(BaseExperiment):
             p = transform_settings["zoomblur"]["p"]
             if p > 0 and p <= 1:
                 transform_list.append(A.ZoomBlur(p=p, max_factor=1.05))
-        if "RandomSizedCrop".lower() in transform_settings:
-            p = transform_settings["randomsizedcrop"]["p"]
-            if p > 0 and p <= 1:
-                transform_list.append(
-                    A.RandomSizedCrop(
-                        min_max_height=(input_shape / 2, input_shape),
-                        height=input_shape,
-                        width=input_shape,
-                        p=p,
-                    )
-                )
         if "ElasticTransform".lower() in transform_settings:
             p = transform_settings["elastictransform"]["p"]
             if p > 0 and p <= 1:
@@ -762,7 +732,7 @@ class ExperimentCellViT(BaseExperiment):
         Args:
             train_dataset (CellDataset): Dataset for training
             strategy (str, optional): Sampling strategy. Defaults to "random" (random sampling).
-                Implemented are "random", "cell", "tissue", "cell+tissue".
+                Implemented are "random" and "cell"
             gamma (float, optional): Gamma scaling factor, between 0 and 1.
                 1 means total balancing, 0 means original weights. Defaults to 1.
 
@@ -784,13 +754,9 @@ class ExperimentCellViT(BaseExperiment):
             ds.load_cell_count()
             if strategy.lower() == "cell":
                 weights = ds.get_sampling_weights_cell(gamma)
-            elif strategy.lower() == "tissue":
-                weights = ds.get_sampling_weights_tissue(gamma)
-            elif strategy.lower() == "cell+tissue":
-                weights = ds.get_sampling_weights_cell_tissue(gamma)
             else:
                 raise NotImplementedError(
-                    "Unknown sampling strategy - Implemented are cell, tissue and cell+tissue"
+                    "Unknown sampling strategy - Implemented is cell"
                 )
 
             if isinstance(train_dataset, Subset):

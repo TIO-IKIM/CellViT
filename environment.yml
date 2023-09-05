@@ -3,17 +3,18 @@ channels:
   - conda-forge
   - defaults
 dependencies:
-  - python=3.9.7
+  - python=3.10.12
   - libtiff=4.5.0=h6adf6a1_2
   - openslide=3.4.1=h7773abc_6
   - pip=23.0=pyhd8ed1ab_0
   - python-javabridge
+  - gcc
 
   - pip:
     - mako==1.2.4
     - pyjwt==2.6.0
     - albumentations==1.3.0
-    - cucim==23.4.1
+    # - cucim==23.4.1
     - einops==0.6.1
     - future==0.18.2
     - geojson==3.0.0

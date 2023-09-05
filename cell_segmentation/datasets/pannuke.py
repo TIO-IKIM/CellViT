@@ -17,11 +17,11 @@ import numpy as np
 import pandas as pd
 import torch
 import yaml
-from PIL import Image
-from scipy.ndimage import measurements
-
 from cell_segmentation.datasets.base_cell import CellDataset
-from cell_segmentation.utils.tools import get_bounding_box
+from cell_segmentation.utils.tools import fix_duplicates, get_bounding_box
+from PIL import Image
+from scipy.ndimage import distance_transform_edt, measurements
+from tqdm import tqdm
 
 logger = logging.getLogger()
 logger.addHandler(logging.NullHandler())
@@ -33,6 +33,8 @@ class PanNukeDataset(CellDataset):
         dataset_path: Union[Path, str],
         folds: Union[int, list[int]],
         transforms: Callable = None,
+        stardist: bool = False,
+        load_to_memory: bool = False,
     ) -> None:
         """PanNuke dataset
 
@@ -40,6 +42,8 @@ class PanNukeDataset(CellDataset):
             dataset_path (Union[Path, str]): Path to PanNuke dataset. Structure is described under ./docs/readmes/cell_segmentation.md
             folds (Union[int, list[int]]): Folds to use for this dataset
             transforms (Callable, optional): PyTorch transformations. Defaults to None.
+            stardist (bool, optional): Return StarDist labels. Defaults to False
+            load_to_memory: If the dataset should be loaded to host memory. Defaults to False. # TODO: implements
         """
         if isinstance(folds, int):
             folds = [folds]
@@ -51,6 +55,7 @@ class PanNukeDataset(CellDataset):
         self.types = {}
         self.img_names = []
         self.folds = folds
+        self.stardist = stardist
 
         for fold in folds:
             image_path = self.dataset / f"fold{fold}" / "images"
@@ -133,6 +138,11 @@ class PanNukeDataset(CellDataset):
             "nuclei_binary_map": torch.Tensor(np_map).type(torch.int64),
             "hv_map": torch.Tensor(hv_map).type(torch.float32),
         }
+        if self.stardist:
+            dist_map = PanNukeDataset.gen_distance_prob_maps(inst_map)
+            stardist_map = PanNukeDataset.gen_stardist_maps(inst_map)
+            masks["dist_map"] = torch.Tensor(dist_map).type(torch.float32)
+            masks["stardist_map"] = torch.Tensor(stardist_map).type(torch.float32)
 
         return img, masks, tissue_type, Path(img_path).name
 
@@ -154,6 +164,7 @@ class PanNukeDataset(CellDataset):
 
     def load_cell_count(self):
         """Load Cell count from cell_count.csv file. File must be located inside the fold folder
+        and named "cell_count.csv"
 
         Example file beginning:
             Image,Neoplastic,Inflammatory,Connective,Dead,Epithelial
@@ -336,17 +347,79 @@ class PanNukeDataset(CellDataset):
         hv_map = np.dstack([x_map, y_map])
         return hv_map
 
-    # def fix_mirror_padding(inst_map):
-    #     """Deal with duplicated instances due to mirroring in interpolation
-    #     during shape augmentation (scale, rotation etc.).
-    #     """
-    #     current_max_id = np.amax(inst_map)
-    #     inst_list = list(np.unique(inst_map))
-    #     inst_list.remove(0)  # 0 is background
-    #     for inst_id in inst_list:
-    #         inst_map = np.array(inst_map == inst_id, np.uint8)
-    #         remapped_ids = measurements.label(inst_map)[0]
-    #         remapped_ids[remapped_ids > 1] += current_max_id
-    #         inst_map[remapped_ids > 1] = remapped_ids[remapped_ids > 1]
-    #         current_max_id = np.amax(inst_map)
-    #     return inst_map
+    @staticmethod
+    def gen_distance_prob_maps(inst_map: np.ndarray) -> np.ndarray:
+        inst_map = fix_duplicates(inst_map)
+        dist = np.zeros_like(inst_map, dtype=np.float64)
+        inst_list = list(np.unique(inst_map))
+        if 0 in inst_list:
+            inst_list.remove(0)
+
+        for inst_id in inst_list:
+            inst = np.array(inst_map == inst_id, np.uint8)
+
+            y1, y2, x1, x2 = get_bounding_box(inst)
+            y1 = y1 - 2 if y1 - 2 >= 0 else y1
+            x1 = x1 - 2 if x1 - 2 >= 0 else x1
+            x2 = x2 + 2 if x2 + 2 <= inst_map.shape[1] - 1 else x2
+            y2 = y2 + 2 if y2 + 2 <= inst_map.shape[0] - 1 else y2
+
+            inst = inst[y1:y2, x1:x2]
+
+            if inst.shape[0] < 2 or inst.shape[1] < 2:
+                continue
+
+            # chessboard distance map generation
+            # normalize distance to 0-1
+            inst_dist = distance_transform_edt(inst)
+            inst_dist = inst_dist.astype("float64")
+
+            max_value = np.amax(inst_dist)
+            if max_value <= 0:
+                continue
+            inst_dist = inst_dist / (np.max(inst_dist) + 1e-10)
+
+            dist_map_box = dist[y1:y2, x1:x2]
+            dist_map_box[inst > 0] = inst_dist[inst > 0]
+
+        return dist
+
+    @staticmethod
+    def gen_stardist_maps(inst_map: np.ndarray) -> np.ndarray:
+        n_rays = 32
+        inst_map = fix_duplicates(inst_map)
+        dist = np.empty(inst_map.shape + (n_rays,), np.float32)
+
+        st_rays = np.float32((2 * np.pi) / n_rays)
+        for i in tqdm(range(inst_map.shape[0])):
+            for j in tqdm(range(inst_map.shape[1])):
+                value = inst_map[i, j]
+                if value == 0:
+                    dist[i, j] = 0
+                else:
+                    for k in range(n_rays):
+                        phi = np.float32(k * st_rays)
+                        dy = np.cos(phi)
+                        dx = np.sin(phi)
+                        x, y = np.float32(0), np.float32(0)
+                        while True:
+                            x += dx
+                            y += dy
+                            ii = int(round(i + x))
+                            jj = int(round(j + y))
+                            if (
+                                ii < 0
+                                or ii >= inst_map.shape[0]
+                                or jj < 0
+                                or jj >= inst_map.shape[1]
+                                or value != inst_map[ii, jj]
+                            ):
+                                # small correction as we overshoot the boundary
+                                t_corr = 1 - 0.5 / max(np.abs(dx), np.abs(dy))
+                                x -= t_corr * dx
+                                y -= t_corr * dy
+                                dst = np.sqrt(x**2 + y**2)
+                                dist[i, j, k] = dst
+                                break
+
+        return dist.transpose(2, 0, 1)
