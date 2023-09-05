@@ -8,6 +8,7 @@
 from typing import Callable
 
 from torch.utils.data import Dataset
+from cell_segmentation.datasets.lizzard import LizzardDataset
 
 from cell_segmentation.datasets.pannuke import PanNukeDataset
 
@@ -46,6 +47,18 @@ def select_dataset(
         if split == "test":
             folds = dataset_config["test_folds"]
         dataset = PanNukeDataset(
+            dataset_path=dataset_config["dataset_path"],
+            folds=folds,
+            transforms=transforms,
+        )
+    elif dataset_name.lower() == "lizzard":
+        if split == "train":
+            folds = dataset_config["train_folds"]
+        if split == "val" or split == "validation":
+            folds = dataset_config["val_folds"]
+        if split == "test":
+            folds = dataset_config["test_folds"]
+        dataset = LizzardDataset(
             dataset_path=dataset_config["dataset_path"],
             folds=folds,
             transforms=transforms,

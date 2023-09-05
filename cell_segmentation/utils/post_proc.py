@@ -56,8 +56,8 @@ class DetectionCellPostProcessor:
             self.object_size = 10
             self.k_size = 21
         elif magnification == 20:
-            self.object_size = 5
-            self.k_size = 13
+            self.object_size = 3  # 3 or 40, we used 5
+            self.k_size = 11  # 11 or 41, we used 13
         else:
             raise NotImplementedError("Unknown magnification")
         if gt:  # to not supress something in gt!
@@ -179,8 +179,8 @@ class DetectionCellPostProcessor:
         # processing
         blb = np.array(blb_raw >= 0.5, dtype=np.int32)
 
-        blb = measurements.label(blb)[0]
-        blb = remove_small_objects(blb, min_size=object_size)
+        blb = measurements.label(blb)[0]  # ndimage.label(blb)[0]
+        blb = remove_small_objects(blb, min_size=10)  # 10
         blb[blb > 0] = 1  # background is 0 already
 
         h_dir = cv2.normalize(
@@ -199,6 +199,9 @@ class DetectionCellPostProcessor:
             norm_type=cv2.NORM_MINMAX,
             dtype=cv2.CV_32F,
         )
+
+        # ksize = int((20 * scale_factor) + 1) # 21 vs 41
+        # obj_size = math.ceil(10 * (scale_factor**2)) #10 vs 40
 
         sobelh = cv2.Sobel(h_dir, cv2.CV_64F, 1, 0, ksize=ksize)
         sobelv = cv2.Sobel(v_dir, cv2.CV_64F, 0, 1, ksize=ksize)

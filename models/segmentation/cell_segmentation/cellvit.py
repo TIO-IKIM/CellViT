@@ -125,6 +125,8 @@ class CellViT(nn.Module):
         drop_rate (float, optional): Dropout in MLP. Defaults to 0.
         attn_drop_rate (float, optional): Dropout for attention layer in backbone ViT. Defaults to 0.
         drop_path_rate (float, optional): Dropout for skip connection . Defaults to 0.
+        regression_loss (bool, optional): Use regressive loss for predicting vector components.
+            Adds two additional channels to the binary and hv decoder. Defaults to False.
     """
 
     def __init__(
@@ -141,6 +143,7 @@ class CellViT(nn.Module):
         drop_rate: float = 0,
         attn_drop_rate: float = 0,
         drop_path_rate: float = 0,
+        regression_loss: bool = False,
     ):
         # For simplicity, we will assume that extract layers must have a length of 4
         super().__init__()
@@ -202,9 +205,13 @@ class CellViT(nn.Module):
             Deconv2DBlock(self.embed_dim, self.bottleneck_dim, dropout=self.drop_rate)
         )  # skip connection 3
 
+        self.regression_loss = regression_loss
+        offset_branches = 0
+        if self.regression_loss:
+            offset_branches = 2
         self.branches_output = {
-            "nuclei_binary_map": 2,
-            "hv_map": 2,
+            "nuclei_binary_map": 2 + offset_branches,
+            "hv_map": 2 + offset_branches,
             "nuclei_type_maps": self.num_nuclei_classes,
         }
 
@@ -511,6 +518,8 @@ class CellViT256(CellViT):
         drop_rate (float, optional): Dropout in MLP. Defaults to 0.
         attn_drop_rate (float, optional): Dropout for attention layer in backbone ViT. Defaults to 0.
         drop_path_rate (float, optional): Dropout for skip connection . Defaults to 0.
+        regression_loss (bool, optional): Use regressive loss for predicting vector components.
+            Adds two additional channels to the binary and hv decoder. Defaults to False.
     """
 
     def __init__(
@@ -521,6 +530,7 @@ class CellViT256(CellViT):
         drop_rate: float = 0,
         attn_drop_rate: float = 0,
         drop_path_rate: float = 0,
+        regression_loss: bool = False,  # to use regressive loss for predicting vector components
     ):
         self.patch_size = 16
         self.embed_dim = 384
@@ -534,18 +544,19 @@ class CellViT256(CellViT):
         self.num_nuclei_classes = num_nuclei_classes
 
         super().__init__(
-            num_nuclei_classes,
-            num_tissue_classes,
-            self.embed_dim,
-            self.input_channels,
-            self.depth,
-            self.num_heads,
-            self.extract_layers,
-            self.mlp_ratio,
-            self.qkv_bias,
-            drop_rate,
-            attn_drop_rate,
-            drop_path_rate,
+            num_nuclei_classes=num_nuclei_classes,
+            num_tissue_classes=num_tissue_classes,
+            embed_dim=self.embed_dim,
+            input_channels=self.input_channels,
+            depth=self.depth,
+            num_heads=self.num_heads,
+            extract_layers=self.extract_layers,
+            mlp_ratio=self.mlp_ratio,
+            qkv_bias=self.qkv_bias,
+            drop_rate=drop_rate,
+            attn_drop_rate=attn_drop_rate,
+            drop_path_rate=drop_path_rate,
+            regression_loss=regression_loss,
         )
 
         self.model256_path = model256_path
@@ -872,6 +883,8 @@ class CellViTSAM(CellViT):
         num_tissue_classes (int): Number of tissue classes
         vit_structure (Literal["SAM-B", "SAM-L", "SAM-H"]): SAM model type
         drop_rate (float, optional): Dropout in MLP. Defaults to 0.
+        regression_loss (bool, optional): Use regressive loss for predicting vector components.
+            Adds two additional channels to the binary and hv decoder. Defaults to False.
 
     Raises:
         NotImplementedError: Unknown SAM configuration
@@ -884,6 +897,7 @@ class CellViTSAM(CellViT):
         num_tissue_classes: int,
         vit_structure: Literal["SAM-B", "SAM-L", "SAM-H"],
         drop_rate: float = 0,
+        regression_loss: bool = False,
     ):
         if vit_structure == "SAM-B":
             self.init_vit_b()
@@ -911,6 +925,7 @@ class CellViTSAM(CellViT):
             mlp_ratio=self.mlp_ratio,
             qkv_bias=self.qkv_bias,
             drop_rate=drop_rate,
+            regression_loss=regression_loss,
         )
 
         self.prompt_embed_dim = 256

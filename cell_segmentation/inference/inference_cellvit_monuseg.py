@@ -420,6 +420,8 @@ class MoNuSegInference:
         return predictions
 
     def post_process_patching(self, predictions):
+        # h = predictions["nuclei_binary_map"].shape[-1]
+        # i = int(h / 256)
         predictions["nuclei_binary_map"] = rearrange(
             predictions["nuclei_binary_map"], "(i j) d w h ->d (i w) (j h)", i=4, j=4
         )

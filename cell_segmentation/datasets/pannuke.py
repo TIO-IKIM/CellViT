@@ -154,6 +154,7 @@ class PanNukeDataset(CellDataset):
 
     def load_cell_count(self):
         """Load Cell count from cell_count.csv file. File must be located inside the fold folder
+        and named "cell_count.csv"
 
         Example file beginning:
             Image,Neoplastic,Inflammatory,Connective,Dead,Epithelial
