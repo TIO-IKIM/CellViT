@@ -20,7 +20,6 @@ parentdir = os.path.dirname(parentdir)
 sys.path.insert(0, parentdir)
 
 import json
-from collections import OrderedDict
 from pathlib import Path
 from typing import List, Tuple, Union
 
@@ -51,7 +50,7 @@ from cell_segmentation.utils.metrics import (
     get_fast_pq,
     remap_label,
 )
-from cell_segmentation.utils.post_proc import calculate_instances
+from cell_segmentation.utils.post_proc_cellvit import calculate_instances
 from cell_segmentation.utils.tools import cropping_center, pair_coordinates
 from models.segmentation.cell_segmentation.cellvit import (
     CellViT,
@@ -663,32 +662,28 @@ class InferenceCellViT:
 
         if self.mixed_precision:
             with torch.autocast(device_type="cuda", dtype=torch.float16):
-                predictions_ = model.forward(imgs)
+                predictions = model.forward(imgs)
         else:
-            predictions_ = model.forward(imgs)
-        predictions = OrderedDict(
-            [
-                [k, v.permute(0, 2, 3, 1).contiguous().to(self.device)]
-                for k, v in predictions_.items()
-                if k != "tissue_types"
-            ]
-        )
-        predictions["tissue_types"] = predictions_["tissue_types"].to(self.device)
+            predictions = model.forward(imgs)
+
+        predictions["tissue_types"] = predictions["tissue_types"].to(self.device)
         predictions["nuclei_binary_map"] = F.softmax(
-            predictions["nuclei_binary_map"], dim=-1
-        )  # shape: (batch_size, H, W, 2)
+            predictions["nuclei_binary_map"], dim=1
+        )  # shape: (batch_size, 2, H, W)
         predictions["nuclei_type_map"] = F.softmax(
-            predictions["nuclei_type_map"], dim=-1
-        )  # shape: (batch_size, H, W, num_nuclei_classes)
+            predictions["nuclei_type_map"], dim=1
+        )  # shape: (batch_size, num_nuclei_classes, H, W)
         (
             predictions["instance_map"],
             predictions["instance_types"],
         ) = model.calculate_instance_map(
-            predictions, magnification=self.magnification
+            predictions, self.magnification
         )  # shape: (batch_size, H', W')
         predictions["instance_types_nuclei"] = model.generate_instance_nuclei_map(
             predictions["instance_map"], predictions["instance_types"]
-        ).to(self.device)
+        ).to(
+            self.device
+        )  # shape: (batch_size, num_nuclei_classes, H, W)
 
         # get ground truth values, perform one hot encoding for segmentation maps
         gt_nuclei_binary_map_onehot = (
@@ -705,10 +700,10 @@ class InferenceCellViT:
 
         # assemble ground truth dictionary
         gt = {
-            "nuclei_type_map": gt_nuclei_type_maps_onehot.to(
+            "nuclei_type_map": gt_nuclei_type_maps_onehot.permute(0, 3, 1, 2).to(
                 self.device
             ),  # shape: (batch_size, H, W, num_nuclei_classes)
-            "nuclei_binary_map": gt_nuclei_binary_map_onehot.to(
+            "nuclei_binary_map": gt_nuclei_binary_map_onehot.permute(0, 3, 1, 2).to(
                 self.device
             ),  # shape: (batch_size, H, W, 2)
             "hv_map": masks["hv_map"].to(self.device),  # shape: (batch_size, H, W, 2)
@@ -717,9 +712,11 @@ class InferenceCellViT:
             ),  # shape: (batch_size, H, W) -> each instance has one integer
             "instance_types_nuclei": (
                 gt_nuclei_type_maps_onehot * masks["instance_map"][..., None]
-            ).to(
+            )
+            .permute(0, 3, 1, 2)
+            .to(
                 self.device
-            ),  # shape: (batch_size, H, W, num_nuclei_classes) -> instance has one integer, for each nuclei class
+            ),  # shape: (batch_size, num_nuclei_classes, H, W) -> instance has one integer, for each nuclei class
             "tissue_types": torch.Tensor(
                 [self.dataset_config["tissue_types"][t] for t in tissue_types]
             )
@@ -736,7 +733,9 @@ class InferenceCellViT:
                 "instance_map",
                 "instance_types",
                 "instance_types_nuclei",
-            ]:  # TODO: rather select branch from loss functions?
+            ]:
+                continue
+            if branch not in self.loss_fn_dict:
                 continue
             branch_loss_fns = self.loss_fn_dict[branch]
             for loss_name, loss_setting in branch_loss_fns.items():
@@ -746,7 +745,7 @@ class InferenceCellViT:
                     loss_value = loss_fn(
                         input=pred,
                         target=gt[branch],
-                        focus=gt["nuclei_binary_map"][..., 1],
+                        focus=gt["nuclei_binary_map"],
                         device=self.device,
                     )
                 else:
@@ -816,7 +815,7 @@ class InferenceCellViT:
         )
         instance_maps_gt = gt["instance_map"].detach().cpu()
         gt["tissue_types"] = gt["tissue_types"].detach().cpu().numpy().astype(np.uint8)
-        gt["nuclei_binary_map"] = torch.argmax(gt["nuclei_binary_map"], dim=-1).type(
+        gt["nuclei_binary_map"] = torch.argmax(gt["nuclei_binary_map"], dim=1).type(
             torch.uint8
         )
         gt["instance_types_nuclei"] = (
@@ -851,7 +850,7 @@ class InferenceCellViT:
 
         for i in range(len(pred_tissue)):
             # binary dice score: Score for cell detection per image, without background
-            pred_binary_map = torch.argmax(predictions["nuclei_binary_map"][i], dim=-1)
+            pred_binary_map = torch.argmax(predictions["nuclei_binary_map"][i], dim=0)
             target_binary_map = gt["nuclei_binary_map"][i]
             cell_dice = (
                 dice(preds=pred_binary_map, target=target_binary_map, ignore_index=0)
@@ -1237,8 +1236,9 @@ class InferenceCellViTParser:
         parser.add_argument(
             "--run_dir",
             type=str,
+            default="/homes/fhoerst/histo-projects/CellViT/debug/2023-09-06T115705_CellViT-SAM-H-SOTA-Fold-1",  # TODO: remove
             help="Logging directory of a training run.",
-            required=True,
+            # required=True,
         )
         parser.add_argument(
             "--checkpoint_name",

@@ -39,7 +39,7 @@ from cell_segmentation.utils.metrics import (
     get_fast_pq,
     remap_label,
 )
-from cell_segmentation.utils.post_proc import calculate_instances
+from cell_segmentation.utils.post_proc_cellvit import calculate_instances
 from cell_segmentation.utils.tools import pair_coordinates
 from models.segmentation.cell_segmentation.cellvit import (
     CellViT,

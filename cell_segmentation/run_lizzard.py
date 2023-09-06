@@ -9,7 +9,6 @@ import inspect
 import os
 import sys
 
-
 currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
 parentdir = os.path.dirname(currentdir)
 sys.path.insert(0, parentdir)
@@ -17,11 +16,12 @@ sys.path.insert(0, parentdir)
 import wandb
 
 from base_ml.base_cli import ExperimentBaseParser
-from cell_segmentation.experiments.experiment_lizzard import (
-    ExperimentCellViT,
-)
-from cell_segmentation.inference.inference_cellvit_experiment import InferenceCellViT
+from cell_segmentation.experiments.experiment_lizzard import ExperimentCellViT
 
+
+ExperimentCellViT.seed_run(19)  # global seeding
+
+from cell_segmentation.inference.inference_cellvit_experiment import InferenceCellViT
 
 if __name__ == "__main__":
     # Parse arguments

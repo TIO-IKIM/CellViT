@@ -5,39 +5,30 @@
 # Institute for Artifical Intelligence in Medicine,
 # University Medicine Essen
 
-import logging
 from collections import OrderedDict
-from pathlib import Path
 from typing import Tuple, Union
 
 import numpy as np
 import torch
 import torch.nn.functional as F
-import tqdm
 
 # import wandb
 from matplotlib import pyplot as plt
 from skimage.color import rgba2rgb
 from sklearn.metrics import accuracy_score
-from torch.optim import Optimizer
-from torch.optim.lr_scheduler import _LRScheduler
-from torch.utils.data import DataLoader
 from torchmetrics.functional import dice
 from torchmetrics.functional.classification import binary_jaccard_index
 
-from base_ml.base_early_stopping import EarlyStopping
-from base_ml.base_trainer import BaseTrainer
+from cell_segmentation.trainer.trainer_cellvit import CellViTTrainer
 from cell_segmentation.utils.metrics import get_fast_pq, remap_label
 from cell_segmentation.utils.tools import cropping_center
-from models.segmentation.cell_segmentation.cellvit import CellViT
-from utils.tools import AverageMeter
 
 
-class CellViTTrainer(BaseTrainer):
-    """CellViT trainer class
+class CellViTStarDistTrainer(CellViTTrainer):
+    """CellViTStarDist trainer class
 
     Args:
-        model (CellViT): CellViT model that should be trained
+        model (CellViTStarDist): CellViTStarDist model that should be trained
         loss_fn_dict (dict): Dictionary with loss functions for each branch with a dictionary of loss functions.
             Name of branch as top-level key, followed by a dictionary with loss name, loss fn and weighting factor
             Example:
@@ -70,152 +61,6 @@ class CellViTTrainer(BaseTrainer):
             Adds two additional channels to the binary and hv decoder. Defaults to False.
     """
 
-    def __init__(
-        self,
-        model: CellViT,
-        loss_fn_dict: dict,
-        optimizer: Optimizer,
-        scheduler: _LRScheduler,
-        device: str,
-        logger: logging.Logger,
-        logdir: Union[Path, str],
-        num_classes: int,
-        dataset_config: dict,
-        experiment_config: dict,
-        early_stopping: EarlyStopping = None,
-        log_images: bool = False,
-        magnification: int = 40,
-        mixed_precision: bool = False,
-        regression_loss: bool = False,
-    ):
-        super().__init__(
-            model=model,
-            loss_fn=None,
-            optimizer=optimizer,
-            scheduler=scheduler,
-            device=device,
-            logger=logger,
-            logdir=logdir,
-            experiment_config=experiment_config,
-            early_stopping=early_stopping,
-            accum_iter=1,
-            log_images=log_images,
-            mixed_precision=mixed_precision,
-        )
-        self.loss_fn_dict = loss_fn_dict
-        self.num_classes = num_classes
-        self.dataset_config = dataset_config
-        self.tissue_types = dataset_config["tissue_types"]
-        self.reverse_tissue_types = {v: k for k, v in self.tissue_types.items()}
-        self.nuclei_types = dataset_config["nuclei_types"]
-        self.magnification = magnification
-        self.regression_loss = regression_loss
-
-        # setup logging objects
-        self.loss_avg_tracker = {"Total_Loss": AverageMeter("Total_Loss", ":.4f")}
-        for branch, loss_fns in self.loss_fn_dict.items():
-            for loss_name in loss_fns:
-                self.loss_avg_tracker[f"{branch}_{loss_name}"] = AverageMeter(
-                    f"{branch}_{loss_name}", ":.4f"
-                )
-        self.batch_avg_tissue_acc = AverageMeter("Batch_avg_tissue_ACC", ":4.f")
-
-    def train_epoch(
-        self, epoch: int, train_dataloader: DataLoader, unfreeze_epoch: int = 50
-    ) -> Tuple[dict, dict]:
-        """Training logic for a training epoch
-
-        Args:
-            epoch (int): Current epoch number
-            train_dataloader (DataLoader): Train dataloader
-            unfreeze_epoch (int, optional): Epoch to unfreeze layers
-        Returns:
-            Tuple[dict, dict]: wandb logging dictionaries
-                * Scalar metrics
-                * Image metrics
-        """
-        self.model.train()
-        if epoch >= unfreeze_epoch:
-            self.model.unfreeze_encoder()
-
-        binary_dice_scores = []
-        binary_jaccard_scores = []
-        tissue_pred = []
-        tissue_gt = []
-        train_example_img = None
-
-        # reset metrics
-        self.loss_avg_tracker["Total_Loss"].reset()
-        for branch, loss_fns in self.loss_fn_dict.items():
-            for loss_name in loss_fns:
-                self.loss_avg_tracker[f"{branch}_{loss_name}"].reset()
-        self.batch_avg_tissue_acc.reset()
-
-        # randomly select a batch that should be displayed
-        if self.log_images:
-            select_example_image = int(torch.randint(0, len(train_dataloader), (1,)))
-        else:
-            select_example_image = None
-        train_loop = tqdm.tqdm(enumerate(train_dataloader), total=len(train_dataloader))
-
-        for batch_idx, batch in train_loop:
-            return_example_images = batch_idx == select_example_image
-            batch_metrics, example_img = self.train_step(
-                batch,
-                batch_idx,
-                len(train_dataloader),
-                return_example_images=return_example_images,
-            )
-            if example_img is not None:
-                train_example_img = example_img
-            binary_dice_scores = (
-                binary_dice_scores + batch_metrics["binary_dice_scores"]
-            )
-            binary_jaccard_scores = (
-                binary_jaccard_scores + batch_metrics["binary_jaccard_scores"]
-            )
-            tissue_pred.append(batch_metrics["tissue_pred"])
-            tissue_gt.append(batch_metrics["tissue_gt"])
-            train_loop.set_postfix(
-                {
-                    "Loss": np.round(self.loss_avg_tracker["Total_Loss"].avg, 3),
-                    "Dice": np.round(np.nanmean(binary_dice_scores), 3),
-                    "Pred-Acc": np.round(self.batch_avg_tissue_acc.avg, 3),
-                }
-            )
-
-        # calculate global metrics
-        binary_dice_scores = np.array(binary_dice_scores)
-        binary_jaccard_scores = np.array(binary_jaccard_scores)
-        tissue_detection_accuracy = accuracy_score(
-            y_true=np.concatenate(tissue_gt), y_pred=np.concatenate(tissue_pred)
-        )
-
-        scalar_metrics = {
-            "Loss/Train": self.loss_avg_tracker["Total_Loss"].avg,
-            "Binary-Cell-Dice-Mean/Train": np.nanmean(binary_dice_scores),
-            "Binary-Cell-Jacard-Mean/Train": np.nanmean(binary_jaccard_scores),
-            "Tissue-Multiclass-Accuracy/Train": tissue_detection_accuracy,
-        }
-
-        for branch, loss_fns in self.loss_fn_dict.items():
-            for loss_name in loss_fns:
-                scalar_metrics[f"{branch}_{loss_name}/Train"] = self.loss_avg_tracker[
-                    f"{branch}_{loss_name}"
-                ].avg
-
-        self.logger.info(
-            f"{'Training epoch stats:' : <25} "
-            f"Loss: {self.loss_avg_tracker['Total_Loss'].avg:.4f} - "
-            f"Binary-Cell-Dice: {np.nanmean(binary_dice_scores):.4f} - "
-            f"Binary-Cell-Jacard: {np.nanmean(binary_jaccard_scores):.4f} - "
-            f"Tissue-MC-Acc.: {tissue_detection_accuracy:.4f}"
-        )
-
-        image_metrics = {"Example-Predictions/Train": train_example_img}
-
-        return scalar_metrics, image_metrics
-
     def train_step(
         self,
         batch: object,
@@ -238,9 +83,10 @@ class CellViTTrainer(BaseTrainer):
         """
         # unpack batch
         imgs = batch[0].to(self.device)  # imgs shape: (batch_size, 3, H, W)
-        masks = batch[
-            1
-        ]  # dict: keys: "instance_map", "nuclei_map", "nuclei_binary_map", "hv_map"
+        masks = batch[1]
+        masks.pop(
+            "hv_map"
+        )  # keys: instance_map', 'nuclei_type_map', 'nuclei_binary_map', 'dist_map', 'stardist_map'
         tissue_types = batch[2]  # list[str]
 
         if self.mixed_precision:
@@ -298,141 +144,6 @@ class CellViTTrainer(BaseTrainer):
 
         return batch_metrics, return_example_images
 
-    def validation_epoch(
-        self, epoch: int, val_dataloader: DataLoader
-    ) -> Tuple[dict, dict, float]:
-        """Validation logic for a validation epoch
-
-        Args:
-            epoch (int): Current epoch number
-            val_dataloader (DataLoader): Validation dataloader
-
-        Returns:
-            Tuple[dict, dict, float]: wandb logging dictionaries
-                * Scalar metrics
-                * Image metrics
-                * Early stopping metric
-        """
-        self.model.eval()
-
-        binary_dice_scores = []
-        binary_jaccard_scores = []
-        pq_scores = []
-        cell_type_pq_scores = []
-        tissue_pred = []
-        tissue_gt = []
-        val_example_img = None
-
-        # reset metrics
-        self.loss_avg_tracker["Total_Loss"].reset()
-        for branch, loss_fns in self.loss_fn_dict.items():
-            for loss_name in loss_fns:
-                self.loss_avg_tracker[f"{branch}_{loss_name}"].reset()
-        self.batch_avg_tissue_acc.reset()
-
-        # randomly select a batch that should be displayed
-        if self.log_images:
-            select_example_image = int(torch.randint(0, len(val_dataloader), (1,)))
-        else:
-            select_example_image = None
-
-        val_loop = tqdm.tqdm(enumerate(val_dataloader), total=len(val_dataloader))
-
-        with torch.no_grad():
-            for batch_idx, batch in val_loop:
-                return_example_images = batch_idx == select_example_image
-                batch_metrics, example_img = self.validation_step(
-                    batch, batch_idx, return_example_images
-                )
-                if example_img is not None:
-                    val_example_img = example_img
-                binary_dice_scores = (
-                    binary_dice_scores + batch_metrics["binary_dice_scores"]
-                )
-                binary_jaccard_scores = (
-                    binary_jaccard_scores + batch_metrics["binary_jaccard_scores"]
-                )
-                pq_scores = pq_scores + batch_metrics["pq_scores"]
-                cell_type_pq_scores = (
-                    cell_type_pq_scores + batch_metrics["cell_type_pq_scores"]
-                )
-                tissue_pred.append(batch_metrics["tissue_pred"])
-                tissue_gt.append(batch_metrics["tissue_gt"])
-                val_loop.set_postfix(
-                    {
-                        "Loss": np.round(self.loss_avg_tracker["Total_Loss"].avg, 3),
-                        "Dice": np.round(np.nanmean(binary_dice_scores), 3),
-                        "Pred-Acc": np.round(self.batch_avg_tissue_acc.avg, 3),
-                    }
-                )
-        tissue_types_val = [
-            self.reverse_tissue_types[t].lower() for t in np.concatenate(tissue_gt)
-        ]
-
-        # calculate global metrics
-        binary_dice_scores = np.array(binary_dice_scores)
-        binary_jaccard_scores = np.array(binary_jaccard_scores)
-        pq_scores = np.array(pq_scores)
-        tissue_detection_accuracy = accuracy_score(
-            y_true=np.concatenate(tissue_gt), y_pred=np.concatenate(tissue_pred)
-        )
-
-        scalar_metrics = {
-            "Loss/Validation": self.loss_avg_tracker["Total_Loss"].avg,
-            "Binary-Cell-Dice-Mean/Validation": np.nanmean(binary_dice_scores),
-            "Binary-Cell-Jacard-Mean/Validation": np.nanmean(binary_jaccard_scores),
-            "Tissue-Multiclass-Accuracy/Validation": tissue_detection_accuracy,
-            "bPQ/Validation": np.nanmean(pq_scores),
-            "mPQ/Validation": np.nanmean(
-                [np.nanmean(pq) for pq in cell_type_pq_scores]
-            ),
-        }
-
-        for branch, loss_fns in self.loss_fn_dict.items():
-            for loss_name in loss_fns:
-                scalar_metrics[
-                    f"{branch}_{loss_name}/Validation"
-                ] = self.loss_avg_tracker[f"{branch}_{loss_name}"].avg
-
-        # calculate local metrics
-        # per tissue class
-        for tissue in self.tissue_types.keys():
-            tissue = tissue.lower()
-            tissue_ids = np.where(np.asarray(tissue_types_val) == tissue)
-            scalar_metrics[f"{tissue}-Dice/Validation"] = np.nanmean(
-                binary_dice_scores[tissue_ids]
-            )
-            scalar_metrics[f"{tissue}-Jaccard/Validation"] = np.nanmean(
-                binary_jaccard_scores[tissue_ids]
-            )
-            scalar_metrics[f"{tissue}-bPQ/Validation"] = np.nanmean(
-                pq_scores[tissue_ids]
-            )
-            scalar_metrics[f"{tissue}-mPQ/Validation"] = np.nanmean(
-                [np.nanmean(pq) for pq in np.array(cell_type_pq_scores)[tissue_ids]]
-            )
-
-        # calculate nuclei metrics
-        for nuc_name, nuc_type in self.nuclei_types.items():
-            if nuc_name.lower() == "background":
-                continue
-            scalar_metrics[f"{nuc_name}-PQ/Validation"] = np.nanmean(
-                [pq[nuc_type] for pq in cell_type_pq_scores]
-            )
-
-        self.logger.info(
-            f"{'Validation epoch stats:' : <25} "
-            f"Loss: {self.loss_avg_tracker['Total_Loss'].avg:.4f} - "
-            f"Binary-Cell-Dice: {np.nanmean(binary_dice_scores):.4f} - "
-            f"Binary-Cell-Jacard: {np.nanmean(binary_jaccard_scores):.4f} - "
-            f"PQ-Score: {np.nanmean(pq_scores):.4f} - "
-            f"Tissue-MC-Acc.: {tissue_detection_accuracy:.4f}"
-        )
-
-        image_metrics = {"Example-Predictions/Validation": val_example_img}
-
-        return scalar_metrics, image_metrics, np.nanmean(pq_scores)
-
     def validation_step(
         self,
         batch: object,
@@ -458,12 +169,8 @@ class CellViTTrainer(BaseTrainer):
 
         self.model.zero_grad()
         self.optimizer.zero_grad()
-        if self.mixed_precision:
-            with torch.autocast(device_type="cuda", dtype=torch.float16):
-                # make predictions
-                predictions_ = self.model.forward(imgs)
-        else:
-            predictions_ = self.model.forward(imgs)
+
+        predictions_ = self.model.forward(imgs)
 
         # reshaping and postprocessing
         predictions = self.unpack_predictions(predictions=predictions_)
@@ -512,26 +219,25 @@ class CellViTTrainer(BaseTrainer):
                 * tissue_types: Logit tissue prediction output. Shape: (batch_size, num_tissue_classes)
                 * instance_map: Pixel-wise nuclear instance segmentation predictions. Shape: (batch_size, H, W)
                 * instance_types: Dictionary, Pixel-wise nuclei type predictions
-                * instance_types_nuclei: Pixel-wsie nuclear instance segmentation predictions, for each nuclei type. Shape: (batch_size, H, W, num_nuclei_classes)
+                * instance_types_nuclei: Pixel-wise nuclear instance segmentation predictions, for each nuclei type. Shape: (batch_size, H, W, num_nuclei_classes)
         """
         predictions["tissue_types"] = predictions["tissue_types"].to(self.device)
-        predictions["nuclei_binary_map"] = F.softmax(
-            predictions["nuclei_binary_map"], dim=1
-        )  # shape: (batch_size, 2, H, W)
         predictions["nuclei_type_map"] = F.softmax(
             predictions["nuclei_type_map"], dim=1
-        )  # shape: (batch_size, num_nuclei_classes, H, W)
+        )
+        predictions["dist_map"] = F.sigmoid(predictions["dist_map"])
+        # postprocessing: apply NMS and StarDist postprocessing to generate binary and multiclass cell detections
         (
             predictions["instance_map"],
             predictions["instance_types"],
         ) = self.model.calculate_instance_map(
-            predictions, self.magnification
-        )  # shape: (batch_size, H', W')
+            predictions["dist_map"],
+            predictions["stardist_map"],
+            predictions["nuclei_type_map"],
+        )
         predictions["instance_types_nuclei"] = self.model.generate_instance_nuclei_map(
             predictions["instance_map"], predictions["instance_types"]
-        ).to(
-            self.device
-        )  # shape: (batch_size, num_nuclei_classes, H, W)
+        ).to(self.device)
 
         return predictions
 
@@ -557,27 +263,26 @@ class CellViTTrainer(BaseTrainer):
                 * tissue_types: Tissue types, as torch.Tensor with integer values. Shape: batch_size
         """
         # get ground truth values, perform one hot encoding for segmentation maps
-        gt_nuclei_binary_map_onehot = (
-            F.one_hot(masks["nuclei_binary_map"], num_classes=2)
-        ).type(
-            torch.float32
-        )  # background, nuclei
+        # gt_nuclei_binary_map_onehot = (
+        #     F.one_hot(masks["nuclei_binary_map"], num_classes=2)
+        # ).type(
+        #     torch.float32
+        # )  # background, nuclei
         nuclei_type_maps = torch.squeeze(masks["nuclei_type_map"]).type(torch.int64)
         gt_nuclei_type_maps_onehot = F.one_hot(
             nuclei_type_maps, num_classes=self.num_classes
         ).type(
             torch.float32
         )  # background + nuclei types
-
-        # assemble ground truth dictionary
+        # # assemble ground truth dictionary
         gt = {
             "nuclei_type_map": gt_nuclei_type_maps_onehot.permute(0, 3, 1, 2).to(
                 self.device
-            ),  # shape: (batch_size, H, W, num_nuclei_classes)
-            "nuclei_binary_map": gt_nuclei_binary_map_onehot.permute(0, 3, 1, 2).to(
+            ),  # shape: (batch_size, num_nuclei_classes, H, W)
+            "stardist_map": masks["stardist_map"].to(
                 self.device
-            ),  # shape: (batch_size, H, W, 2)
-            "hv_map": masks["hv_map"].to(self.device),  # shape: (batch_size, H, W, 2)
+            ),  # shape: (batch_size, nrays, H, W)
+            "dist_map": masks["dist_map"].to(self.device),  # shape: (batch_size, H, W)
             "instance_map": masks["instance_map"].to(
                 self.device
             ),  # shape: (batch_size, H, W) -> each instance has one integer
@@ -592,6 +297,7 @@ class CellViTTrainer(BaseTrainer):
             .type(torch.LongTensor)
             .to(self.device),  # shape: batch_size
         }
+
         return gt
 
     def calculate_loss(self, predictions: OrderedDict, gt: dict) -> torch.Tensor:
@@ -626,6 +332,7 @@ class CellViTTrainer(BaseTrainer):
             ]:
                 continue
             if branch not in self.loss_fn_dict:
+                # self.logger.debug
                 continue
             branch_loss_fns = self.loss_fn_dict[branch]
             for loss_name, loss_setting in branch_loss_fns.items():
@@ -687,13 +394,9 @@ class CellViTTrainer(BaseTrainer):
             predictions["instance_types_nuclei"].detach().cpu().numpy().astype("int32")
         )
         gt["tissue_types"] = gt["tissue_types"].detach().cpu().numpy().astype(np.uint8)
-        gt["nuclei_binary_map"] = torch.argmax(gt["nuclei_binary_map"], dim=1).type(
-            torch.uint8
-        )
         gt["instance_types_nuclei"] = (
             gt["instance_types_nuclei"].detach().cpu().numpy().astype("int32")
         )
-
         tissue_detection_accuracy = accuracy_score(
             y_true=gt["tissue_types"], y_pred=pred_tissue
         )
@@ -704,8 +407,16 @@ class CellViTTrainer(BaseTrainer):
 
         for i in range(len(pred_tissue)):
             # binary dice score: Score for cell detection per image, without background
-            pred_binary_map = torch.argmax(predictions["nuclei_binary_map"][i], dim=0)
-            target_binary_map = gt["nuclei_binary_map"][i]
+            pred_binary_map = (
+                torch.clip(predictions["instance_map"][i], min=0, max=1)
+                .type(torch.uint8)
+                .to(self.device)
+            )
+            target_binary_map = (
+                torch.clip(gt["instance_map"][i], min=0, max=1)
+                .type(torch.uint8)
+                .to(self.device)
+            )
             cell_dice = (
                 dice(preds=pred_binary_map, target=target_binary_map, ignore_index=0)
                 .detach()
@@ -773,9 +484,6 @@ class CellViTTrainer(BaseTrainer):
         )
         instance_maps_gt = gt["instance_map"].detach().cpu()
         gt["tissue_types"] = gt["tissue_types"].detach().cpu().numpy().astype(np.uint8)
-        gt["nuclei_binary_map"] = torch.argmax(gt["nuclei_binary_map"], dim=1).type(
-            torch.uint8
-        )
         gt["instance_types_nuclei"] = (
             gt["instance_types_nuclei"].detach().cpu().numpy().astype("int32")
         )
@@ -792,8 +500,16 @@ class CellViTTrainer(BaseTrainer):
 
         for i in range(len(pred_tissue)):
             # binary dice score: Score for cell detection per image, without background
-            pred_binary_map = torch.argmax(predictions["nuclei_binary_map"][i], dim=0)
-            target_binary_map = gt["nuclei_binary_map"][i]
+            pred_binary_map = (
+                torch.clip(predictions["instance_map"][i], min=0, max=1)
+                .type(torch.uint8)
+                .to(self.device)
+            )
+            target_binary_map = (
+                torch.clip(gt["instance_map"][i], min=0, max=1)
+                .type(torch.uint8)
+                .to(self.device)
+            )
             cell_dice = (
                 dice(preds=pred_binary_map, target=target_binary_map, ignore_index=0)
                 .detach()

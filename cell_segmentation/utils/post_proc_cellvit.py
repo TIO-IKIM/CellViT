@@ -130,6 +130,7 @@ class DetectionCellPostProcessor:
                 "type_prob": None,
                 "type": None,
             }
+
         #### * Get class of each instance id, stored at index id-1 (inst_id = number of deteced nucleus)
         for inst_id in list(inst_info_dict.keys()):
             rmin, cmin, rmax, cmax = (inst_info_dict[inst_id]["bbox"]).flatten()
@@ -261,6 +262,7 @@ def calculate_instances(pred_types, pred_insts):
         _type_: _description_
     """
     type_preds = []
+    pred_types = pred_types.permute(0, 2, 3, 1)
     for i in range(pred_types.shape[0]):
         pred_type = torch.argmax(pred_types, dim=-1)[i].detach().cpu().numpy()
         pred_inst = pred_insts[i].detach().cpu().numpy()

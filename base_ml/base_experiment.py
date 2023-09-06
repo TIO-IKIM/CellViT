@@ -67,6 +67,9 @@ class BaseExperiment:
         else:
             self.checkpoint = None
 
+        # seeding
+        # self.seed_run(seed=self.default_conf["random_seed"])
+
     @abstractmethod
     def run_experiment(self):
         """Experiment Code
@@ -357,6 +360,7 @@ class BaseExperiment:
         """
         # seeding
         torch.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
         np.random.seed(seed)
         random.seed(seed)
 
@@ -368,6 +372,8 @@ class BaseExperiment:
             worker_id (_type_): Worker ID
         """
         worker_seed = torch.initial_seed() % 2**32
+        torch.manual_seed(worker_seed)
+        torch.cuda.manual_seed_all(worker_seed)
         np.random.seed(worker_seed)
         random.seed(worker_seed)
 

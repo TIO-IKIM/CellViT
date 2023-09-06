@@ -12,16 +12,18 @@
 import logging
 from pathlib import Path
 from typing import Callable, Tuple, Union
+import sys  # remove
 
+sys.path.append("/homes/fhoerst/histo-projects/CellViT/")  # remove
 import numpy as np
 import pandas as pd
 import torch
 import yaml
-from PIL import Image
-from scipy.ndimage import measurements
-
 from cell_segmentation.datasets.base_cell import CellDataset
-from cell_segmentation.utils.tools import get_bounding_box
+from cell_segmentation.utils.tools import fix_duplicates, get_bounding_box
+from PIL import Image
+from scipy.ndimage import distance_transform_edt, center_of_mass
+from numba import njit
 
 logger = logging.getLogger()
 logger.addHandler(logging.NullHandler())
@@ -33,6 +35,8 @@ class PanNukeDataset(CellDataset):
         dataset_path: Union[Path, str],
         folds: Union[int, list[int]],
         transforms: Callable = None,
+        stardist: bool = False,
+        cache_dataset: bool = False,
     ) -> None:
         """PanNuke dataset
 
@@ -40,6 +44,11 @@ class PanNukeDataset(CellDataset):
             dataset_path (Union[Path, str]): Path to PanNuke dataset. Structure is described under ./docs/readmes/cell_segmentation.md
             folds (Union[int, list[int]]): Folds to use for this dataset
             transforms (Callable, optional): PyTorch transformations. Defaults to None.
+            stardist (bool, optional): Return StarDist labels. Defaults to False
+            cache_dataset: If the dataset should be loaded to host memory in first epoch.
+                Be careful, workers in DataLoader needs to be persistent to have speedup.
+                Recommended to false, just use if you have enough RAM and your I/O operations might be limited.
+                Defaults to False.
         """
         if isinstance(folds, int):
             folds = [folds]
@@ -51,6 +60,8 @@ class PanNukeDataset(CellDataset):
         self.types = {}
         self.img_names = []
         self.folds = folds
+        self.cache_dataset = cache_dataset
+        self.stardist = stardist
 
         for fold in folds:
             image_path = self.dataset / f"fold{fold}" / "images"
@@ -80,6 +91,12 @@ class PanNukeDataset(CellDataset):
         logger.info(f"Created Pannuke Dataset by using fold(s) {self.folds}")
         logger.info(f"Resulting dataset length: {self.__len__()}")
 
+        if self.cache_dataset:
+            self.cached_idx = []  # list of idx that should be cached
+            self.cached_imgs = {}  # keys: idx, values: numpy array of imgs
+            self.cached_masks = {}  # keys: idx, values: numpy array of masks
+            logger.info("Using cached dataset. Cache is built up during first epoch.")
+
     def __getitem__(self, index: int) -> Tuple[torch.Tensor, dict, str, str]:
         """Get one dataset item consisting of transformed image,
         masks (instance_map, nuclei_type_map, nuclei_binary_map, hv_map) and tissue type as string
@@ -101,13 +118,22 @@ class PanNukeDataset(CellDataset):
                 str: Image Name
         """
         img_path = self.images[index]
-        img = np.array(Image.open(img_path)).astype(np.uint8)
 
-        mask_path = self.masks[index]
-        mask = np.load(mask_path, allow_pickle=True)
-        inst_map = mask[()]["inst_map"].astype(np.int32)
-        type_map = mask[()]["type_map"].astype(np.int32)
-        mask = np.stack([inst_map, type_map], axis=-1)
+        if self.cache_dataset:
+            if index in self.cached_idx:
+                img = self.cached_imgs[index]
+                mask = self.cached_masks[index]
+            else:
+                # cache file
+                img = self.load_imgfile(index)
+                mask = self.load_maskfile(index)
+                self.cached_imgs[index] = img
+                self.cached_masks[index] = mask
+                self.cached_idx.append(index)
+
+        else:
+            img = self.load_imgfile(index)
+            mask = self.load_maskfile(index)
 
         if self.transforms is not None:
             transformed = self.transforms(image=img, mask=mask)
@@ -134,6 +160,13 @@ class PanNukeDataset(CellDataset):
             "hv_map": torch.Tensor(hv_map).type(torch.float32),
         }
 
+        # load stardist transforms if neccessary
+        if self.stardist:
+            dist_map = PanNukeDataset.gen_distance_prob_maps(inst_map)
+            stardist_map = PanNukeDataset.gen_stardist_maps(inst_map)
+            masks["dist_map"] = torch.Tensor(dist_map).type(torch.float32)
+            masks["stardist_map"] = torch.Tensor(stardist_map).type(torch.float32)
+
         return img, masks, tissue_type, Path(img_path).name
 
     def __len__(self) -> int:
@@ -151,6 +184,34 @@ class PanNukeDataset(CellDataset):
             transforms (Callable): PyTorch transformations
         """
         self.transforms = transforms
+
+    def load_imgfile(self, index: int) -> np.ndarray:
+        """Load image from file (disk)
+
+        Args:
+            index (int): Index of file
+
+        Returns:
+            np.ndarray: Image as array with shape (H, W, 3)
+        """
+        img_path = self.images[index]
+        return np.array(Image.open(img_path)).astype(np.uint8)
+
+    def load_maskfile(self, index: int) -> np.ndarray:
+        """Load mask from file (disk)
+
+        Args:
+            index (int): Index of file
+
+        Returns:
+            np.ndarray: Mask as array with shape (H, W, 2)
+        """
+        mask_path = self.masks[index]
+        mask = np.load(mask_path, allow_pickle=True)
+        inst_map = mask[()]["inst_map"].astype(np.int32)
+        type_map = mask[()]["type_map"].astype(np.int32)
+        mask = np.stack([inst_map, type_map], axis=-1)
+        return mask
 
     def load_cell_count(self):
         """Load Cell count from cell_count.csv file. File must be located inside the fold folder
@@ -264,7 +325,7 @@ class PanNukeDataset(CellDataset):
                 Shape: (H, W)
         Returns:
             np.ndarray: Horizontal and vertical instance map.
-                Shape: (H, W, 2). First dimension is horizontal (horizontal gradient (-1 to 1)),
+                Shape: (2, H, W). First dimension is horizontal (horizontal gradient (-1 to 1)),
                 last is vertical (vertical gradient (-1 to 1))
         """
         orig_inst_map = inst_map.copy()  # instance ID map
@@ -297,7 +358,7 @@ class PanNukeDataset(CellDataset):
                 continue
 
             # instance center of mass, rounded to nearest pixel
-            inst_com = list(measurements.center_of_mass(inst_map))
+            inst_com = list(center_of_mass(inst_map))
 
             inst_com[0] = int(inst_com[0] + 0.5)
             inst_com[1] = int(inst_com[1] + 0.5)
@@ -334,20 +395,129 @@ class PanNukeDataset(CellDataset):
             y_map_box = y_map[inst_box[0] : inst_box[1], inst_box[2] : inst_box[3]]
             y_map_box[inst_map > 0] = inst_y[inst_map > 0]
 
-        hv_map = np.dstack([x_map, y_map])
+        hv_map = np.stack([x_map, y_map])
         return hv_map
 
-    # def fix_mirror_padding(inst_map):
-    #     """Deal with duplicated instances due to mirroring in interpolation
-    #     during shape augmentation (scale, rotation etc.).
-    #     """
-    #     current_max_id = np.amax(inst_map)
-    #     inst_list = list(np.unique(inst_map))
-    #     inst_list.remove(0)  # 0 is background
-    #     for inst_id in inst_list:
-    #         inst_map = np.array(inst_map == inst_id, np.uint8)
-    #         remapped_ids = measurements.label(inst_map)[0]
-    #         remapped_ids[remapped_ids > 1] += current_max_id
-    #         inst_map[remapped_ids > 1] = remapped_ids[remapped_ids > 1]
-    #         current_max_id = np.amax(inst_map)
-    #     return inst_map
+    @staticmethod
+    def gen_distance_prob_maps(inst_map: np.ndarray) -> np.ndarray:
+        inst_map = fix_duplicates(inst_map)
+        dist = np.zeros_like(inst_map, dtype=np.float64)
+        inst_list = list(np.unique(inst_map))
+        if 0 in inst_list:
+            inst_list.remove(0)
+
+        for inst_id in inst_list:
+            inst = np.array(inst_map == inst_id, np.uint8)
+
+            y1, y2, x1, x2 = get_bounding_box(inst)
+            y1 = y1 - 2 if y1 - 2 >= 0 else y1
+            x1 = x1 - 2 if x1 - 2 >= 0 else x1
+            x2 = x2 + 2 if x2 + 2 <= inst_map.shape[1] - 1 else x2
+            y2 = y2 + 2 if y2 + 2 <= inst_map.shape[0] - 1 else y2
+
+            inst = inst[y1:y2, x1:x2]
+
+            if inst.shape[0] < 2 or inst.shape[1] < 2:
+                continue
+
+            # chessboard distance map generation
+            # normalize distance to 0-1
+            inst_dist = distance_transform_edt(inst)
+            inst_dist = inst_dist.astype("float64")
+
+            max_value = np.amax(inst_dist)
+            if max_value <= 0:
+                continue
+            inst_dist = inst_dist / (np.max(inst_dist) + 1e-10)
+
+            dist_map_box = dist[y1:y2, x1:x2]
+            dist_map_box[inst > 0] = inst_dist[inst > 0]
+
+        return dist
+
+    @staticmethod
+    @njit
+    def gen_stardist_maps(inst_map: np.ndarray) -> np.ndarray:
+        n_rays = 32
+        # inst_map = fix_duplicates(inst_map)
+        dist = np.empty(inst_map.shape + (n_rays,), np.float32)
+
+        st_rays = np.float32((2 * np.pi) / n_rays)
+        for i in range(inst_map.shape[0]):
+            for j in range(inst_map.shape[1]):
+                value = inst_map[i, j]
+                if value == 0:
+                    dist[i, j] = 0
+                else:
+                    for k in range(n_rays):
+                        phi = np.float32(k * st_rays)
+                        dy = np.cos(phi)
+                        dx = np.sin(phi)
+                        x, y = np.float32(0), np.float32(0)
+                        while True:
+                            x += dx
+                            y += dy
+                            ii = int(round(i + x))
+                            jj = int(round(j + y))
+                            if (
+                                ii < 0
+                                or ii >= inst_map.shape[0]
+                                or jj < 0
+                                or jj >= inst_map.shape[1]
+                                or value != inst_map[ii, jj]
+                            ):
+                                # small correction as we overshoot the boundary
+                                t_corr = 1 - 0.5 / max(np.abs(dx), np.abs(dy))
+                                x -= t_corr * dx
+                                y -= t_corr * dy
+                                dst = np.sqrt(x**2 + y**2)
+                                dist[i, j, k] = dst
+                                break
+
+        return dist.transpose(2, 0, 1)
+
+
+# if __name__ == "__main__":
+#     from torch.utils.data import DataLoader
+#     from tqdm import tqdm
+
+# test cache vs no cache
+# no_cache_ds = PanNukeDataset(
+#     dataset_path="/projects/datashare/tio/histopathology/public-datasets/PanNuke/digitalhistologyhub",
+#     folds=[0,1],
+# )
+# cache_ds = PanNukeDataset(
+#     dataset_path="/projects/datashare/tio/histopathology/public-datasets/PanNuke/digitalhistologyhub",
+#     folds=[0,1],
+#     cache_dataset=True,
+# )
+# no_cache_dl = DataLoader(
+#     no_cache_ds, 16, num_workers=16
+# )
+# for batch in tqdm(no_cache_dl):
+#     pass
+# cache_dl = DataLoader(
+#     cache_ds, 16, num_workers=16, persistent_workers=True
+# )
+# for i in range(3):
+#     for batch in tqdm(cache_dl):
+#         pass
+# no_cache_ds = PanNukeDataset(
+#     dataset_path="/projects/datashare/tio/histopathology/public-datasets/PanNuke/digitalhistologyhub",
+#     folds=[0, 1],
+#     stardist=True,
+# )
+# no_cache_dl = DataLoader(no_cache_ds, 16, num_workers=16, prefetch_factor=2)
+# for batch in tqdm(no_cache_dl):
+#     pass
+# cache_ds = PanNukeDataset(
+#     dataset_path="/projects/datashare/tio/histopathology/public-datasets/PanNuke/digitalhistologyhub",
+#     folds=[0, 1],
+#     stardist=True,
+# )
+# cache_dl = DataLoader(
+#     cache_ds, 16, num_workers=16, prefetch_factor=2, persistent_workers=True
+# )
+# for i in range(3):
+#     for batch in tqdm(cache_dl):
+#         pass

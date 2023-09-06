@@ -48,6 +48,7 @@ from wandb.sdk.lib.runid import generate_id
 from base_ml.base_early_stopping import EarlyStopping
 from base_ml.base_experiment import BaseExperiment
 from base_ml.base_loss import retrieve_loss_fn
+from base_ml.base_trainer import BaseTrainer
 from cell_segmentation.datasets.base_cell import CellDataset
 from cell_segmentation.datasets.dataset_coordinator import select_dataset
 from cell_segmentation.trainer.trainer_cellvit import CellViTTrainer
@@ -72,9 +73,6 @@ class ExperimentCellViT(BaseExperiment):
         ### Setup
         # close loggers
         self.close_remaining_logger()
-
-        # seeding
-        self.seed_run(seed=self.default_conf["random_seed"])
 
         # get the config for the current run
         self.run_conf = copy.deepcopy(self.default_conf)
@@ -142,7 +140,6 @@ class ExperimentCellViT(BaseExperiment):
         self.logger.info(f"Using device: {device}")
 
         # loss functions
-
         loss_fn_dict = self.get_loss_fn(self.run_conf.get("loss", {}))
         self.logger.info("Loss functions:")
         self.logger.info(loss_fn_dict)
@@ -205,7 +202,7 @@ class ExperimentCellViT(BaseExperiment):
             train_dataset,
             batch_size=self.run_conf["training"]["batch_size"],
             sampler=training_sampler,
-            num_workers=16,
+            num_workers=8,
             pin_memory=False,
             worker_init_fn=self.seed_worker,
         )
@@ -213,14 +210,15 @@ class ExperimentCellViT(BaseExperiment):
         val_dataloader = DataLoader(
             val_dataset,
             batch_size=128,
-            num_workers=16,
+            num_workers=8,
             pin_memory=True,
             worker_init_fn=self.seed_worker,
         )
 
         # start Training
         self.logger.info("Instantiate Trainer")
-        trainer = CellViTTrainer(
+        trainer_fn = self.get_trainer()
+        trainer = trainer_fn(
             model=model,
             loss_fn_dict=loss_fn_dict,
             optimizer=optimizer,
@@ -470,13 +468,23 @@ class ExperimentCellViT(BaseExperiment):
         Returns:
             Tuple[Dataset, Dataset]: Training dataset and validation dataset
         """
-        if "val_split" in self.run_conf["data"] and "val_fold" in self.run_conf["data"]:
+        if (
+            "val_split" in self.run_conf["data"]
+            and "val_folds" in self.run_conf["data"]
+        ):
             raise RuntimeError(
-                "Provide either val_split or val_fold in configuration file, not both."
+                "Provide either val_splits or val_folds in configuration file, not both."
             )
         if (
             "val_split" not in self.run_conf["data"]
-            and "val_fold" not in self.run_conf["data"]
+            and "val_folds" not in self.run_conf["data"]
+        ):
+            raise RuntimeError(
+                "Provide either val_split or val_folds in configuration file, one is necessary."
+            )
+        if (
+            "val_split" not in self.run_conf["data"]
+            and "val_folds" not in self.run_conf["data"]
         ):
             raise RuntimeError(
                 "Provide either val_split or val_fold in configuration file, one is necessary."
@@ -491,10 +499,10 @@ class ExperimentCellViT(BaseExperiment):
             generator_split = torch.Generator().manual_seed(
                 self.default_conf["random_seed"]
             )
-            val_split = float(self.run_conf["data"]["val_split"])
+            val_splits = float(self.run_conf["data"]["val_split"])
             train_dataset, val_dataset = torch.utils.data.random_split(
                 full_dataset,
-                lengths=[1 - val_split, val_split],
+                lengths=[1 - val_splits, val_splits],
                 generator=generator_split,
             )
             val_dataset.dataset = copy.deepcopy(full_dataset)
@@ -767,7 +775,10 @@ class ExperimentCellViT(BaseExperiment):
             Sampler: Sampler for training
         """
         if strategy.lower() == "random":
-            sampler = RandomSampler(train_dataset)
+            sampling_generator = torch.Generator().manual_seed(
+                self.default_conf["random_seed"]
+            )
+            sampler = RandomSampler(train_dataset, generator=sampling_generator)
             self.logger.info("Using RandomSampler")
         else:
             # this solution is not accurate when a subset is used since the weights are calculated on the whole training dataset
@@ -804,3 +815,11 @@ class ExperimentCellViT(BaseExperiment):
             self.logger.info(f"Unique-Weights: {torch.unique(weights)}")
 
         return sampler
+
+    def get_trainer(self) -> BaseTrainer:
+        """Return Trainer matching to this network
+
+        Returns:
+            BaseTrainer: Trainer
+        """
+        return CellViTTrainer
