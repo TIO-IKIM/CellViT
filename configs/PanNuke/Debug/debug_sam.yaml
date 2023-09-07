@@ -34,31 +34,40 @@ model:
 
 loss:
   nuclei_binary_map:
-    focaltverskyloss:
-      loss_fn: FocalTverskyLoss
-      weight: 1
-    dice:
-      loss_fn: dice_loss
+    # focaltverskyloss:
+    #   loss_fn: FocalTverskyLoss
+    #   weight: 1
+    # dice:
+    #   loss_fn: dice_loss
+    #   weight: 1
+    bce:
+      loss_fn: BCELoss
       weight: 1
   hv_map:
     mse:
-      loss_fn: mse_loss_maps
+      loss_fn: MSELoss
       weight: 2.5
-    msge:
-      loss_fn: msge_loss_maps
-      weight: 8
+    # mse:
+    #   loss_fn: mse_loss_maps
+    #   weight: 2.5
+    # msge:
+    #   loss_fn: msge_loss_maps
+    #   weight: 8
   nuclei_type_map:
     bce:
-      loss_fn: xentropy_loss
-      weight: 0.5
-    dice:
-      loss_fn: dice_loss
-      weight: 0.2
-    mcfocaltverskyloss:
-      loss_fn: MCFocalTverskyLoss
-      weight: 0.5
-      args:
-        num_classes: 6
+      loss_fn: BCELoss
+      weight: 1
+    # bce:
+    #   loss_fn: xentropy_loss
+    #   weight: 0.5
+    # dice:
+    #   loss_fn: dice_loss
+    #   weight: 0.2
+    # mcfocaltverskyloss:
+    #   loss_fn: MCFocalTverskyLoss
+    #   weight: 0.5
+    #   args:
+    #     num_classes: 6
   tissue_types:
     ce:
       loss_fn: CrossEntropyLoss

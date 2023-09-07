@@ -640,10 +640,12 @@ class CellViTTrainer(BaseTrainer):
                     )
                 else:
                     loss_value = loss_fn(input=pred, target=gt[branch])
+                    print(f"loss-value {branch} - {loss_name}: {loss_value.item()}")
                 total_loss = total_loss + weight * loss_value
                 self.loss_avg_tracker[f"{branch}_{loss_name}"].update(
                     loss_value.detach().cpu().numpy()
                 )
+        print(f"Total-loss: {total_loss.item()}")
         self.loss_avg_tracker["Total_Loss"].update(total_loss.detach().cpu().numpy())
 
         return total_loss

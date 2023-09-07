@@ -536,6 +536,10 @@ class ExperimentCellViT(BaseExperiment):
         Returns:
             CellViT: CellViT training model with given setup
         """
+        # reseed needed, due to subprocess seeding compatibility
+        self.seed_run(self.default_conf["random_seed"])
+
+        # check for backbones
         implemented_backbones = ["default", "ViT256", "SAM-B", "SAM-L", "SAM-H"]
         if backbone_type not in implemented_backbones:
             raise NotImplementedError(
