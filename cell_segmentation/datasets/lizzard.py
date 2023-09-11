@@ -26,19 +26,24 @@ logger.addHandler(logging.NullHandler())
 
 
 class LizzardDataset(CellDataset):
+    """Lizzard dataset
+
+    This dataset is always cached
+
+    Args:
+        dataset_path (Union[Path, str]): Path to Lizzard dataset. Structure is described under ./docs/readmes/cell_segmentation.md
+        folds (Union[int, list[int]]): Folds to use for this dataset
+        transforms (Callable, optional): PyTorch transformations. Defaults to None.
+        **kwargs are irgnored
+    """
+
     def __init__(
         self,
         dataset_path: Union[Path, str],
         folds: Union[int, list[int]],
         transforms: Callable = None,
+        **kwargs,
     ) -> None:
-        """Lizzard dataset
-
-        Args:
-            dataset_path (Union[Path, str]): Path to Lizzard dataset. Structure is described under ./docs/readmes/cell_segmentation.md
-            folds (Union[int, list[int]]): Folds to use for this dataset
-            transforms (Callable, optional): PyTorch transformations. Defaults to None.
-        """
         if isinstance(folds, int):
             folds = [folds]
 
@@ -107,13 +112,6 @@ class LizzardDataset(CellDataset):
                 str: Image Name
         """
         img_path = self.images[index]
-        # img = np.array(Image.open(img_path)).astype(np.uint8)
-
-        # mask_path = self.masks[index]
-        # mask = np.load(mask_path, allow_pickle=True)
-        # inst_map = mask[()]["inst_map"].astype(np.int32)
-        # type_map = mask[()]["type_map"].astype(np.int32)
-        # mask = np.stack([inst_map, type_map], axis=-1)
         img = self.loaded_imgs[index]
         mask = self.loaded_masks[index]
 

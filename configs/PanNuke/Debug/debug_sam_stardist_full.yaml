@@ -1,5 +1,5 @@
 logging:
-  mode: offline
+  mode: online
   project: # Adapt
   notes: CellViTSAMStarDist-SAM-H-Fold-1
   log_comment: CellViTSAMStarDist-SAM-H-Fold-1
@@ -36,13 +36,12 @@ model:
   backbone: ViT256
   pretrained_encoder: /homes/fhoerst/histo-projects/CellViT/models/pretrained/ViT-256/vit256_small_dino.pth # Adapt to your path
 
-
 training:
   drop_rate: 0
   attn_drop_rate: 0.1
   drop_path_rate: 0.1
   batch_size: 16
-  epochs: 130
+  epochs: 1
   optimizer: AdamW
   early_stopping_patience: 130
   scheduler:
@@ -58,6 +57,7 @@ training:
   unfreeze_epoch: 25
   sampling_gamma: 0.85
   sampling_strategy: cell+tissue
+  mixed_precision: True
 
 transformations:
   randomrotate90:

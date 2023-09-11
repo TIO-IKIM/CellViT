@@ -30,6 +30,19 @@ logger.addHandler(logging.NullHandler())
 
 
 class PanNukeDataset(CellDataset):
+    """PanNuke dataset
+
+    Args:
+        dataset_path (Union[Path, str]): Path to PanNuke dataset. Structure is described under ./docs/readmes/cell_segmentation.md
+        folds (Union[int, list[int]]): Folds to use for this dataset
+        transforms (Callable, optional): PyTorch transformations. Defaults to None.
+        stardist (bool, optional): Return StarDist labels. Defaults to False
+        cache_dataset: If the dataset should be loaded to host memory in first epoch.
+            Be careful, workers in DataLoader needs to be persistent to have speedup.
+            Recommended to false, just use if you have enough RAM and your I/O operations might be limited.
+            Defaults to False.
+    """
+
     def __init__(
         self,
         dataset_path: Union[Path, str],
@@ -38,18 +51,6 @@ class PanNukeDataset(CellDataset):
         stardist: bool = False,
         cache_dataset: bool = False,
     ) -> None:
-        """PanNuke dataset
-
-        Args:
-            dataset_path (Union[Path, str]): Path to PanNuke dataset. Structure is described under ./docs/readmes/cell_segmentation.md
-            folds (Union[int, list[int]]): Folds to use for this dataset
-            transforms (Callable, optional): PyTorch transformations. Defaults to None.
-            stardist (bool, optional): Return StarDist labels. Defaults to False
-            cache_dataset: If the dataset should be loaded to host memory in first epoch.
-                Be careful, workers in DataLoader needs to be persistent to have speedup.
-                Recommended to false, just use if you have enough RAM and your I/O operations might be limited.
-                Defaults to False.
-        """
         if isinstance(folds, int):
             folds = [folds]
 
@@ -113,7 +114,10 @@ class PanNukeDataset(CellDataset):
                     "nuclei_binary_map": Binary Nuclei-Mask, Shape (256, 256)
                     "hv_map": Horizontal and vertical instance map.
                         Shape: (H, W, 2). First dimension is horizontal (horizontal gradient (-1 to 1)),
-                        last is vertical (vertical gradient (-1 to 1)) Shape (256, 256, 2)
+                        last is vertical (vertical gradient (-1 to 1)) Shape (2, 256, 256)
+                    [Optional if stardist]
+                    "dist_map": Probability distance map. Shape (256, 256)
+                    "stardist_map": Stardist vector map. Shape (n_rays, 256, 256)
                 str: Tissue type
                 str: Image Name
         """
@@ -400,6 +404,14 @@ class PanNukeDataset(CellDataset):
 
     @staticmethod
     def gen_distance_prob_maps(inst_map: np.ndarray) -> np.ndarray:
+        """Generate distance probability maps
+
+        Args:
+            inst_map (np.ndarray): Instance-Map, each instance is has one integer starting by 1 (zero is background), Shape (H, W)
+
+        Returns:
+            np.ndarray: Distance probability map, shape (H, W)
+        """
         inst_map = fix_duplicates(inst_map)
         dist = np.zeros_like(inst_map, dtype=np.float64)
         inst_list = list(np.unique(inst_map))
@@ -438,6 +450,14 @@ class PanNukeDataset(CellDataset):
     @staticmethod
     @njit
     def gen_stardist_maps(inst_map: np.ndarray) -> np.ndarray:
+        """Generate StarDist map with 32 nrays
+
+        Args:
+            inst_map (np.ndarray): Instance-Map, each instance is has one integer starting by 1 (zero is background), Shape (H, W)
+
+        Returns:
+            np.ndarray: Stardist vector map, shape (n_rays, H, W)
+        """
         n_rays = 32
         # inst_map = fix_duplicates(inst_map)
         dist = np.empty(inst_map.shape + (n_rays,), np.float32)

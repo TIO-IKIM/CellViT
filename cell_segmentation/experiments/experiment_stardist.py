@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# CellVit Experiment Class
+# StarDist Experiment Class
 #
 # @ Fabian Hörst, fabian.hoerst@uk-essen.de
 # Institute for Artifical Intelligence in Medicine,
@@ -41,12 +41,17 @@ from models.segmentation.cell_segmentation.cellvit import (
     CellViT256StarDist,
     CellViTSAMStarDist,
     CellViTStarDist,
+    StarDistViT,
+    StarDistViT256,
+    StarDistViTSAM,
 )
+
+# TODO: redocument the shapes in docstring
 
 
 class ExperimentCellViTStarDist(ExperimentCellViT):
     def load_dataset_setup(self, dataset_path: Union[Path, str]) -> None:
-        """Load the configuration of the cell segmentation dataset.
+        """Load the configuration of the PanNuke cell segmentation dataset.
 
         The dataset must have a dataset_config.yaml file in their dataset path with the following entries:
             * tissue_types: describing the present tissue types with corresponding integer
@@ -101,23 +106,25 @@ class ExperimentCellViTStarDist(ExperimentCellViT):
                 ...
 
         Default loss dictionary:
-            nuclei_binary_map:
-                bce:
-                    loss_fn: xentropy_loss
-                    weight: 1
-                dice:
-                    loss_fn: dice_loss
-                    weight: 1
-            hv_map:
-                mse:
+            stardist_map:
+                maeweighted:
+                    loss_fn: MAEWeighted
+                    weight: 0.2
+                    args:
+                        alpha: 0.0001
+                        apply_mask: True
+            dist_map:
+                bceweighted:
                     loss_fn: mse_loss_maps
                     weight: 1
-                msge:
+                    args:
+                        apply_mask: True
+                mseweighted:
                     loss_fn: msge_loss_maps
                     weight: 1
             nuclei_type_map
-                bce:
-                    loss_fn: xentropy_loss
+                ceweighted:
+                    loss_fn: CEWeighted
                     weight: 1
                 dice:
                     loss_fn: dice_loss
@@ -138,7 +145,7 @@ class ExperimentCellViTStarDist(ExperimentCellViT):
                 }
         else:
             loss_fn_dict["stardist_map"] = {
-                "mae": {
+                "maeweighted": {
                     "loss_fn": retrieve_loss_fn(
                         "MAEWeighted", alpha=0.0001, apply_mask=True
                     ),
@@ -155,11 +162,14 @@ class ExperimentCellViTStarDist(ExperimentCellViT):
                 }
         else:
             loss_fn_dict["dist_map"] = {
-                "bce": {
+                "bceweighted": {
                     "loss_fn": retrieve_loss_fn("BCEWeighted", apply_mask=True),
                     "weight": 1,
                 },
-                "mse": {"loss_fn": retrieve_loss_fn("MSEWeighted"), "weight": 1},
+                "mseweighted": {
+                    "loss_fn": retrieve_loss_fn("MSEWeighted"),
+                    "weight": 1,
+                },
             }
         if "nuclei_type_map" in loss_fn_settings.keys():
             loss_fn_dict["nuclei_type_map"] = {}
@@ -171,7 +181,7 @@ class ExperimentCellViTStarDist(ExperimentCellViT):
                 }
         else:
             loss_fn_dict["nuclei_type_map"] = {
-                "bce": {"loss_fn": retrieve_loss_fn("xentropy_loss"), "weight": 1},
+                "ceweighted": {"loss_fn": retrieve_loss_fn("CEWeighted"), "weight": 1},
                 "dice": {"loss_fn": retrieve_loss_fn("dice_loss"), "weight": 1},
             }
         if "tissue_types" in loss_fn_settings.keys():
@@ -198,7 +208,7 @@ class ExperimentCellViTStarDist(ExperimentCellViT):
             - "constant": None
             - "exponential": gamma (optional, defaults to 0.95)
             - "cosine": eta_min (optional, defaults to 1-e5)
-
+            - "reducelronplateau": everything hardcoded right now, uses vall los for checking
         Args:
             scheduler_type (str): Type of scheduler as a string. Currently implemented:
                 - "constant" (lowering by a factor of ten after 25 epochs, increasing after 50, decreasimg again after 75)
@@ -209,7 +219,12 @@ class ExperimentCellViTStarDist(ExperimentCellViT):
         Returns:
             _LRScheduler: PyTorch Scheduler
         """
-        implemented_schedulers = ["constant", "exponential", "cosine"]
+        implemented_schedulers = [
+            "constant",
+            "exponential",
+            "cosine",
+            "reducelronplateau",
+        ]
         if scheduler_type.lower() not in implemented_schedulers:
             self.logger.warning(
                 f"Unknown Scheduler - No scheduler from the list {implemented_schedulers} select. Using default scheduling."
@@ -238,7 +253,10 @@ class ExperimentCellViTStarDist(ExperimentCellViT):
             )
         elif scheduler_type.lower() == "reducelronplateau":
             scheduler = ReduceLROnPlateau(
+                optimizer,
                 mode="min",
+                factor=0.5,
+                min_lr=0.0000001,
             )
         else:
             scheduler = super().get_scheduler(optimizer)
@@ -273,6 +291,7 @@ class ExperimentCellViTStarDist(ExperimentCellViT):
         pretrained_encoder: Union[Path, str] = None,
         pretrained_model: Union[Path, str] = None,
         backbone_type: str = "default",
+        share_decoder_upsampling: bool = False,
         **kwargs,
     ) -> CellViTStarDist:
         """Return the CellViTStarDist training model
@@ -281,11 +300,13 @@ class ExperimentCellViTStarDist(ExperimentCellViT):
             pretrained_encoder (Union[Path, str]): Path to a pretrained encoder. Defaults to None.
             pretrained_model (Union[Path, str], optional): Path to a pretrained model. Defaults to None.
             backbone_type (str, optional): Backbone Type. Currently supported are default (None, ViT256, SAM-B, SAM-L, SAM-H). Defaults to None
+            share_decoder_upsampling (bool optional): If the encoders are shared up to the head of the network (everything except final layers).
+                Select True to get model approximately similar to StarDist and False for UNETR/HoVerNet. Defaults to False.
             **kwargs for downward compatibilitys
         Returns:
             CellViTStarDist: CellViTStarDist training model with given setup
         """
-        torch.manual_seed(0)
+        torch.manual_seed(seed=self.default_conf["random_seed"])
         implemented_backbones = ["default", "ViT256", "SAM-B", "SAM-L", "SAM-H"]
 
         if backbone_type not in implemented_backbones:
@@ -293,7 +314,10 @@ class ExperimentCellViTStarDist(ExperimentCellViT):
                 f"Unknown Backbone Type - Currently supported are: {implemented_backbones}"
             )
         if backbone_type.lower() == "default":
-            model_class = CellViTStarDist
+            if not share_decoder_upsampling:
+                model_class = CellViTStarDist
+            else:
+                model_class = StarDistViT
             model = model_class(
                 num_nuclei_classes=self.run_conf["data"]["num_nuclei_classes"],
                 num_tissue_classes=self.run_conf["data"]["num_tissue_classes"],
@@ -317,7 +341,10 @@ class ExperimentCellViTStarDist(ExperimentCellViT):
                 self.logger.info("Loaded CellViT model")
 
         if backbone_type == "ViT256":
-            model_class = CellViT256StarDist
+            if not share_decoder_upsampling:
+                model_class = CellViT256StarDist
+            else:
+                model_class = StarDistViT256
             model = model_class(
                 model256_path=pretrained_encoder,
                 num_nuclei_classes=self.run_conf["data"]["num_nuclei_classes"],
@@ -337,7 +364,10 @@ class ExperimentCellViTStarDist(ExperimentCellViT):
             model.freeze_encoder()
             self.logger.info("Loaded CellVit256 model")
         if backbone_type in ["SAM-B", "SAM-L", "SAM-H"]:
-            model_class = CellViTSAMStarDist
+            if not share_decoder_upsampling:
+                model_class = CellViTSAMStarDist
+            else:
+                model_class = StarDistViTSAM
             model = model_class(
                 model_path=pretrained_encoder,
                 num_nuclei_classes=self.run_conf["data"]["num_nuclei_classes"],

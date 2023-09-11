@@ -68,7 +68,7 @@ class BaseExperiment:
             self.checkpoint = None
 
         # seeding
-        # self.seed_run(seed=self.default_conf["random_seed"])
+        self.seed_run(seed=self.default_conf["random_seed"])
 
     @abstractmethod
     def run_experiment(self):
@@ -148,7 +148,7 @@ class BaseExperiment:
         )
         self.logger.info(hp)
 
-        return optimizer  # TODO: this could cause an error when using weight freezing
+        return optimizer
 
     def get_scheduler(self, optimizer: Optimizer) -> _LRScheduler:
         """Retrieve learning rate scheduler for training
@@ -361,6 +361,8 @@ class BaseExperiment:
         # seeding
         torch.manual_seed(seed)
         torch.cuda.manual_seed_all(seed)
+        torch.backends.cudnn.deterministic = True
+        os.environ["PYTHONHASHSEED"] = str(seed)
         np.random.seed(seed)
         random.seed(seed)
 

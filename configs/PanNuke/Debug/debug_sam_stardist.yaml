@@ -42,7 +42,7 @@ training:
   attn_drop_rate: 0.1
   drop_path_rate: 0.1
   batch_size: 16
-  epochs: 3
+  epochs: 1
   optimizer: AdamW
   early_stopping_patience: 130
   scheduler:

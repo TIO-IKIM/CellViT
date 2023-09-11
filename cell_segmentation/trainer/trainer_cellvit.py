@@ -68,6 +68,7 @@ class CellViTTrainer(BaseTrainer):
         mixed_precision (bool, optional): If mixed-precision should be used. Defaults to False.
         regression_loss (bool, optional): Use regressive loss for predicting vector components.
             Adds two additional channels to the binary and hv decoder. Defaults to False.
+            Currently not implemented!
     """
 
     def __init__(
@@ -462,15 +463,19 @@ class CellViTTrainer(BaseTrainer):
             with torch.autocast(device_type="cuda", dtype=torch.float16):
                 # make predictions
                 predictions_ = self.model.forward(imgs)
+                # reshaping and postprocessing
+                predictions = self.unpack_predictions(predictions=predictions_)
+                gt = self.unpack_masks(masks=masks, tissue_types=tissue_types)
+                # calculate loss
+                _ = self.calculate_loss(predictions, gt)
+
         else:
             predictions_ = self.model.forward(imgs)
-
-        # reshaping and postprocessing
-        predictions = self.unpack_predictions(predictions=predictions_)
-        gt = self.unpack_masks(masks=masks, tissue_types=tissue_types)
-
-        # calculate loss
-        _ = self.calculate_loss(predictions, gt)
+            # reshaping and postprocessing
+            predictions = self.unpack_predictions(predictions=predictions_)
+            gt = self.unpack_masks(masks=masks, tissue_types=tissue_types)
+            # calculate loss
+            _ = self.calculate_loss(predictions, gt)
 
         # get metrics for this batch
         batch_metrics = self.calculate_step_metric_validation(predictions, gt)
@@ -495,6 +500,7 @@ class CellViTTrainer(BaseTrainer):
         return batch_metrics, return_example_images
 
     def unpack_predictions(self, predictions: dict) -> OrderedDict:
+        # TODO: shapes
         """Unpack the given predictions. Main focus lays on reshaping and postprocessing predictions, e.g. separating instances
 
         Args:
@@ -536,6 +542,7 @@ class CellViTTrainer(BaseTrainer):
         return predictions
 
     def unpack_masks(self, masks: dict, tissue_types: list) -> dict:
+        # TODO: shapes
         """Unpack the given masks. Main focus lays on reshaping and postprocessing masks to generate one dict
 
         Args:
@@ -596,6 +603,7 @@ class CellViTTrainer(BaseTrainer):
 
     def calculate_loss(self, predictions: OrderedDict, gt: dict) -> torch.Tensor:
         """Calculate the loss
+        # TODO: shapes
 
         Args:
             predictions (OrderedDict): OrderedDict: Processed network output. Keys are:
@@ -640,17 +648,17 @@ class CellViTTrainer(BaseTrainer):
                     )
                 else:
                     loss_value = loss_fn(input=pred, target=gt[branch])
-                    print(f"loss-value {branch} - {loss_name}: {loss_value.item()}")
                 total_loss = total_loss + weight * loss_value
                 self.loss_avg_tracker[f"{branch}_{loss_name}"].update(
                     loss_value.detach().cpu().numpy()
                 )
-        print(f"Total-loss: {total_loss.item()}")
         self.loss_avg_tracker["Total_Loss"].update(total_loss.detach().cpu().numpy())
 
         return total_loss
 
     def calculate_step_metric_train(self, predictions: dict, gt: dict) -> dict:
+        # TODO: shapes
+
         """Calculate the metrics for the training step
 
         Args:
@@ -736,6 +744,8 @@ class CellViTTrainer(BaseTrainer):
         return batch_metrics
 
     def calculate_step_metric_validation(self, predictions: dict, gt: dict) -> dict:
+        # TODO: shapes
+
         """Calculate the metrics for the validation step
 
         Args:
@@ -867,14 +877,14 @@ class CellViTTrainer(BaseTrainer):
             imgs (Union[torch.Tensor, np.ndarray]): Images to process, a random number (num_images) is selected from this stack
                 Shape: (batch_size, 3, H', W')
             predictions (dict): Predictions of models. Keys:
-                "nuclei_type_map": Shape: (batch_size, H', W', num_nuclei)
-                "nuclei_binary_map": Shape: (batch_size, H', W', 2)
-                "hv_map": Shape: (batch_size, H', W', 2)
+                "nuclei_type_map": Shape: (batch_size, num_nuclei, H', W')
+                "nuclei_binary_map": Shape: (batch_size, 2, H', W')
+                "hv_map": Shape: (batch_size, 2, H', W')
                 "instance_map": Shape: (batch_size, H', W')
             ground_truth (dict): Ground truth values. Keys:
-                "nuclei_type_map": Shape: (batch_size, H', W', num_nuclei)
-                "nuclei_binary_map": Shape: (batch_size, H', W', 2)
-                "hv_map": Shape: (batch_size, H', W', 2)
+                "nuclei_type_map": Shape: (batch_size, num_nuclei, H', W')
+                "nuclei_binary_map": Shape: (batch_size, 2, H', W')
+                "hv_map": Shape: (batch_size, 2, H', W')
                 "instance_map": Shape: (batch_size, H', W')
             num_nuclei_classes (int): Number of total nuclei classes including background
             num_images (int, optional): Number of example patches to display. Defaults to 2.
@@ -885,6 +895,25 @@ class CellViTTrainer(BaseTrainer):
 
         assert num_images <= imgs.shape[0]
         num_images = 4
+
+        predictions["nuclei_binary_map"] = predictions["nuclei_binary_map"].permute(
+            0, 2, 3, 1
+        )
+        predictions["hv_map"] = predictions["hv_map"].permute(0, 2, 3, 1)
+        predictions["nuclei_type_map"] = predictions["nuclei_type_map"].permute(
+            0, 2, 3, 1
+        )
+        predictions["instance_types_nuclei"] = predictions[
+            "instance_types_nuclei"
+        ].transpose(0, 2, 3, 1)
+
+        ground_truth["hv_map"] = ground_truth["hv_map"].permute(0, 2, 3, 1)
+        ground_truth["nuclei_type_map"] = ground_truth["nuclei_type_map"].permute(
+            0, 2, 3, 1
+        )
+        predictions["instance_types_nuclei"] = predictions[
+            "instance_types_nuclei"
+        ].transpose(0, 2, 3, 1)
 
         h = ground_truth["hv_map"].shape[1]
         w = ground_truth["hv_map"].shape[2]

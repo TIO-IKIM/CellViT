@@ -3,7 +3,7 @@
 #
 # Own defined loss functions:
 # xentropy_loss, dice_loss, mse_loss and msge_loss (https://github.com/vqdang/hover_net)
-#
+# WeightedBaseLoss, MAEWeighted, MSEWeighted, BCEWeighted, CEWeighted (https://github.com/okunator/cellseg_models.pytorch)
 # @ Fabian Hörst, fabian.hoerst@uk-essen.de
 # Institute for Artifical Intelligence in Medicine,
 # University Medicine Essen
@@ -176,6 +176,17 @@ class MSGELossMaps(_Loss):
         focus: torch.Tensor,
         device: str,
     ) -> torch.Tensor:
+        """MSGE (Gradient of MSE) loss
+
+        Args:
+            input (torch.Tensor): Input with shape (B, C, H, W)
+            target (torch.Tensor): Target with shape (B, C, H, W)
+            focus (torch.Tensor): Focus, type of masking (B, C, W, W)
+            device (str): CUDA device to work with.
+
+        Returns:
+            torch.Tensor: MSGE loss
+        """
         input = input.permute(0, 2, 3, 1)
         target = target.permute(0, 2, 3, 1)
         focus = focus.permute(0, 2, 3, 1)
@@ -251,7 +262,6 @@ class FocalTverskyLoss(nn.Module):
         # flatten
         target = target.permute(0, 2, 3, 1)
         target = target.view(-1)
-        # TODO: check shape
         input = torch.softmax(input, dim=-1).view(-1)
 
         # calculate true positives, false positives and false negatives
@@ -356,6 +366,22 @@ class MCFocalTverskyLoss(FocalTverskyLoss):
 
 
 class WeightedBaseLoss(nn.Module):
+    """Init a base class for weighted cross entropy based losses.
+
+    Enables weighting for object instance edges and classes.
+
+    Adapted/Copied from: https://github.com/okunator/cellseg_models.pytorch (10.5281/zenodo.7064617)
+
+    Args:
+        apply_sd (bool, optional): If True, Spectral decoupling regularization will be applied to the
+            loss matrix. Defaults to False.
+        apply_ls (bool, optional): If True, Label smoothing will be applied to the target.. Defaults to False.
+        apply_svls (bool, optional): If True, spatially varying label smoothing will be applied to the target. Defaults to False.
+        apply_mask (bool, optional): If True, a mask will be applied to the loss matrix. Mask shape: (B, H, W). Defaults to False.
+        class_weights (torch.Tensor, optional): Class weights. A tensor of shape (C, ). Defaults to None.
+        edge_weight (float, optional): Weight for the object instance border pixels. Defaults to None.
+    """
+
     def __init__(
         self,
         apply_sd: bool = False,
@@ -366,26 +392,6 @@ class WeightedBaseLoss(nn.Module):
         edge_weight: float = None,
         **kwargs,
     ) -> None:
-        """Init a base class for weighted cross entropy based losses.
-
-        Enables weighting for object instance edges and classes.
-
-        Parameters
-        ----------
-        apply_sd : bool, default=False
-            If True, Spectral decoupling regularization will be applied  to the
-            loss matrix.
-        apply_ls : bool, default=False
-            If True, Label smoothing will be applied to the target.
-        apply_svls : bool, default=False
-            If True, spatially varying label smoothing will be applied to the target
-        apply_mask : bool, default=False
-            If True, a mask will be applied to the loss matrix. Mask shape: (B, H, W)
-        class_weights : torch.Tensor, default=None
-            Class weights. A tensor of shape (C, )
-        edge_weight : float, default=None
-            Weight for the object instance border pixels
-        """
         super().__init__()
         self.apply_sd = apply_sd
         self.apply_ls = apply_ls
@@ -401,21 +407,14 @@ class WeightedBaseLoss(nn.Module):
 
         https://arxiv.org/abs/2011.09468
 
-        Parameters
-        ----------
-            loss_matrix : torch.Tensor
-                Pixelwise losses. A tensor of shape (B, H, W).
-            yhat : torch.Tensor
-                The pixel predictions of the model. Shape (B, C, H, W).
-            lam : float, default=0.01
-                Lambda constant.
+        Args:
+            loss_matrix (torch.Tensor): Pixelwise losses. A tensor of shape (B, H, W).
+            yhat (torch.Tensor): The pixel predictions of the model. Shape (B, C, H, W).
+            lam (float, optional): Lambda constant.. Defaults to 0.01.
 
-        Returns
-        -------
-            torch.Tensor:
-                SD-regularized loss matrix. Same shape as input.
+        Returns:
+            torch.Tensor: SD-regularized loss matrix. Same shape as input.
         """
-        # return loss_matrix + (lam / 2) * (yhat**2).mean() # which??
         return loss_matrix + (lam / 2) * (yhat**2).mean(axis=1)
 
     def apply_ls_to_target(
@@ -424,23 +423,15 @@ class WeightedBaseLoss(nn.Module):
         num_classes: int,
         label_smoothing: float = 0.1,
     ) -> torch.Tensor:
-        """Apply regular label smoothing to the target map.
+        """_summary_
 
-        https://arxiv.org/abs/1512.00567
+        Args:
+            target (torch.Tensor): Number of classes in the data.
+            num_classes (int): The target one hot tensor. Shape (B, C, H, W)
+            label_smoothing (float, optional):  The smoothing coeff alpha. Defaults to 0.1.
 
-        Parameters
-        ----------
-            target : torch.Tensor
-                The target one hot tensor. Shape (B, C, H, W). Dtype: Int64.
-            num_classes : int
-                Number of classes in the data.
-            label_smoothing : float, default=0.1
-                The smoothing coeff alpha.
-
-        Retrurns
-        --------
-            Torch.Tensor:
-                Label smoothed target. Same shape as input.
+        Returns:
+            torch.Tensor: Label smoothed target. Same shape as input.
         """
         return target * (1 - label_smoothing) + label_smoothing / num_classes
 
@@ -456,21 +447,14 @@ class WeightedBaseLoss(nn.Module):
 
         https://arxiv.org/abs/2104.05788
 
-        Parameters
-        ----------
-            target : torch.Tensor
-                The target one hot tensor. Shape (B, C, H, W). Dtype: Int64.
-            num_classes : int
-                Number of classes in the data.
-            kernel_size : int, default=3
-                Size of a square kernel.
-            sigma : int, default=3
-                The std of the gaussian.
+        Args:
+            target (torch.Tensor): The target one hot tensor. Shape (B, C, H, W).
+            num_classes (int):  Number of classes in the data.
+            kernel_size (int, optional): Size of a square kernel.. Defaults to 5.
+            sigma (int, optional): The std of the gaussian. Defaults to 3.
 
-        Retrurns
-        --------
-            Torch.Tensor:
-                Label smoothed target. Same shape as input.
+        Returns:
+            torch.Tensor: Label smoothed target. Same shape as input.
         """
         my, mx = kernel_size // 2, kernel_size // 2
         gaussian_kernel = gaussian_kernel2d(
@@ -490,17 +474,12 @@ class WeightedBaseLoss(nn.Module):
 
         NOTE: No normalization
 
-        Parameters
-        ----------
-            loss_matrix : torch.Tensor
-                Pixelwise losses. A tensor of shape (B, H, W).
-            target : torch.Tensor
-                The target mask. Shape (B, H, W).
+        Args:
+            loss_matrix (torch.Tensor): Pixelwise losses. A tensor of shape (B, H, W).
+            target (torch.Tensor): The target mask. Shape (B, H, W).
 
-        Returns
-        -------
-            torch.Tensor:
-                The loss matrix scaled with the weight matrix. Shape (B, H, W).
+        Returns:
+            torch.Tensor: The loss matrix scaled with the weight matrix. Shape (B, H, W).
         """
         weight_mat = self.class_weights[target.long()].to(target.device)  # to (B, H, W)
         loss = loss_matrix * weight_mat
@@ -514,19 +493,12 @@ class WeightedBaseLoss(nn.Module):
 
         Basically just computes `edge_weight`**`weight_map`.
 
-        Parameters
-        ----------
-            loss_matrix : torch.Tensor
-                Pixelwise losses. A tensor of shape (B, H, W).
-            weight_map : torch.Tensor
-                Map that points to the pixels that will be weighted.
-                Shape (B, H, W).
+        Args:
+            loss_matrix (torch.Tensor): Pixelwise losses. A tensor of shape (B, H, W).
+            weight_map (torch.Tensor): Map that points to the pixels that will be weighted. Shape (B, H, W).
 
-        Returns
-        -------
-            torch.Tensor:
-                The loss matrix scaled with the nuclear boundary weights.
-                Shape (B, H, W).
+        Returns:
+            torch.Tensor: The loss matrix scaled with the nuclear boundary weights. Shape (B, H, W).
         """
         return loss_matrix * self.edge_weight**weight_map
 
@@ -535,19 +507,13 @@ class WeightedBaseLoss(nn.Module):
     ) -> torch.Tensor:
         """Apply a mask to the loss matrix.
 
-        Parameters
-        ----------
-            loss_matrix : torch.Tensor
-                Pixelwise losses. A tensor of shape (B, H, W).
-            mask : torch.Tensor
-                The mask. Shape (B, H, W).
-            norm : bool, default=True
-                If True, the loss matrix will be normalized by the mean of the mask.
+        Args:
+            loss_matrix (torch.Tensor): Pixelwise losses. A tensor of shape (B, H, W).
+            mask (torch.Tensor): The mask. Shape (B, H, W).
+            norm (bool, optional): If True, the loss matrix will be normalized by the mean of the mask. Defaults to True.
 
-        Returns
-        -------
-            torch.Tensor:
-                The loss matrix scaled with the mask. Shape (B, H, W).
+        Returns:
+            torch.Tensor: The loss matrix scaled with the mask. Shape (B, H, W).
         """
         loss_matrix *= mask
         if norm:
@@ -563,6 +529,24 @@ class WeightedBaseLoss(nn.Module):
 
 
 class MAEWeighted(WeightedBaseLoss):
+    """Compute the MAE loss. Used in the stardist method.
+
+    Stardist:
+    https://arxiv.org/pdf/1806.03535.pdf
+    Adapted/Copied from: https://github.com/okunator/cellseg_models.pytorch (10.5281/zenodo.7064617)
+
+    NOTE: We have added the option to apply spectral decoupling and edge weights
+    to the loss matrix.
+
+    Args:
+        alpha (float, optional): Weight regulizer b/w [0,1]. In stardist repo, this is the
+        'train_background_reg' parameter. Defaults to 1e-4.
+        apply_sd (bool, optional): If True, Spectral decoupling regularization will be applied  to the
+        loss matrix. Defaults to False.
+        apply_mask (bool, optional): f True, a mask will be applied to the loss matrix. Mask shape: (B, H, W). Defaults to False.
+        edge_weight (float, optional): Weight that is added to object borders. Defaults to None.
+    """
+
     def __init__(
         self,
         alpha: float = 1e-4,
@@ -571,27 +555,6 @@ class MAEWeighted(WeightedBaseLoss):
         edge_weight: float = None,
         **kwargs,
     ) -> None:
-        """Compute the MAE loss. Used in the stardist method.
-
-        Stardist:
-        https://arxiv.org/pdf/1806.03535.pdf
-
-        NOTE: We have added the option to apply spectral decoupling and edge weights
-        to the loss matrix.
-
-        Parameters
-        ----------
-        alpha : float, default=1e-4
-            Weight regulizer b/w [0,1]. In stardist repo, this is the
-            'train_background_reg' parameter.
-        apply_sd : bool, default=False
-            If True, Spectral decoupling regularization will be applied  to the
-            loss matrix.
-        apply_mask : bool, default=False
-            If True, a mask will be applied to the loss matrix. Mask shape: (B, H, W)
-        edge_weight : float, default=none
-            Weight that is added to object borders.
-        """
         super().__init__(apply_sd, False, False, apply_mask, False, edge_weight)
         self.alpha = alpha
         self.eps = 1e-7
@@ -606,21 +569,17 @@ class MAEWeighted(WeightedBaseLoss):
     ) -> torch.Tensor:
         """Compute the masked MAE loss.
 
-        Parameters
-        ----------
-            yhat : torch.Tensor
-                The prediction map. Shape (B, C, H, W).
-            target : torch.Tensor
-                the ground truth annotations. Shape (B, H, W).
-            target_weight : torch.Tensor, default=None
-                The edge weight map. Shape (B, H, W).
-            mask : torch.Tensor, default=None
-                The mask map. Shape (B, H, W).
+        Args:
+            input (torch.Tensor): The prediction map. Shape (B, C, H, W).
+            target (torch.Tensor): The ground truth annotations. Shape (B, H, W).
+            target_weight (torch.Tensor, optional): The edge weight map. Shape (B, H, W). Defaults to None.
+            mask (torch.Tensor, optional): The mask map. Shape (B, H, W). Defaults to None.
 
-        Returns
-        -------
-            torch.Tensor:
-                Computed MAE loss (scalar).
+        Raises:
+            ValueError: Pred and target shapes must match.
+
+        Returns:
+            torch.Tensor: Computed MAE loss (scalar).
         """
         yhat = input
         n_classes = yhat.shape[1]
@@ -653,6 +612,18 @@ class MAEWeighted(WeightedBaseLoss):
 
 
 class MSEWeighted(WeightedBaseLoss):
+    """MSE-loss.
+
+    Args:
+        apply_sd (bool, optional): If True, Spectral decoupling regularization will be applied  to the
+            loss matrix. Defaults to False.
+        apply_ls (bool, optional): If True, Label smoothing will be applied to the target. Defaults to False.
+        apply_svls (bool, optional): If True, spatially varying label smoothing will be applied to the target. Defaults to False.
+        apply_mask (bool, optional): If True, a mask will be applied to the loss matrix. Mask shape: (B, H, W). Defaults to False.
+        edge_weight (float, optional): Weight that is added to object borders. Defaults to None.
+        class_weights (torch.Tensor, optional): Class weights. A tensor of shape (n_classes,). Defaults to None.
+    """
+
     def __init__(
         self,
         apply_sd: bool = False,
@@ -663,24 +634,6 @@ class MSEWeighted(WeightedBaseLoss):
         class_weights: torch.Tensor = None,
         **kwargs,
     ) -> None:
-        """MSE-loss.
-
-        Parameters
-        ----------
-        apply_sd : bool, default=False
-            If True, Spectral decoupling regularization will be applied  to the
-            loss matrix.
-        apply_ls : bool, default=False
-            If True, Label smoothing will be applied to the target.
-        apply_svls : bool, default=False
-            If True, spatially varying label smoothing will be applied to the target
-        apply_mask : bool, default=False
-            If True, a mask will be applied to the loss matrix. Mask shape: (B, H, W)
-        edge_weight : float, default=none
-            Weight that is added to object borders.
-        class_weights : torch.Tensor, default=None
-            Class weights. A tensor of shape (n_classes,).
-        """
         super().__init__(
             apply_sd, apply_ls, apply_svls, apply_mask, class_weights, edge_weight
         )
@@ -692,21 +645,15 @@ class MSEWeighted(WeightedBaseLoss):
         I.e. Takes in a segmentation mask of shape (B, H, W) and reshapes it
         into a tensor of shape (B, C, H, W).
 
-        Parameters
-        ----------
-            type_map : torch.Tensor
-                Multi-label Segmentation mask. Shape (B, H, W).
-            n_classes : int
-                Number of classes. (Zero-class included.)
+        Args:
+            type_map (torch.Tensor):  Multi-label Segmentation mask. Shape (B, H, W).
+            n_classes (int): Number of classes. (Zero-class included.)
 
-        Returns
-        -------
-            torch.Tensor:
-                A one hot tensor. Shape: (B, C, H, W). Dtype: torch.FloatTensor.
+        Raises:
+            TypeError: Input `type_map` should have dtype: torch.int64.
 
-        Raises
-        ------
-            TypeError: If input is not torch.int64.
+        Returns:
+            torch.Tensor: A one hot tensor. Shape: (B, C, H, W). Dtype: torch.FloatTensor.
         """
         if not type_map.dtype == torch.int64:
             raise TypeError(
@@ -734,21 +681,14 @@ class MSEWeighted(WeightedBaseLoss):
     ) -> torch.Tensor:
         """Compute the MSE-loss.
 
-        Parameters
-        ----------
-            yhat : torch.Tensor
-                The prediction map. Shape (B, C, H, W, C).
-            target : torch.Tensor
-                the ground truth annotations. Shape (B, H, W).
-            target_weight : torch.Tensor, default=None
-                The edge weight map. Shape (B, H, W).
-            mask : torch.Tensor, default=None
-                The mask map. Shape (B, H, W).
+        Args:
+            input (torch.Tensor): The prediction map. Shape (B, C, H, W, C).
+            target (torch.Tensor): The ground truth annotations. Shape (B, H, W).
+            target_weight (torch.Tensor, optional):  The edge weight map. Shape (B, H, W). Defaults to None.
+            mask (torch.Tensor, optional): The mask map. Shape (B, H, W). Defaults to None.
 
-        Returns
-        -------
-            torch.Tensor:
-                Computed MSE loss (scalar).
+        Returns:
+            torch.Tensor: Computed MSE loss (scalar).
         """
         yhat = input
         target_one_hot = target
@@ -789,6 +729,19 @@ class MSEWeighted(WeightedBaseLoss):
 
 
 class BCEWeighted(WeightedBaseLoss):
+    """Binary cross entropy loss with weighting and other tricks.
+    Adapted/Copied from: https://github.com/okunator/cellseg_models.pytorch (10.5281/zenodo.7064617)
+
+    Args:
+        apply_sd (bool, optional): If True, Spectral decoupling regularization will be applied  to the
+            loss matrix. Defaults to False.
+        apply_ls (bool, optional): If True, Label smoothing will be applied to the target. Defaults to False.
+        apply_svls (bool, optional): If True, spatially varying label smoothing will be applied to the target. Defaults to False.
+        apply_mask (bool, optional): If True, a mask will be applied to the loss matrix. Mask shape: (B, H, W). Defaults to False.
+        edge_weight (float, optional):  Weight that is added to object borders. Defaults to None.
+        class_weights (torch.Tensor, optional): Class weights. A tensor of shape (n_classes,). Defaults to None.
+    """
+
     def __init__(
         self,
         apply_sd: bool = False,
@@ -799,24 +752,6 @@ class BCEWeighted(WeightedBaseLoss):
         class_weights: torch.Tensor = None,
         **kwargs,
     ) -> None:
-        """Binary cross entropy loss with weighting and other tricks.
-
-        Parameters
-        ----------
-        apply_sd : bool, default=False
-            If True, Spectral decoupling regularization will be applied  to the
-            loss matrix.
-        apply_ls : bool, default=False
-            If True, Label smoothing will be applied to the target.
-        apply_svls : bool, default=False
-            If True, spatially varying label smoothing will be applied to the target
-        apply_mask : bool, default=False
-            If True, a mask will be applied to the loss matrix. Mask shape: (B, H, W)
-        edge_weight : float, default=None
-            Weight that is added to object borders.
-        class_weights : torch.Tensor, default=None
-            Class weights. A tensor of shape (n_classes,).
-        """
         super().__init__(
             apply_sd, apply_ls, apply_svls, apply_mask, class_weights, edge_weight
         )
@@ -832,23 +767,17 @@ class BCEWeighted(WeightedBaseLoss):
     ) -> torch.Tensor:
         """Compute binary cross entropy loss.
 
-        Parameters
-        ----------
-            yhat : torch.Tensor
-                The prediction map. Shape (B, C, H, W).
-            target : torch.Tensor
-                the ground truth annotations. Shape (B, H, W).
-            target_weight : torch.Tensor, default=None
-                The edge weight map. Shape (B, H, W).
-            mask : torch.Tensor, default=None
-                The mask map. Shape (B, H, W).
+        Args:
+            input (torch.Tensor): The prediction map. We internally convert back via logit function. Shape (B, C, H, W).
+            target (torch.Tensor): the ground truth annotations. Shape (B, H, W).
+            target_weight (torch.Tensor, optional): The edge weight map. Shape (B, H, W). Defaults to None.
+            mask (torch.Tensor, optional): The mask map. Shape (B, H, W). Defaults to None.
 
-        Returns
-        -------
-            torch.Tensor:
-                Computed BCE loss (scalar).
+        Returns:
+            torch.Tensor: Computed BCE loss (scalar).
         """
         yhat = input
+        yhat = torch.special.logit(yhat)
         num_classes = yhat.shape[1]
         yhat = torch.clip(yhat, self.eps, 1.0 - self.eps)
 
@@ -881,6 +810,101 @@ class BCEWeighted(WeightedBaseLoss):
         return torch.mean(bce)
 
 
+class CEWeighted(WeightedBaseLoss):
+    """Cross-Entropy loss with weighting.
+    Adapted/Copied from: https://github.com/okunator/cellseg_models.pytorch (10.5281/zenodo.7064617)
+
+    Args:
+        apply_sd (bool, optional): If True, Spectral decoupling regularization will be applied to the loss matrix. Defaults to False.
+        apply_ls (bool, optional): If True, Label smoothing will be applied to the target. Defaults to False.
+        apply_svls (bool, optional): If True, spatially varying label smoothing will be applied to the target. Defaults to False.
+        apply_mask (bool, optional): If True, a mask will be applied to the loss matrix. Mask shape: (B, H, W). Defaults to False.
+        edge_weight (float, optional): Weight that is added to object borders. Defaults to None.
+        class_weights (torch.Tensor, optional): Class weights. A tensor of shape (n_classes,). Defaults to None.
+        logits (bool, optional): If work on logit values. Defaults to False. Defaults to False.
+    """
+
+    def __init__(
+        self,
+        apply_sd: bool = False,
+        apply_ls: bool = False,
+        apply_svls: bool = False,
+        apply_mask: bool = False,
+        edge_weight: float = None,
+        class_weights: torch.Tensor = None,
+        logits: bool = False,
+        **kwargs,
+    ) -> None:
+        super().__init__(
+            apply_sd, apply_ls, apply_svls, apply_mask, class_weights, edge_weight
+        )
+        self.eps = 1e-8
+        self.logits = logits
+
+    def forward(
+        self,
+        input: torch.Tensor,
+        target: torch.Tensor,
+        target_weight: torch.Tensor = None,
+        mask: torch.Tensor = None,
+        **kwargs,
+    ) -> torch.Tensor:
+        """Compute the cross entropy loss.
+
+        Args:
+            input (torch.Tensor): The prediction map. Shape (B, C, H, W).
+            target (torch.Tensor): The ground truth annotations. Shape (B, H, W).
+            target_weight (torch.Tensor, optional): The edge weight map. Shape (B, H, W). Defaults to None.
+            mask (torch.Tensor, optional): The mask map. Shape (B, H, W). Defaults to None.
+
+        Returns:
+            torch.Tensor: Computed CE loss (scalar).
+        """
+        yhat = input
+        if self.logits:
+            input_soft = (
+                F.softmax(yhat, dim=1) + self.eps
+            )  # (B, C, H, W) # check if doubled softmax
+        else:
+            input_soft = input
+
+        num_classes = yhat.shape[1]
+        if len(target.shape) != len(yhat.shape) and target.shape[1] != num_classes:
+            target_one_hot = MSEWeighted.tensor_one_hot(
+                target, num_classes
+            )  # (B, C, H, W)
+        else:
+            target_one_hot = target
+            target = torch.argmax(target, dim=1)
+        assert target_one_hot.shape == yhat.shape
+
+        if self.apply_svls:
+            target_one_hot = self.apply_svls_to_target(
+                target_one_hot, num_classes, **kwargs
+            )
+
+        if self.apply_ls:
+            target_one_hot = self.apply_ls_to_target(
+                target_one_hot, num_classes, **kwargs
+            )
+
+        loss = -torch.sum(target_one_hot * torch.log(input_soft), dim=1)  # (B, H, W)
+
+        if self.apply_mask and mask is not None:
+            loss = self.apply_mask_weight(loss, mask, norm=False)  # (B, H, W)
+
+        if self.apply_sd:
+            loss = self.apply_spectral_decouple(loss, yhat)
+
+        if self.class_weights is not None:
+            loss = self.apply_class_weights(loss, target)
+
+        if self.edge_weight is not None:
+            loss = self.apply_edge_weights(loss, target_weight)
+
+        return loss.mean()
+
+
 def retrieve_loss_fn(loss_name: dict, **kwargs) -> _Loss:
     """Return the loss function with given name defined in the LOSS_DICT and initialize with kwargs
 
@@ -905,22 +929,22 @@ LOSS_DICT = {
     "msge_loss_maps": MSGELossMaps,
     "FocalTverskyLoss": FocalTverskyLoss,
     "MCFocalTverskyLoss": MCFocalTverskyLoss,
-    "CrossEntropyLoss": nn.CrossEntropyLoss,
+    "CrossEntropyLoss": nn.CrossEntropyLoss,  # input logits, targets
     "L1Loss": nn.L1Loss,
     "MSELoss": nn.MSELoss,
-    "CTCLoss": nn.CTCLoss,
-    "NLLLoss": nn.NLLLoss,
+    "CTCLoss": nn.CTCLoss,  # probability
+    "NLLLoss": nn.NLLLoss,  # log-probabilities of each class
     "PoissonNLLLoss": nn.PoissonNLLLoss,
     "GaussianNLLLoss": nn.GaussianNLLLoss,
-    "KLDivLoss": nn.KLDivLoss,
-    "BCELoss": nn.BCELoss,
-    "BCEWithLogitsLoss": nn.BCEWithLogitsLoss,
+    "KLDivLoss": nn.KLDivLoss,  # argument input in log-space
+    "BCELoss": nn.BCELoss,  # probabilities
+    "BCEWithLogitsLoss": nn.BCEWithLogitsLoss,  # logits
     "MarginRankingLoss": nn.MarginRankingLoss,
     "HingeEmbeddingLoss": nn.HingeEmbeddingLoss,
     "MultiLabelMarginLoss": nn.MultiLabelMarginLoss,
     "HuberLoss": nn.HuberLoss,
     "SmoothL1Loss": nn.SmoothL1Loss,
-    "SoftMarginLoss": nn.SoftMarginLoss,
+    "SoftMarginLoss": nn.SoftMarginLoss,  # logits
     "MultiLabelSoftMarginLoss": nn.MultiLabelSoftMarginLoss,
     "CosineEmbeddingLoss": nn.CosineEmbeddingLoss,
     "MultiMarginLoss": nn.MultiMarginLoss,
@@ -928,5 +952,6 @@ LOSS_DICT = {
     "TripletMarginWithDistanceLoss": nn.TripletMarginWithDistanceLoss,
     "MAEWeighted": MAEWeighted,
     "MSEWeighted": MSEWeighted,
-    "BCEWeighted": BCEWeighted,
+    "BCEWeighted": BCEWeighted,  # logits
+    "CEWeighted": CEWeighted,  # logits
 }

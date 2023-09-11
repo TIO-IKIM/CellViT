@@ -5,6 +5,8 @@
 # Institute for Artifical Intelligence in Medicine,
 # University Medicine Essen
 
+# TODO: rewrite for new shapes
+
 import argparse
 import inspect
 import os

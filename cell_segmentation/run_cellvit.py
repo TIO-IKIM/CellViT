@@ -18,8 +18,9 @@ import wandb
 from base_ml.base_cli import ExperimentBaseParser
 from cell_segmentation.experiments.experiment_cellvit import ExperimentCellViT
 
-
-from cell_segmentation.inference.inference_cellvit_experiment import InferenceCellViT
+from cell_segmentation.inference.inference_cellvit_experiment_pannuke import (
+    InferenceCellViT,
+)
 
 if __name__ == "__main__":
     # Parse arguments

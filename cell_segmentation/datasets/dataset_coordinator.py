@@ -20,7 +20,7 @@ def select_dataset(
 
     Args:
         dataset_name (str): Name of dataset to use.
-            Must be one of: [pannuke]
+            Must be one of: [pannuke, lizzard]
         split (str): Split to use.
             Must be one of: ["train", "val", "validation", "test"]
         dataset_config (dict): Dictionary with dataset configuration settings

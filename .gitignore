@@ -24,6 +24,7 @@ docs/Makefile
 
 # local configs
 configs/projects
+configs/PanNuke/
 
 # pretrained models
 *.pth

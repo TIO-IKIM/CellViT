@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Running an Experiment Using CellViT cell segmentation network
+# Running an Experiment Using StarDist cell segmentation network
 #
 # @ Fabian Hörst, fabian.hoerst@uk-essen.de
 # Institute for Artifical Intelligence in Medicine,
@@ -19,7 +19,9 @@ from base_ml.base_cli import ExperimentBaseParser
 from cell_segmentation.experiments.experiment_stardist import ExperimentCellViTStarDist
 
 ExperimentCellViTStarDist.seed_run(19)  # global seeding
-from cell_segmentation.inference.inference_cellvit_experiment import InferenceCellViT
+from cell_segmentation.inference.inference_stardist_experiment_pannuke import (
+    InferenceCellViTStarDist,
+)
 
 if __name__ == "__main__":
     # Parse arguments
@@ -33,7 +35,7 @@ if __name__ == "__main__":
             default_conf=configuration, checkpoint=configuration["checkpoint"]
         )
         outdir = experiment.run_experiment()
-        inference = InferenceCellViT(
+        inference = InferenceCellViTStarDist(
             run_dir=outdir,
             gpu=configuration["gpu"],
             checkpoint_name=configuration["eval_checkpoint"],
@@ -73,7 +75,7 @@ if __name__ == "__main__":
         else:
             # casual run
             outdir = experiment.run_experiment()
-            inference = InferenceCellViT(
+            inference = InferenceCellViTStarDist(
                 run_dir=outdir,
                 gpu=configuration["gpu"],
                 checkpoint_name=configuration["eval_checkpoint"],

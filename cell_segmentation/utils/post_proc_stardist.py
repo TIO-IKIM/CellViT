@@ -15,6 +15,8 @@ def noop(*args, **kargs):
     pass
 
 
+# TODO: document everything and write all docstrings
+
 warnings.warn = noop
 
 

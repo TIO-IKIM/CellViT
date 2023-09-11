@@ -305,11 +305,11 @@ class CellSegmentationInference:
                 metadata = batch[1]
                 if self.mixed_precision:
                     with torch.autocast(device_type="cuda", dtype=torch.float16):
-                        predictions_ = self.model.forward(patches, retrieve_tokens=True)
+                        predictions = self.model.forward(patches, retrieve_tokens=True)
                 else:
-                    predictions_ = self.model.forward(patches, retrieve_tokens=True)
+                    predictions = self.model.forward(patches, retrieve_tokens=True)
                 # reshape, apply softmax to segmentation maps
-                predictions = self.model.reshape_model_output(predictions_, self.device)
+                # predictions = self.model.reshape_model_output(predictions_, self.device)
                 instance_types, tokens = self.get_cell_predictions_with_tokens(
                     predictions, magnification=wsi.metadata["magnification"]
                 )
@@ -486,18 +486,17 @@ class CellSegmentationInference:
                 * List[dict]: Network tokens on cpu device with shape (batch_size, num_tokens_h, num_tokens_w, embd_dim)
         """
         predictions["nuclei_binary_map"] = F.softmax(
-            predictions["nuclei_binary_map"], dim=-1
-        )
+            predictions["nuclei_binary_map"], dim=1
+        )  # shape: (batch_size, 2, H, W)
         predictions["nuclei_type_map"] = F.softmax(
-            predictions["nuclei_type_map"], dim=-1
-        )
-
+            predictions["nuclei_type_map"], dim=1
+        )  # shape: (batch_size, num_nuclei_classes, H, W)
         # get the instance types
         (
             _,
             instance_types,
         ) = self.model.calculate_instance_map(predictions, magnification=magnification)
-        # get the tokens
+
         tokens = predictions["tokens"].to("cpu")
 
         return instance_types, tokens
@@ -898,7 +897,7 @@ class InferenceWSIParser:
     def __init__(self) -> None:
         parser = argparse.ArgumentParser(
             formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-            description="Perform CellViT inference for given run-directory with model checkpoints and logs",
+            description="Perform CellViT inference for given run-directory with model checkpoints and logs. Just for CellViT, not for StarDist models",
         )
         requiredNamed = parser.add_argument_group("required named arguments")
         requiredNamed.add_argument(
@@ -1069,6 +1068,12 @@ if __name__ == "__main__":
                 csv_path=configuration["filelist"],
                 wsi_extension=configuration["wsi_extension"],
             )
+            wsi_filelist = [
+                Path(configuration["wsi_paths"]) / f
+                if configuration["wsi_paths"] not in f
+                else Path(f)
+                for f in wsi_filelist
+            ]
         else:
             cell_segmentation.logger.info(
                 f"Loading all files from folder {configuration['wsi_paths']}. No filelist provided."
@@ -1082,6 +1087,7 @@ if __name__ == "__main__":
                 )
             ]
         for i, wsi_path in enumerate(wsi_filelist):
+            wsi_path = Path(wsi_path)
             wsi_name = wsi_path.stem
             patched_slide_path = Path(configuration["patch_dataset_path"]) / wsi_name
             cell_segmentation.logger.info(f"File {i+1}/{len(wsi_filelist)}: {wsi_name}")

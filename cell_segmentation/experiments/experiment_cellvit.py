@@ -152,6 +152,9 @@ class ExperimentCellViT(BaseExperiment):
             shared_skip_connections=self.run_conf["model"].get(
                 "shared_skip_connections", False
             ),
+            share_decoder_upsampling=self.run_conf["model"].get(
+                "share_decoder_upsampling", False
+            ),
         )
         model.to(device)
 
@@ -524,6 +527,7 @@ class ExperimentCellViT(BaseExperiment):
         pretrained_model: Union[Path, str] = None,
         backbone_type: str = "default",
         shared_skip_connections: bool = False,
+        **kwargs,
     ) -> CellViT:
         """Return the CellViT training model
 

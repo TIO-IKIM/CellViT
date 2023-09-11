@@ -205,12 +205,16 @@ class BaseTrainer:
                 elif self.early_stopping.early_stop:
                     self.logger.info("Performing early stopping!")
                     break
-            if epoch % 25 == 0:
-                self.save_checkpoint(epoch, f"checkpoint_{epoch}.pth")
+            # Currently disabled to save memori
+            # if epoch % 25 == 0:
+            #     self.save_checkpoint(epoch, f"checkpoint_{epoch}.pth")
             self.save_checkpoint(epoch, "latest_checkpoint.pth")
 
             # scheduling
-            self.scheduler.step()
+            if type(self.scheduler) == torch.optim.lr_scheduler.ReduceLROnPlateau:
+                self.scheduler.step(float(val_scalar_metrics["Loss/Validation"]))
+            else:
+                self.scheduler.step()
             new_lr = self.optimizer.param_groups[0]["lr"]
             self.logger.debug(f"Old lr: {curr_lr:.6f} - New lr: {new_lr:.6f}")
 
