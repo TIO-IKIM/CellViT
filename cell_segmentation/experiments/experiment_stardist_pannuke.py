@@ -35,7 +35,9 @@ from torch.utils.data import Dataset
 from torchinfo import summary
 
 from base_ml.base_loss import retrieve_loss_fn
-from cell_segmentation.experiments.experiment_cellvit import ExperimentCellViT
+from cell_segmentation.experiments.experiment_cellvit_pannuke import (
+    ExperimentCellVitPanNuke,
+)
 from cell_segmentation.trainer.trainer_stardist import CellViTStarDistTrainer
 from models.segmentation.cell_segmentation.cellvit import (
     CellViT256StarDist,
@@ -49,7 +51,7 @@ from models.segmentation.cell_segmentation.cellvit import (
 # TODO: redocument the shapes in docstring
 
 
-class ExperimentCellViTStarDist(ExperimentCellViT):
+class ExperimentCellViTStarDist(ExperimentCellVitPanNuke):
     def load_dataset_setup(self, dataset_path: Union[Path, str]) -> None:
         """Load the configuration of the PanNuke cell segmentation dataset.
 

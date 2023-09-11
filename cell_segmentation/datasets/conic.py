@@ -25,7 +25,7 @@ logger = logging.getLogger()
 logger.addHandler(logging.NullHandler())
 
 
-class LizzardDataset(CellDataset):
+class CoNicDataset(CellDataset):
     """Lizzard dataset
 
     This dataset is always cached

@@ -8,7 +8,7 @@
 from typing import Callable
 
 from torch.utils.data import Dataset
-from cell_segmentation.datasets.lizzard import LizzardDataset
+from cell_segmentation.datasets.conic import CoNicDataset
 
 from cell_segmentation.datasets.pannuke import PanNukeDataset
 
@@ -59,7 +59,7 @@ def select_dataset(
             folds = dataset_config["val_folds"]
         if split == "test":
             folds = dataset_config["test_folds"]
-        dataset = LizzardDataset(
+        dataset = CoNicDataset(
             dataset_path=dataset_config["dataset_path"],
             folds=folds,
             transforms=transforms,

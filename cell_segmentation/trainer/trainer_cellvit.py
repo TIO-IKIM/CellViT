@@ -6,7 +6,6 @@
 # University Medicine Essen
 
 import logging
-from collections import OrderedDict
 from pathlib import Path
 from typing import Tuple, Union
 
@@ -27,6 +26,7 @@ from torchmetrics.functional.classification import binary_jaccard_index
 
 from base_ml.base_early_stopping import EarlyStopping
 from base_ml.base_trainer import BaseTrainer
+from cell_segmentation.datasets.pannuke import PanNukeDataclass
 from cell_segmentation.utils.metrics import get_fast_pq, remap_label
 from cell_segmentation.utils.tools import cropping_center
 from models.segmentation.cell_segmentation.cellvit import CellViT
@@ -499,8 +499,7 @@ class CellViTTrainer(BaseTrainer):
 
         return batch_metrics, return_example_images
 
-    def unpack_predictions(self, predictions: dict) -> OrderedDict:
-        # TODO: shapes
+    def unpack_predictions(self, predictions: dict) -> PanNukeDataclass:
         """Unpack the given predictions. Main focus lays on reshaping and postprocessing predictions, e.g. separating instances
 
         Args:
@@ -508,17 +507,10 @@ class CellViTTrainer(BaseTrainer):
                 * tissue_types: Logit tissue prediction output. Shape: (batch_size, num_tissue_classes)
                 * nuclei_binary_map: Logit output for binary nuclei prediction branch. Shape: (batch_size, H, W, 2)
                 * hv_map: Logit output for hv-prediction. Shape: (batch_size, H, W, 2)
-                * nuclei_type_map: Logit output for nuclei instance-prediction. Shape: (batch_size, H, W, num_nuclei_classes)
+                * nuclei_type_map: Logit output for nuclei instance-prediction. Shape: (batch_size, num_nuclei_classes, H, W)
 
         Returns:
-            OrderedDict: Processed network output. Keys are:
-                * nuclei_binary_map: Softmax output for binary nuclei prediction branch. Shape: (batch_size, H, W, 2)
-                * hv_map: Logit output for hv-prediction. Shape: (batch_size, H, W, 2)
-                * nuclei_type_map: Softmax output for hv-prediction. Shape: (batch_size, H, W, 2)
-                * tissue_types: Logit tissue prediction output. Shape: (batch_size, num_tissue_classes)
-                * instance_map: Pixel-wise nuclear instance segmentation predictions. Shape: (batch_size, H, W)
-                * instance_types: Dictionary, Pixel-wise nuclei type predictions
-                * instance_types_nuclei: Pixel-wsie nuclear instance segmentation predictions, for each nuclei type. Shape: (batch_size, H, W, num_nuclei_classes)
+            PanNukeDataclass: Processed network output
         """
         predictions["tissue_types"] = predictions["tissue_types"].to(self.device)
         predictions["nuclei_binary_map"] = F.softmax(
@@ -539,29 +531,34 @@ class CellViTTrainer(BaseTrainer):
             self.device
         )  # shape: (batch_size, num_nuclei_classes, H, W)
 
+        predictions = PanNukeDataclass(
+            nuclei_binary_map=predictions["nuclei_binary_map"],
+            hv_map=predictions["hv_map"],
+            nuclei_type_map=predictions["nuclei_type_map"],
+            tissue_types=predictions["tissue_types"],
+            instance_map=predictions["instance_map"],
+            instance_types=predictions["instance_types"],
+            instance_types_nuclei=predictions["instance_types_nuclei"],
+            batch_size=predictions["tissue_types"].shape[0],
+        )
+
         return predictions
 
-    def unpack_masks(self, masks: dict, tissue_types: list) -> dict:
-        # TODO: shapes
+    def unpack_masks(self, masks: dict, tissue_types: list) -> PanNukeDataclass:
         """Unpack the given masks. Main focus lays on reshaping and postprocessing masks to generate one dict
 
         Args:
             masks (dict): Required keys are:
                 * instance_map: Pixel-wise nuclear instance segmentations. Shape: (batch_size, H, W)
-                * nuclei_binary_map: Binary nuclei segmentations. Shape: (batch_size, H, W, 2)
-                * hv_map: HV-Map. Shape: (batch_size, H, W, 2)
-                * nuclei_type_map: Nuclei instance-prediction and segmentation (not binary, each instance has own integer). Shape: (batch_size, H, W, num_nuclei_classes)
+                * nuclei_binary_map: Binary nuclei segmentations. Shape: (batch_size, H, W)
+                * hv_map: HV-Map. Shape: (batch_size, 2, H, W)
+                * nuclei_type_map: Nuclei instance-prediction and segmentation (not binary, each instance has own integer).
+                    Shape: (batch_size, num_nuclei_classes, H, W)
 
             tissue_types (list): List of string names of ground-truth tissue types
 
         Returns:
-            dict: Output ground truth values, with keys:
-                * instance_map: Pixel-wise nuclear instance segmentations. Shape: (batch_size, H, W) -> each instance has one integer
-                * nuclei_binary_map: One-Hot encoded binary map. Shape: (batch_size, H, W, 2)
-                * hv_map: HV-map. Shape: (batch_size, H, W, 2)
-                * nuclei_type_map: One-hot encoded nuclei type maps Shape: (batch_size, H, W, num_nuclei_classes)
-                * instance_types_nuclei: Shape: (batch_size, H, W, num_nuclei_classes) -> instance has one integer, for each nuclei class
-                * tissue_types: Tissue types, as torch.Tensor with integer values. Shape: batch_size
+            PanNukeDataclass: GT-Results with matching shapes and output types
         """
         # get ground truth values, perform one hot encoding for segmentation maps
         gt_nuclei_binary_map_onehot = (
@@ -599,33 +596,25 @@ class CellViTTrainer(BaseTrainer):
             .type(torch.LongTensor)
             .to(self.device),  # shape: batch_size
         }
+        gt = PanNukeDataclass(**gt, batch_size=gt["tissue_types"].shape[0])
         return gt
 
-    def calculate_loss(self, predictions: OrderedDict, gt: dict) -> torch.Tensor:
+    def calculate_loss(
+        self, predictions: PanNukeDataclass, gt: PanNukeDataclass
+    ) -> torch.Tensor:
         """Calculate the loss
-        # TODO: shapes
 
         Args:
-            predictions (OrderedDict): OrderedDict: Processed network output. Keys are:
-                * nuclei_binary_map: Softmax output for binary nuclei prediction branch. Shape: (batch_size, H, W, 2)
-                * hv_map: Logit output for hv-prediction. Shape: (batch_size, H, W, 2)
-                * nuclei_type_map: Softmax output for hv-prediction. Shape: (batch_size, H, W, 2)
-                * tissue_types: Logit tissue prediction output. Shape: (batch_size, num_tissue_classes)
-                * instance_map: Pixel-wise nuclear instance segmentation predictions. Shape: (batch_size, H, W)
-                * instance_types: Dictionary, Pixel-wise nuclei type predictions
-                * instance_types_nuclei: Pixel-wsie nuclear instance segmentation predictions, for each nuclei type. Shape: (batch_size, H, W, num_nuclei_classes)
-            gt (dict): Ground truth values, with keys:
-                * instance_map: Pixel-wise nuclear instance segmentations. Shape: (batch_size, H, W) -> each instance has one integer
-                * nuclei_binary_map: One-Hot encoded binary map. Shape: (batch_size, H, W, 2)
-                * hv_map: HV-map. Shape: (batch_size, H, W, 2)
-                * nuclei_type_map: One-hot encoded nuclei type maps Shape: (batch_size, H, W, num_nuclei_classes)
-                * instance_types_nuclei: Shape: (batch_size, H, W, num_nuclei_classes) -> instance has one integer, for each nuclei class
-                * tissue_types: Tissue types, as torch.Tensor with integer values. Shape: batch_size
+            predictions (PanNukeDataclass): Predictions
+            gt (PanNukeDataclass): Ground-Truth values
 
         Returns:
             torch.Tensor: Loss
         """
         total_loss = 0
+        predictions = predictions.get_dict()
+        gt = gt.get_dict()
+
         for branch, pred in predictions.items():
             if branch in [
                 "instance_map",
@@ -656,32 +645,22 @@ class CellViTTrainer(BaseTrainer):
 
         return total_loss
 
-    def calculate_step_metric_train(self, predictions: dict, gt: dict) -> dict:
-        # TODO: shapes
-
+    def calculate_step_metric_train(
+        self, predictions: PanNukeDataclass, gt: PanNukeDataclass
+    ) -> dict:
         """Calculate the metrics for the training step
 
         Args:
-            predictions (OrderedDict): OrderedDict: Processed network output. Keys are:
-                * nuclei_binary_map: Softmax output for binary nuclei prediction branch. Shape: (batch_size, H, W, 2)
-                * hv_map: Logit output for hv-prediction. Shape: (batch_size, H, W, 2)
-                * nuclei_type_map: Softmax output for hv-prediction. Shape: (batch_size, H, W, 2)
-                * tissue_types: Logit tissue prediction output. Shape: (batch_size, num_tissue_classes)
-                * instance_map: Pixel-wise nuclear instance segmentation predictions. Shape: (batch_size, H, W)
-                * instance_types: Dictionary, Pixel-wise nuclei type predictions
-                * instance_types_nuclei: Pixel-wsie nuclear instance segmentation predictions, for each nuclei type. Shape: (batch_size, H, W, num_nuclei_classes)
-            gt (dict): Ground truth values, with keys:
-                * instance_map: Pixel-wise nuclear instance segmentations. Shape: (batch_size, H, W) -> each instance has one integer
-                * nuclei_binary_map: One-Hot encoded binary map. Shape: (batch_size, H, W, 2)
-                * hv_map: HV-map. Shape: (batch_size, H, W, 2)
-                * nuclei_type_map: One-hot encoded nuclei type maps Shape: (batch_size, H, W, num_nuclei_classes)
-                * instance_types_nuclei: Shape: (batch_size, H, W, num_nuclei_classes) -> instance has one integer, for each nuclei class
-                * tissue_types: Tissue types, as torch.Tensor with integer values. Shape: batch_size
-
+            predictions (PanNukeDataclass): Processed network output
+            gt (PanNukeDataclass): Ground truth values
         Returns:
-            dict: Dictionary with metrics. Structure not fixed yet
+            dict: Dictionary with metrics. Keys:
+                binary_dice_scores, binary_jaccard_scores, tissue_pred, tissue_gt
         """
-        # preparation and device movement
+        predictions = predictions.get_dict()
+        gt = gt.get_dict()
+
+        # Tissue Tpyes logits to probs and argmax to get class
         predictions["tissue_types_classes"] = F.softmax(
             predictions["tissue_types"], dim=-1
         )
@@ -744,31 +723,19 @@ class CellViTTrainer(BaseTrainer):
         return batch_metrics
 
     def calculate_step_metric_validation(self, predictions: dict, gt: dict) -> dict:
-        # TODO: shapes
-
-        """Calculate the metrics for the validation step
+        """Calculate the metrics for the training step
 
         Args:
-            predictions (OrderedDict): OrderedDict: Processed network output. Keys are:
-                * nuclei_binary_map: Softmax output for binary nuclei prediction branch. Shape: (batch_size, H, W, 2)
-                * hv_map: Logit output for hv-prediction. Shape: (batch_size, H, W, 2)
-                * nuclei_type_map: Softmax output for hv-prediction. Shape: (batch_size, H, W, 2)
-                * tissue_types: Logit tissue prediction output. Shape: (batch_size, num_tissue_classes)
-                * instance_map: Pixel-wise nuclear instance segmentation predictions. Shape: (batch_size, H, W)
-                * instance_types: Dictionary, Pixel-wise nuclei type predictions
-                * instance_types_nuclei: Pixel-wsie nuclear instance segmentation predictions, for each nuclei type. Shape: (batch_size, H, W, num_nuclei_classes)
-            gt (dict): Ground truth values, with keys:
-                * instance_map: Pixel-wise nuclear instance segmentations. Shape: (batch_size, H, W) -> each instance has one integer
-                * nuclei_binary_map: One-Hot encoded binary map. Shape: (batch_size, H, W, 2)
-                * hv_map: HV-map. Shape: (batch_size, H, W, 2)
-                * nuclei_type_map: One-hot encoded nuclei type maps Shape: (batch_size, H, W, num_nuclei_classes)
-                * instance_types_nuclei: Shape: (batch_size, H, W, num_nuclei_classes) -> instance has one integer, for each nuclei class
-                * tissue_types: Tissue types, as torch.Tensor with integer values. Shape: batch_size
-
+            predictions (PanNukeDataclass): OrderedDict: Processed network output
+            gt (PanNukeDataclass): Ground truth values
         Returns:
-            dict: Dictionary with metrics. Structure not fixed yet
+            dict: Dictionary with metrics. Keys:
+                binary_dice_scores, binary_jaccard_scores, tissue_pred, tissue_gt
         """
-        # preparation and device movement
+        predictions = predictions.get_dict()
+        gt = gt.get_dict()
+
+        # Tissue Tpyes logits to probs and argmax to get class
         predictions["tissue_types_classes"] = F.softmax(
             predictions["tissue_types"], dim=-1
         )
@@ -866,8 +833,8 @@ class CellViTTrainer(BaseTrainer):
     @staticmethod
     def generate_example_image(
         imgs: Union[torch.Tensor, np.ndarray],
-        predictions: dict,
-        ground_truth: dict,
+        predictions: PanNukeDataclass,
+        gt: PanNukeDataclass,
         num_nuclei_classes: int,
         num_images: int = 2,
     ) -> plt.Figure:
@@ -876,22 +843,16 @@ class CellViTTrainer(BaseTrainer):
         Args:
             imgs (Union[torch.Tensor, np.ndarray]): Images to process, a random number (num_images) is selected from this stack
                 Shape: (batch_size, 3, H', W')
-            predictions (dict): Predictions of models. Keys:
-                "nuclei_type_map": Shape: (batch_size, num_nuclei, H', W')
-                "nuclei_binary_map": Shape: (batch_size, 2, H', W')
-                "hv_map": Shape: (batch_size, 2, H', W')
-                "instance_map": Shape: (batch_size, H', W')
-            ground_truth (dict): Ground truth values. Keys:
-                "nuclei_type_map": Shape: (batch_size, num_nuclei, H', W')
-                "nuclei_binary_map": Shape: (batch_size, 2, H', W')
-                "hv_map": Shape: (batch_size, 2, H', W')
-                "instance_map": Shape: (batch_size, H', W')
+            predictions (PanNukeDataclass): Predictions
+            gt (PanNukeDataclass): gt
             num_nuclei_classes (int): Number of total nuclei classes including background
             num_images (int, optional): Number of example patches to display. Defaults to 2.
 
         Returns:
             plt.Figure: Figure with example patches
         """
+        predictions = predictions.get_dict()
+        gt = gt.get_dict()
 
         assert num_images <= imgs.shape[0]
         num_images = 4
@@ -907,16 +868,14 @@ class CellViTTrainer(BaseTrainer):
             "instance_types_nuclei"
         ].transpose(0, 2, 3, 1)
 
-        ground_truth["hv_map"] = ground_truth["hv_map"].permute(0, 2, 3, 1)
-        ground_truth["nuclei_type_map"] = ground_truth["nuclei_type_map"].permute(
-            0, 2, 3, 1
-        )
+        gt["hv_map"] = gt["hv_map"].permute(0, 2, 3, 1)
+        gt["nuclei_type_map"] = gt["nuclei_type_map"].permute(0, 2, 3, 1)
         predictions["instance_types_nuclei"] = predictions[
             "instance_types_nuclei"
         ].transpose(0, 2, 3, 1)
 
-        h = ground_truth["hv_map"].shape[1]
-        w = ground_truth["hv_map"].shape[2]
+        h = gt["hv_map"].shape[1]
+        w = gt["hv_map"].shape[2]
 
         sample_indices = torch.randint(0, imgs.shape[0], (num_images,))
         # convert to rgb and crop to selection
@@ -947,14 +906,14 @@ class CellViTTrainer(BaseTrainer):
 
         # get ground truth labels
         gt_sample_binary_map = (
-            ground_truth["nuclei_binary_map"][sample_indices].detach().cpu().numpy()
+            gt["nuclei_binary_map"][sample_indices].detach().cpu().numpy()
         )
-        gt_sample_hv_map = ground_truth["hv_map"][sample_indices].detach().cpu().numpy()
+        gt_sample_hv_map = gt["hv_map"][sample_indices].detach().cpu().numpy()
         gt_sample_instance_map = (
-            ground_truth["instance_map"][sample_indices].detach().cpu().numpy()
+            gt["instance_map"][sample_indices].detach().cpu().numpy()
         )
         gt_sample_type_map = (
-            torch.argmax(ground_truth["nuclei_type_map"][sample_indices], dim=-1)
+            torch.argmax(gt["nuclei_type_map"][sample_indices], dim=-1)
             .detach()
             .cpu()
             .numpy()

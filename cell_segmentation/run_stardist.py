@@ -16,7 +16,9 @@ sys.path.insert(0, parentdir)
 import wandb
 
 from base_ml.base_cli import ExperimentBaseParser
-from cell_segmentation.experiments.experiment_stardist import ExperimentCellViTStarDist
+from cell_segmentation.experiments.experiment_stardist_pannuke import (
+    ExperimentCellViTStarDist,
+)
 
 ExperimentCellViTStarDist.seed_run(19)  # global seeding
 from cell_segmentation.inference.inference_stardist_experiment_pannuke import (

@@ -10,20 +10,23 @@
 
 
 import logging
+import sys  # remove
 from pathlib import Path
 from typing import Callable, Tuple, Union
-import sys  # remove
 
 sys.path.append("/homes/fhoerst/histo-projects/CellViT/")  # remove
+from dataclasses import dataclass
+
 import numpy as np
 import pandas as pd
 import torch
 import yaml
+from numba import njit
+from PIL import Image
+from scipy.ndimage import center_of_mass, distance_transform_edt
+
 from cell_segmentation.datasets.base_cell import CellDataset
 from cell_segmentation.utils.tools import fix_duplicates, get_bounding_box
-from PIL import Image
-from scipy.ndimage import distance_transform_edt, center_of_mass
-from numba import njit
 
 logger = logging.getLogger()
 logger.addHandler(logging.NullHandler())
@@ -495,3 +498,79 @@ class PanNukeDataset(CellDataset):
                                 break
 
         return dist.transpose(2, 0, 1)
+
+
+@dataclass
+class PanNukeDataclass:
+    """Storing PanNuke Prediction/GT objects for calculating loss, metrics etc.
+
+    Args:
+        nuclei_binary_map (torch.Tensor): Softmax output for binary nuclei branch. Shape: (batch_size, H, W, 2)
+        hv_map (torch.Tensor): Logit output for HV-Map. Shape: (batch_size, H, W, 2)
+        nuclei_type_map (torch.Tensor): Softmax output for nuclei type-prediction. Shape: (batch_size, H, W, 2)
+        tissue_types (torch.Tensor): Logit tissue prediction output. Shape: (batch_size, num_tissue_classes)
+        instance_map (torch.Tensor): Pixel-wise nuclear instance segmentation.
+            Each instance has its own integer, starting from 1. Shape: (batch_size, H, W)
+        instance_types_nuclei: Pixel-wise nuclear instance segmentation predictions, for each nuclei type.
+            Each instance has its own integer, starting from 1.
+            Shape: (batch_size, num_nuclei_classes, H, W)
+        batch_size (int): Batch size of the experiment
+        instance_types (list, optional): Instance type prediction list.
+            Each list entry stands for one image. Each list entry is a dictionary with the following structure:
+            Main Key is the nuclei instance number (int), with a dict as value.
+            For each instance, the dictionary contains the keys: bbox (bounding box), centroid (centroid coordinates),
+            contour, type_prob (probability), type (nuclei type)
+            Defaults to None.
+        h (int, optional): Height of used input images. Defaults to 256.
+        w (int, optional): Width of used input images. Defaults to 256.
+        num_tissue_classes (int, optional): Number of tissue classes in the data. Defaults to 19.
+        num_nuclei_classes (int, optional): Number of nuclei types in the data (including background). Defaults to 6.
+    """
+
+    nuclei_binary_map: torch.Tensor
+    hv_map: torch.Tensor
+    tissue_types: torch.Tensor
+    nuclei_type_map: torch.Tensor
+    instance_map: torch.Tensor
+    instance_types_nuclei: torch.Tensor
+    batch_size: int
+    instance_types: list = None
+    h: int = 256
+    w: int = 256
+    num_tissue_classes: int = 19
+    num_nuclei_classes: int = 6
+
+    def __post_init__(self):
+        # check shape of every element
+        assert list(self.nuclei_binary_map.shape) == [
+            self.batch_size,
+            2,
+            self.h,
+            self.w,
+        ], "Nuclei Binary Map must be a softmax tensor with shape (B, 2, H, W)"
+        assert list(self.hv_map.shape) == [
+            self.batch_size,
+            2,
+            self.h,
+            self.w,
+        ], "HV Map must be a tensor with shape (B, 2, H, W)"
+        assert list(self.nuclei_type_map.shape) == [
+            self.batch_size,
+            self.num_nuclei_classes,
+            self.h,
+            self.w,
+        ], "Nuclei Type Map must be a tensor with shape (B, num_nuclei_classes, H, W)"
+        assert list(self.instance_map.shape) == [
+            self.batch_size,
+            self.h,
+            self.w,
+        ], "Instance Map must be a tensor with shape (B, H, W)"
+        assert list(self.instance_types_nuclei.shape) == [
+            self.batch_size,
+            self.num_nuclei_classes,
+            self.h,
+            self.w,
+        ], "Instance Types Nuclei must be a tensor with shape (B, num_nuclei_classes, H, W)"
+
+    def get_dict(self):
+        return self.__dict__

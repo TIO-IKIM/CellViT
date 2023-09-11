@@ -25,10 +25,7 @@ from typing import List, Tuple, Union
 
 import albumentations as A
 import numpy as np
-
-# from scipy.io import savemat
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 import tqdm
 import yaml
@@ -42,8 +39,8 @@ from torchmetrics.functional import dice
 from torchmetrics.functional.classification import binary_jaccard_index
 from torchvision import transforms
 
-from base_ml.base_loss import retrieve_loss_fn
 from cell_segmentation.datasets.dataset_coordinator import select_dataset
+from cell_segmentation.datasets.pannuke import PanNukeDataclass
 from cell_segmentation.utils.metrics import (
     cell_detection_scores,
     cell_type_detection_scores,
@@ -87,27 +84,13 @@ class InferenceCellViT:
         self.checkpoint_name = checkpoint_name
 
         self.__load_run_conf()
+
         self.__load_dataset_setup(dataset_path=self.run_conf["data"]["dataset_path"])
         self.__instantiate_logger()
         self.__check_eval_model()
         self.__setup_amp()
 
         self.logger.info(f"Loaded run: {run_dir}")
-        self.loss_fn_dict = {
-            "nuclei_binary_map": {
-                "bce": {"loss_fn": retrieve_loss_fn("xentropy_loss"), "weight": 1},
-                "dice": {"loss_fn": retrieve_loss_fn("dice_loss"), "weight": 1},
-            },
-            "hv_map": {
-                "mse": {"loss_fn": retrieve_loss_fn("mse_loss_maps"), "weight": 1},
-                "msge": {"loss_fn": retrieve_loss_fn("msge_loss_maps"), "weight": 1},
-            },
-            "nuclei_type_map": {
-                "bce": {"loss_fn": retrieve_loss_fn("xentropy_loss"), "weight": 1},
-                "dice": {"loss_fn": retrieve_loss_fn("dice_loss"), "weight": 1},
-            },
-            "tissue_types": {"ce": {"loss_fn": nn.CrossEntropyLoss(), "weight": 1}},
-        }
         self.num_classes = self.run_conf["data"]["num_nuclei_classes"]
 
     def __load_run_conf(self) -> None:
@@ -142,7 +125,7 @@ class InferenceCellViT:
         """
         logger = Logger(
             level=self.run_conf["logging"]["level"].upper(),
-            log_dir=Path(self.run_conf["logging"]["log_dir"]).resolve(),
+            log_dir=Path(self.run_dir).resolve(),
             comment="inference",
             use_timestamp=False,
             formatter="%(message)s",
@@ -528,8 +511,6 @@ class InferenceCellViT:
             }
 
         # print final results
-        # loss
-        self.logger.info(f"{20*'*'} Loss {20*'*'}")
         # binary
         self.logger.info(f"{20*'*'} Binary Dataset metrics {20*'*'}")
         [self.logger.info(f"{f'{k}:': <25} {v}") for k, v in dataset_metrics.items()]
@@ -642,7 +623,40 @@ class InferenceCellViT:
                 predictions = model.forward(imgs)
         else:
             predictions = model.forward(imgs)
+        predictions = self.unpack_predictions(predictions=predictions, model=model)
+        gt = self.unpack_masks(masks=masks, tissue_types=tissue_types, model=model)
 
+        # scores
+        batch_metrics, scores = self.calculate_step_metric(predictions, gt, image_names)
+        batch_metrics["tissue_types"] = tissue_types
+        if generate_plots:
+            self.plot_results(
+                imgs=imgs,
+                predictions=predictions,
+                ground_truth=gt,
+                img_names=image_names,
+                num_nuclei_classes=self.num_classes,
+                outdir=Path(self.run_dir / "inference_predictions"),
+                scores=scores,
+            )
+
+        return batch_metrics
+
+    def unpack_predictions(self, predictions: dict, model: CellViT) -> PanNukeDataclass:
+        """Unpack the given predictions. Main focus lays on reshaping and postprocessing predictions, e.g. separating instances
+
+        Args:
+            predictions (dict): Dictionary with the following keys:
+                * tissue_types: Logit tissue prediction output. Shape: (batch_size, num_tissue_classes)
+                * nuclei_binary_map: Logit output for binary nuclei prediction branch. Shape: (batch_size, H, W, 2)
+                * hv_map: Logit output for hv-prediction. Shape: (batch_size, H, W, 2)
+                * nuclei_type_map: Logit output for nuclei instance-prediction. Shape: (batch_size, num_nuclei_classes, H, W)
+            model (CellViT): Current model
+
+        Returns:
+            PanNukeDataclass: Processed network output
+
+        """
         predictions["tissue_types"] = predictions["tissue_types"].to(self.device)
         predictions["nuclei_binary_map"] = F.softmax(
             predictions["nuclei_binary_map"], dim=1
@@ -654,14 +668,29 @@ class InferenceCellViT:
             predictions["instance_map"],
             predictions["instance_types"],
         ) = model.calculate_instance_map(
-            predictions, self.magnification
+            predictions, magnification=self.magnification
         )  # shape: (batch_size, H', W')
         predictions["instance_types_nuclei"] = model.generate_instance_nuclei_map(
             predictions["instance_map"], predictions["instance_types"]
         ).to(
             self.device
         )  # shape: (batch_size, num_nuclei_classes, H, W)
+        predictions = PanNukeDataclass(
+            nuclei_binary_map=predictions["nuclei_binary_map"],
+            hv_map=predictions["hv_map"],
+            nuclei_type_map=predictions["nuclei_type_map"],
+            tissue_types=predictions["tissue_types"],
+            instance_map=predictions["instance_map"],
+            instance_types=predictions["instance_types"],
+            instance_types_nuclei=predictions["instance_types_nuclei"],
+            batch_size=predictions["tissue_types"].shape[0],
+        )
 
+        return predictions
+
+    def unpack_masks(
+        self, masks: dict, tissue_types: list, model: CellViT
+    ) -> PanNukeDataclass:
         # get ground truth values, perform one hot encoding for segmentation maps
         gt_nuclei_binary_map_onehot = (
             F.one_hot(masks["nuclei_binary_map"], num_classes=2)
@@ -703,49 +732,29 @@ class InferenceCellViT:
         gt["instance_types"] = calculate_instances(
             gt["nuclei_type_map"], gt["instance_map"]
         )
+        gt = PanNukeDataclass(**gt, batch_size=gt["tissue_types"].shape[0])
+        return gt
 
-        # scores
-        batch_metrics, scores = self.calculate_step_metric(predictions, gt, image_names)
-        batch_metrics["tissue_types"] = tissue_types
-        if generate_plots:
-            self.plot_results(
-                imgs=imgs,
-                predictions=predictions,
-                ground_truth=gt,
-                img_names=image_names,
-                num_nuclei_classes=self.num_classes,
-                outdir=Path(self.run_dir / "inference_predictions"),
-                scores=scores,
-            )
-
-        return batch_metrics
-
-    def calculate_step_metric(self, predictions, gt, image_names) -> Tuple[dict, list]:
-        # TODO: Adapt Docstring
+    def calculate_step_metric(
+        self,
+        predictions: PanNukeDataclass,
+        gt: PanNukeDataclass,
+        image_names: list[str],
+    ) -> Tuple[dict, list]:
         """Calculate the metrics for the validation step
 
         Args:
-            predictions (OrderedDict): OrderedDict: Processed network output. Keys are:
-                * nuclei_binary_map: Softmax output for binary nuclei prediction branch. Shape: (batch_size, H, W, 2)
-                * hv_map: Logit output for hv-prediction. Shape: (batch_size, H, W, 2)
-                * nuclei_type_map: Softmax output for hv-prediction. Shape: (batch_size, H, W, 2)
-                * tissue_types: Logit tissue prediction output. Shape: (batch_size, num_tissue_classes)
-                * instance_map: Pixel-wise nuclear instance segmentation predictions. Shape: (batch_size, H, W)
-                * instance_types: Dictionary, Pixel-wise nuclei type predictions
-                * instance_types_nuclei: Pixel-wsie nuclear instance segmentation predictions, for each nuclei type. Shape: (batch_size, H, W, num_nuclei_classes)
-            gt (dict): Ground truth values, with keys:
-                * instance_map: Pixel-wise nuclear instance segmentations. Shape: (batch_size, H, W) -> each instance has one integer
-                * nuclei_binary_map: One-Hot encoded binary map. Shape: (batch_size, H, W, 2)
-                * hv_map: HV-map. Shape: (batch_size, H, W, 2)
-                * nuclei_type_map: One-hot encoded nuclei type maps Shape: (batch_size, H, W, num_nuclei_classes)
-                * instance_types_nuclei: Shape: (batch_size, H, W, num_nuclei_classes) -> instance has one integer, for each nuclei class
-                * tissue_types: Tissue types, as torch.Tensor with integer values. Shape: batch_size
+            predictions (PanNukeDataclass): Processed network output
+            gt (PanNukeDataclass): Ground truth values
+            image_names (list(str)): List with image names
 
         Returns:
             Tuple[dict, list]:
                 * dict: Dictionary with metrics. Structure not fixed yet
                 * list with cell_dice, cell_jaccard and pq for each image
         """
+        predictions = predictions.get_dict()
+        gt = gt.get_dict()
 
         # preparation and device movement
         predictions["tissue_types_classes"] = F.softmax(
@@ -840,10 +849,10 @@ class InferenceCellViT:
             nuclei_type_sq = []
             for j in range(0, self.num_classes):
                 pred_nuclei_instance_class = remap_label(
-                    predictions["instance_types_nuclei"][i][..., j]
+                    predictions["instance_types_nuclei"][i][j, ...]
                 )
                 target_nuclei_instance_class = remap_label(
-                    gt["instance_types_nuclei"][i][..., j]
+                    gt["instance_types_nuclei"][i][j, ...]
                 )
 
                 # if ground truth is empty, skip from calculation
@@ -1186,9 +1195,8 @@ class InferenceCellViTParser:
         parser.add_argument(
             "--run_dir",
             type=str,
-            default="/homes/fhoerst/histo-projects/CellViT/results/PanNuke/Revision/CellViT/Common-Loss/ViT256/Ablation-Study/No-FC-Loss/2023-09-08T110217_CellViT-256-No-FC-Loss-Fold-1",  # TODO: remove
             help="Logging directory of a training run.",
-            # required=True,
+            required=True,
         )
         parser.add_argument(
             "--checkpoint_name",

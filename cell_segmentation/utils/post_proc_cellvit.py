@@ -136,9 +136,7 @@ class DetectionCellPostProcessor:
             rmin, cmin, rmax, cmax = (inst_info_dict[inst_id]["bbox"]).flatten()
             inst_map_crop = pred_inst[rmin:rmax, cmin:cmax]
             inst_type_crop = pred_type[rmin:rmax, cmin:cmax]
-            inst_map_crop = (
-                inst_map_crop == inst_id
-            )  # TODO: duplicated operation, may be expensive
+            inst_map_crop = inst_map_crop == inst_id
             inst_type = inst_type_crop[inst_map_crop]
             type_list, type_pixels = np.unique(inst_type, return_counts=True)
             type_list = list(zip(type_list, type_pixels))
@@ -270,7 +268,6 @@ def calculate_instances(pred_types, pred_insts):
         inst_info_dict = {}
         for inst_id in inst_id_list:
             inst_map = pred_inst == inst_id
-            # TODO: change format of bbox output
             rmin, rmax, cmin, cmax = get_bounding_box(inst_map)
             inst_bbox = np.array([[rmin, cmin], [rmax, cmax]])
             inst_map = inst_map[
@@ -310,9 +307,7 @@ def calculate_instances(pred_types, pred_insts):
             rmin, cmin, rmax, cmax = (inst_info_dict[inst_id]["bbox"]).flatten()
             inst_map_crop = pred_inst[rmin:rmax, cmin:cmax]
             inst_type_crop = pred_type[rmin:rmax, cmin:cmax]
-            inst_map_crop = (
-                inst_map_crop == inst_id
-            )  # TODO: duplicated operation, may be expensive
+            inst_map_crop = inst_map_crop == inst_id
             inst_type = inst_type_crop[inst_map_crop]
             type_list, type_pixels = np.unique(inst_type, return_counts=True)
             type_list = list(zip(type_list, type_pixels))
