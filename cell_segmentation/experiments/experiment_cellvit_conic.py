@@ -54,14 +54,15 @@ from cell_segmentation.trainer.trainer_cellvit import CellViTTrainer
 from models.segmentation.cell_segmentation.cellvit import (
     CellViT,
     CellViTSAM,
-    CellViTSAMUnshared,
-    CellViTUnshared,
+    CellViTSAMShared,
+    CellViTShared,
     CellViT256,
-    CellViT256Unshared,
+    CellViT256Shared,
 )
 from utils.tools import close_logger
 
 
+# TODO: adapt load model please
 class ExperimentCellViTCoNic(BaseExperiment):
     def __init__(self, default_conf: dict, checkpoint=None) -> None:
         super().__init__(default_conf, checkpoint)
@@ -251,6 +252,7 @@ class ExperimentCellViTCoNic(BaseExperiment):
             val_dataloader=val_dataloader,
             metric_init=self.get_wandb_init_dict(),
             unfreeze_epoch=self.run_conf["training"]["unfreeze_epoch"],
+            eval_every=self.run_conf["training"].get("eval_every", 1),
         )
 
         # Select best model if not provided by early stopping
@@ -522,7 +524,7 @@ class ExperimentCellViTCoNic(BaseExperiment):
             if shared_skip_connections:
                 model_class = CellViT
             else:
-                model_class = CellViTUnshared
+                model_class = CellViTShared
             model = model_class(
                 num_nuclei_classes=self.run_conf["data"]["num_nuclei_classes"],
                 num_tissue_classes=1,
@@ -549,7 +551,7 @@ class ExperimentCellViTCoNic(BaseExperiment):
             if shared_skip_connections:
                 model_class = CellViT256
             else:
-                model_class = CellViT256Unshared
+                model_class = CellViT256Shared
             model = model_class(
                 model256_path=pretrained_encoder,
                 num_nuclei_classes=self.run_conf["data"]["num_nuclei_classes"],
@@ -572,7 +574,7 @@ class ExperimentCellViTCoNic(BaseExperiment):
             if shared_skip_connections:
                 model_class = CellViTSAM
             else:
-                model_class = CellViTSAMUnshared
+                model_class = CellViTSAMShared
             model = model_class(
                 model_path=pretrained_encoder,
                 num_nuclei_classes=self.run_conf["data"]["num_nuclei_classes"],

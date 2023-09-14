@@ -26,7 +26,7 @@ from torchmetrics.functional.classification import binary_jaccard_index
 
 from base_ml.base_early_stopping import EarlyStopping
 from base_ml.base_trainer import BaseTrainer
-from cell_segmentation.datasets.pannuke import PanNukeDataclass
+from cell_segmentation.datasets.pannuke import PanNukeDataclassHV
 from cell_segmentation.utils.metrics import get_fast_pq, remap_label
 from cell_segmentation.utils.tools import cropping_center
 from models.segmentation.cell_segmentation.cellvit import CellViT
@@ -110,7 +110,6 @@ class CellViTTrainer(BaseTrainer):
         self.reverse_tissue_types = {v: k for k, v in self.tissue_types.items()}
         self.nuclei_types = dataset_config["nuclei_types"]
         self.magnification = magnification
-        self.regression_loss = regression_loss
 
         # setup logging objects
         self.loss_avg_tracker = {"Total_Loss": AverageMeter("Total_Loss", ":.4f")}
@@ -499,7 +498,7 @@ class CellViTTrainer(BaseTrainer):
 
         return batch_metrics, return_example_images
 
-    def unpack_predictions(self, predictions: dict) -> PanNukeDataclass:
+    def unpack_predictions(self, predictions: dict) -> PanNukeDataclassHV:
         """Unpack the given predictions. Main focus lays on reshaping and postprocessing predictions, e.g. separating instances
 
         Args:
@@ -510,7 +509,7 @@ class CellViTTrainer(BaseTrainer):
                 * nuclei_type_map: Logit output for nuclei instance-prediction. Shape: (batch_size, num_nuclei_classes, H, W)
 
         Returns:
-            PanNukeDataclass: Processed network output
+            PanNukeDataclassHV: Processed network output
         """
         predictions["tissue_types"] = predictions["tissue_types"].to(self.device)
         predictions["nuclei_binary_map"] = F.softmax(
@@ -524,14 +523,17 @@ class CellViTTrainer(BaseTrainer):
             predictions["instance_types"],
         ) = self.model.calculate_instance_map(
             predictions, self.magnification
-        )  # shape: (batch_size, H', W')
+        )  # shape: (batch_size, H, W)
         predictions["instance_types_nuclei"] = self.model.generate_instance_nuclei_map(
             predictions["instance_map"], predictions["instance_types"]
         ).to(
             self.device
         )  # shape: (batch_size, num_nuclei_classes, H, W)
 
-        predictions = PanNukeDataclass(
+        if "regression_map" not in predictions.keys():
+            predictions["regression_map"] = None
+
+        predictions = PanNukeDataclassHV(
             nuclei_binary_map=predictions["nuclei_binary_map"],
             hv_map=predictions["hv_map"],
             nuclei_type_map=predictions["nuclei_type_map"],
@@ -540,11 +542,12 @@ class CellViTTrainer(BaseTrainer):
             instance_types=predictions["instance_types"],
             instance_types_nuclei=predictions["instance_types_nuclei"],
             batch_size=predictions["tissue_types"].shape[0],
+            regression_map=predictions["regression_map"],
         )
 
         return predictions
 
-    def unpack_masks(self, masks: dict, tissue_types: list) -> PanNukeDataclass:
+    def unpack_masks(self, masks: dict, tissue_types: list) -> PanNukeDataclassHV:
         """Unpack the given masks. Main focus lays on reshaping and postprocessing masks to generate one dict
 
         Args:
@@ -558,7 +561,7 @@ class CellViTTrainer(BaseTrainer):
             tissue_types (list): List of string names of ground-truth tissue types
 
         Returns:
-            PanNukeDataclass: GT-Results with matching shapes and output types
+            PanNukeDataclassHV: GT-Results with matching shapes and output types
         """
         # get ground truth values, perform one hot encoding for segmentation maps
         gt_nuclei_binary_map_onehot = (
@@ -596,24 +599,25 @@ class CellViTTrainer(BaseTrainer):
             .type(torch.LongTensor)
             .to(self.device),  # shape: batch_size
         }
-        gt = PanNukeDataclass(**gt, batch_size=gt["tissue_types"].shape[0])
+        gt = PanNukeDataclassHV(**gt, batch_size=gt["tissue_types"].shape[0])
         return gt
 
     def calculate_loss(
-        self, predictions: PanNukeDataclass, gt: PanNukeDataclass
+        self, predictions: PanNukeDataclassHV, gt: PanNukeDataclassHV
     ) -> torch.Tensor:
         """Calculate the loss
 
         Args:
-            predictions (PanNukeDataclass): Predictions
-            gt (PanNukeDataclass): Ground-Truth values
+            predictions (PanNukeDataclassHV): Predictions
+            gt (PanNukeDataclassHV): Ground-Truth values
 
         Returns:
             torch.Tensor: Loss
         """
-        total_loss = 0
         predictions = predictions.get_dict()
         gt = gt.get_dict()
+
+        total_loss = 0
 
         for branch, pred in predictions.items():
             if branch in [
@@ -646,13 +650,13 @@ class CellViTTrainer(BaseTrainer):
         return total_loss
 
     def calculate_step_metric_train(
-        self, predictions: PanNukeDataclass, gt: PanNukeDataclass
+        self, predictions: PanNukeDataclassHV, gt: PanNukeDataclassHV
     ) -> dict:
         """Calculate the metrics for the training step
 
         Args:
-            predictions (PanNukeDataclass): Processed network output
-            gt (PanNukeDataclass): Ground truth values
+            predictions (PanNukeDataclassHV): Processed network output
+            gt (PanNukeDataclassHV): Ground truth values
         Returns:
             dict: Dictionary with metrics. Keys:
                 binary_dice_scores, binary_jaccard_scores, tissue_pred, tissue_gt
@@ -726,8 +730,8 @@ class CellViTTrainer(BaseTrainer):
         """Calculate the metrics for the training step
 
         Args:
-            predictions (PanNukeDataclass): OrderedDict: Processed network output
-            gt (PanNukeDataclass): Ground truth values
+            predictions (PanNukeDataclassHV): OrderedDict: Processed network output
+            gt (PanNukeDataclassHV): Ground truth values
         Returns:
             dict: Dictionary with metrics. Keys:
                 binary_dice_scores, binary_jaccard_scores, tissue_pred, tissue_gt
@@ -800,10 +804,10 @@ class CellViTTrainer(BaseTrainer):
             nuclei_type_pq = []
             for j in range(0, self.num_classes):
                 pred_nuclei_instance_class = remap_label(
-                    predictions["instance_types_nuclei"][i][..., j]
+                    predictions["instance_types_nuclei"][i][j, ...]
                 )
                 target_nuclei_instance_class = remap_label(
-                    gt["instance_types_nuclei"][i][..., j]
+                    gt["instance_types_nuclei"][i][j, ...]
                 )
 
                 # if ground truth is empty, skip from calculation
@@ -833,8 +837,8 @@ class CellViTTrainer(BaseTrainer):
     @staticmethod
     def generate_example_image(
         imgs: Union[torch.Tensor, np.ndarray],
-        predictions: PanNukeDataclass,
-        gt: PanNukeDataclass,
+        predictions: PanNukeDataclassHV,
+        gt: PanNukeDataclassHV,
         num_nuclei_classes: int,
         num_images: int = 2,
     ) -> plt.Figure:
@@ -843,8 +847,8 @@ class CellViTTrainer(BaseTrainer):
         Args:
             imgs (Union[torch.Tensor, np.ndarray]): Images to process, a random number (num_images) is selected from this stack
                 Shape: (batch_size, 3, H', W')
-            predictions (PanNukeDataclass): Predictions
-            gt (PanNukeDataclass): gt
+            predictions (PanNukeDataclassHV): Predictions
+            gt (PanNukeDataclassHV): gt
             num_nuclei_classes (int): Number of total nuclei classes including background
             num_images (int, optional): Number of example patches to display. Defaults to 2.
 

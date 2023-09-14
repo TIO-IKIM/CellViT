@@ -55,10 +55,12 @@ from cell_segmentation.trainer.trainer_cellvit import CellViTTrainer
 from models.segmentation.cell_segmentation.cellvit import (
     CellViT,
     CellViTSAM,
-    CellViTSAMUnshared,
-    CellViTUnshared,
     CellViT256,
-    CellViT256Unshared,
+)
+from models.segmentation.cell_segmentation.cellvit_shared import (
+    CellViTShared,
+    CellViT256Shared,
+    CellViTSAMShared,
 )
 from utils.tools import close_logger
 
@@ -149,12 +151,8 @@ class ExperimentCellVitPanNuke(BaseExperiment):
             pretrained_encoder=self.run_conf["model"].get("pretrained_encoder", None),
             pretrained_model=self.run_conf["model"].get("pretrained", None),
             backbone_type=self.run_conf["model"].get("backbone", "default"),
-            shared_skip_connections=self.run_conf["model"].get(
-                "shared_skip_connections", False
-            ),
-            share_decoder_upsampling=self.run_conf["model"].get(
-                "share_decoder_upsampling", False
-            ),
+            shared_decoders=self.run_conf["model"].get("shared_decoders", False),
+            regression_loss=self.run_conf["model"].get("regression_loss", False),
         )
         model.to(device)
 
@@ -251,6 +249,7 @@ class ExperimentCellVitPanNuke(BaseExperiment):
             val_dataloader=val_dataloader,
             metric_init=self.get_wandb_init_dict(),
             unfreeze_epoch=self.run_conf["training"]["unfreeze_epoch"],
+            eval_every=self.run_conf["training"].get("eval_every", 1),
         )
 
         # Select best model if not provided by early stopping
@@ -401,6 +400,18 @@ class ExperimentCellVitPanNuke(BaseExperiment):
             loss_fn_dict["tissue_types"] = {
                 "ce": {"loss_fn": nn.CrossEntropyLoss(), "weight": 1},
             }
+        if "regression_loss" in loss_fn_settings.keys():
+            loss_fn_dict["regression_map"] = {}
+            for loss_name, loss_sett in loss_fn_settings["regression_loss"].items():
+                parameters = loss_sett.get("args", {})
+                loss_fn_dict["regression_map"][loss_name] = {
+                    "loss_fn": retrieve_loss_fn(loss_sett["loss_fn"], **parameters),
+                    "weight": loss_sett["weight"],
+                }
+        elif "regression_loss" in self.run_conf["model"].keys():
+            loss_fn_dict["regression_map"] = {
+                "mse": {"loss_fn": retrieve_loss_fn("mse_loss_maps"), "weight": 1},
+            }
         return loss_fn_dict
 
     def get_scheduler(self, scheduler_type: str, optimizer: Optimizer) -> _LRScheduler:
@@ -526,7 +537,8 @@ class ExperimentCellVitPanNuke(BaseExperiment):
         pretrained_encoder: Union[Path, str] = None,
         pretrained_model: Union[Path, str] = None,
         backbone_type: str = "default",
-        shared_skip_connections: bool = False,
+        shared_decoders: bool = False,
+        regression_loss: bool = False,
         **kwargs,
     ) -> CellViT:
         """Return the CellViT training model
@@ -535,7 +547,8 @@ class ExperimentCellVitPanNuke(BaseExperiment):
             pretrained_encoder (Union[Path, str]): Path to a pretrained encoder. Defaults to None.
             pretrained_model (Union[Path, str], optional): Path to a pretrained model. Defaults to None.
             backbone_type (str, optional): Backbone Type. Currently supported are default (None, ViT256, SAM-B, SAM-L, SAM-H). Defaults to None
-            shared_skip_connections (bool, optional): If shared skip connections should be used. Defaults to False.
+            shared_decoders (bool, optional): If shared skip decoders should be used. Defaults to False.
+            regression_loss (bool, optional):
 
         Returns:
             CellViT: CellViT training model with given setup
@@ -550,10 +563,10 @@ class ExperimentCellVitPanNuke(BaseExperiment):
                 f"Unknown Backbone Type - Currently supported are: {implemented_backbones}"
             )
         if backbone_type.lower() == "default":
-            if shared_skip_connections:
-                model_class = CellViT
+            if shared_decoders:
+                model_class = CellViTShared
             else:
-                model_class = CellViTUnshared
+                model_class = CellViT
             model = model_class(
                 num_nuclei_classes=self.run_conf["data"]["num_nuclei_classes"],
                 num_tissue_classes=self.run_conf["data"]["num_tissue_classes"],
@@ -565,6 +578,7 @@ class ExperimentCellVitPanNuke(BaseExperiment):
                 drop_rate=self.run_conf["training"].get("drop_rate", 0),
                 attn_drop_rate=self.run_conf["training"].get("attn_drop_rate", 0),
                 drop_path_rate=self.run_conf["training"].get("drop_path_rate", 0),
+                regression_loss=regression_loss,
             )
 
             if pretrained_model is not None:
@@ -576,10 +590,10 @@ class ExperimentCellVitPanNuke(BaseExperiment):
                 self.logger.info("Loaded CellViT model")
 
         if backbone_type == "ViT256":
-            if shared_skip_connections:
-                model_class = CellViT256
+            if shared_decoders:
+                model_class = CellViT256Shared
             else:
-                model_class = CellViT256Unshared
+                model_class = CellViT256
             model = model_class(
                 model256_path=pretrained_encoder,
                 num_nuclei_classes=self.run_conf["data"]["num_nuclei_classes"],
@@ -587,6 +601,7 @@ class ExperimentCellVitPanNuke(BaseExperiment):
                 drop_rate=self.run_conf["training"].get("drop_rate", 0),
                 attn_drop_rate=self.run_conf["training"].get("attn_drop_rate", 0),
                 drop_path_rate=self.run_conf["training"].get("drop_path_rate", 0),
+                regression_loss=regression_loss,
             )
             model.load_pretrained_encoder(model.model256_path)
             if pretrained_model is not None:
@@ -598,16 +613,17 @@ class ExperimentCellVitPanNuke(BaseExperiment):
             model.freeze_encoder()
             self.logger.info("Loaded CellVit256 model")
         if backbone_type in ["SAM-B", "SAM-L", "SAM-H"]:
-            if shared_skip_connections:
-                model_class = CellViTSAM
+            if shared_decoders:
+                model_class = CellViTSAMShared
             else:
-                model_class = CellViTSAMUnshared
+                model_class = CellViTSAM
             model = model_class(
                 model_path=pretrained_encoder,
                 num_nuclei_classes=self.run_conf["data"]["num_nuclei_classes"],
                 num_tissue_classes=self.run_conf["data"]["num_tissue_classes"],
                 vit_structure=backbone_type,
                 drop_rate=self.run_conf["training"].get("drop_rate", 0),
+                regression_loss=regression_loss,
             )
             model.load_pretrained_encoder(model.model_path)
             if pretrained_model is not None:

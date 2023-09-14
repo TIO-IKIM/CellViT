@@ -40,7 +40,7 @@ from torchmetrics.functional.classification import binary_jaccard_index
 from torchvision import transforms
 
 from cell_segmentation.datasets.dataset_coordinator import select_dataset
-from cell_segmentation.datasets.pannuke import PanNukeDataclass
+from cell_segmentation.datasets.pannuke import PanNukeDataclassHV
 from cell_segmentation.utils.metrics import (
     cell_detection_scores,
     cell_type_detection_scores,
@@ -52,10 +52,12 @@ from cell_segmentation.utils.tools import cropping_center, pair_coordinates
 from models.segmentation.cell_segmentation.cellvit import (
     CellViT,
     CellViT256,
-    CellViT256Unshared,
     CellViTSAM,
-    CellViTSAMUnshared,
-    CellViTUnshared,
+)
+from models.segmentation.cell_segmentation.cellvit_shared import (
+    CellViT256Shared,
+    CellViTSAMShared,
+    CellViTShared,
 )
 from utils.logger import Logger
 
@@ -144,38 +146,38 @@ class InferenceCellViT:
         self, model_type: str
     ) -> Union[
         CellViT,
-        CellViTUnshared,
+        CellViTShared,
         CellViT256,
-        CellViT256Unshared,
+        CellViT256Shared,
         CellViTSAM,
-        CellViTSAMUnshared,
+        CellViTSAMShared,
     ]:
         """Return the trained model for inference
 
         Args:
             model_type (str): Name of the model. Must either be one of:
-                CellViT, CellViTUnshared, CellViT256, CellViT256Unshared, CellViTSAM, CellViTSAMUnshared
+                CellViT, CellViTShared, CellViT256, CellViT256Shared, CellViTSAM, CellViTSAMShared
 
         Returns:
-            Union[CellViT, CellViTUnshared, CellViT256, CellViT256Unshared, CellViTSAM, CellViTSAMUnshared]: Model
+            Union[CellViT, CellViTShared, CellViT256, CellViT256Shared, CellViTSAM, CellViTSAMShared]: Model
         """
         implemented_models = [
             "CellViT",
-            "CellViTUnshared",
+            "CellViTShared",
             "CellViT256",
-            "CellViT256Unshared",
+            "CellViT256Shared",
             "CellViTSAM",
-            "CellViTSAMUnshared",
+            "CellViTSAMShared",
         ]
         if model_type not in implemented_models:
             raise NotImplementedError(
                 f"Unknown model type. Please select one of {implemented_models}"
             )
-        if model_type in ["CellViT", "CellViTUnshared"]:
+        if model_type in ["CellViT", "CellViTShared"]:
             if model_type == "CellViT":
                 model_class = CellViT
-            elif model_type == "CellViTUnshared":
-                model_class = CellViTUnshared
+            elif model_type == "CellViTShared":
+                model_class = CellViTShared
             model = model_class(
                 num_nuclei_classes=self.run_conf["data"]["num_nuclei_classes"],
                 num_tissue_classes=self.run_conf["data"]["num_tissue_classes"],
@@ -186,21 +188,21 @@ class InferenceCellViT:
                 extract_layers=self.run_conf["model"]["extract_layers"],
             )
 
-        elif model_type in ["CellViT256", "CellViT256Unshared"]:
+        elif model_type in ["CellViT256", "CellViT256Shared"]:
             if model_type == "CellViT256":
                 model_class = CellViT256
-            elif model_type == "CellViT256Unshared":
-                model_class = CellViT256Unshared
+            elif model_type == "CellViT256Shared":
+                model_class = CellViT256Shared
             model = model_class(
                 model256_path=None,
                 num_nuclei_classes=self.run_conf["data"]["num_nuclei_classes"],
                 num_tissue_classes=self.run_conf["data"]["num_tissue_classes"],
             )
-        elif model_type in ["CellViTSAM", "CellViTSAMUnshared"]:
+        elif model_type in ["CellViTSAM", "CellViTSAMShared"]:
             if model_type == "CellViTSAM":
                 model_class = CellViTSAM
-            elif model_type == "CellViTSAMUnshared":
-                model_class = CellViTSAMUnshared
+            elif model_type == "CellViTSAMShared":
+                model_class = CellViTSAMShared
             model = model_class(
                 model_path=None,
                 num_nuclei_classes=self.run_conf["data"]["num_nuclei_classes"],
@@ -214,11 +216,11 @@ class InferenceCellViT:
     ) -> tuple[
         Union[
             CellViT,
-            CellViTUnshared,
+            CellViTShared,
             CellViT256,
-            CellViT256Unshared,
+            CellViT256Shared,
             CellViTSAM,
-            CellViTSAMUnshared,
+            CellViTSAMShared,
         ],
         DataLoader,
         dict,
@@ -229,8 +231,8 @@ class InferenceCellViT:
             test_folds (List[int], optional): Test fold to use. Otherwise defined folds from config.yaml (in run_dir) are loaded. Defaults to None.
 
         Returns:
-            tuple[Union[CellViT, CellViTUnshared, CellViT256, CellViT256Unshared, CellViTSAM, CellViTSAMUnshared], DataLoader, dict]:
-                Union[CellViT, CellViTUnshared, CellViT256, CellViT256Unshared, CellViTSAM, CellViTSAMUnshared]: Best model loaded form checkpoint
+            tuple[Union[CellViT, CellViTShared, CellViT256, CellViT256Shared, CellViTSAM, CellViTSAMShared], DataLoader, dict]:
+                Union[CellViT, CellViTShared, CellViT256, CellViT256Shared, CellViTSAM, CellViTSAMShared]: Best model loaded form checkpoint
                 DataLoader: Inference DataLoader
                 dict: Dataset configuration. Keys are:
                     * "tissue_types": describing the present tissue types with corresponding integer
@@ -298,11 +300,11 @@ class InferenceCellViT:
         self,
         model: Union[
             CellViT,
-            CellViTUnshared,
+            CellViTShared,
             CellViT256,
-            CellViT256Unshared,
+            CellViT256Shared,
             CellViTSAM,
-            CellViTSAMUnshared,
+            CellViTSAMShared,
         ],
         inference_dataloader: DataLoader,
         dataset_config: dict,
@@ -311,7 +313,7 @@ class InferenceCellViT:
         """Run Patch inference with given setup
 
         Args:
-            model (Union[CellViT, CellViTUnshared, CellViT256, CellViT256Unshared, CellViTSAM, CellViTSAMUnshared]): Model to use for inference
+            model (Union[CellViT, CellViTShared, CellViT256, CellViT256Shared, CellViTSAM, CellViTSAMShared]): Model to use for inference
             inference_dataloader (DataLoader): Inference Dataloader. Must return a batch with the following structure:
                 * Images (torch.Tensor)
                 * Masks (dict)
@@ -590,11 +592,11 @@ class InferenceCellViT:
         self,
         model: Union[
             CellViT,
-            CellViTUnshared,
+            CellViTShared,
             CellViT256,
-            CellViT256Unshared,
+            CellViT256Shared,
             CellViTSAM,
-            CellViTSAMUnshared,
+            CellViTSAMShared,
         ],
         batch: tuple,
         generate_plots: bool = False,
@@ -642,7 +644,9 @@ class InferenceCellViT:
 
         return batch_metrics
 
-    def unpack_predictions(self, predictions: dict, model: CellViT) -> PanNukeDataclass:
+    def unpack_predictions(
+        self, predictions: dict, model: CellViT
+    ) -> PanNukeDataclassHV:
         """Unpack the given predictions. Main focus lays on reshaping and postprocessing predictions, e.g. separating instances
 
         Args:
@@ -654,7 +658,7 @@ class InferenceCellViT:
             model (CellViT): Current model
 
         Returns:
-            PanNukeDataclass: Processed network output
+            PanNukeDataclassHV: Processed network output
 
         """
         predictions["tissue_types"] = predictions["tissue_types"].to(self.device)
@@ -675,7 +679,7 @@ class InferenceCellViT:
         ).to(
             self.device
         )  # shape: (batch_size, num_nuclei_classes, H, W)
-        predictions = PanNukeDataclass(
+        predictions = PanNukeDataclassHV(
             nuclei_binary_map=predictions["nuclei_binary_map"],
             hv_map=predictions["hv_map"],
             nuclei_type_map=predictions["nuclei_type_map"],
@@ -690,7 +694,7 @@ class InferenceCellViT:
 
     def unpack_masks(
         self, masks: dict, tissue_types: list, model: CellViT
-    ) -> PanNukeDataclass:
+    ) -> PanNukeDataclassHV:
         # get ground truth values, perform one hot encoding for segmentation maps
         gt_nuclei_binary_map_onehot = (
             F.one_hot(masks["nuclei_binary_map"], num_classes=2)
@@ -732,20 +736,20 @@ class InferenceCellViT:
         gt["instance_types"] = calculate_instances(
             gt["nuclei_type_map"], gt["instance_map"]
         )
-        gt = PanNukeDataclass(**gt, batch_size=gt["tissue_types"].shape[0])
+        gt = PanNukeDataclassHV(**gt, batch_size=gt["tissue_types"].shape[0])
         return gt
 
     def calculate_step_metric(
         self,
-        predictions: PanNukeDataclass,
-        gt: PanNukeDataclass,
+        predictions: PanNukeDataclassHV,
+        gt: PanNukeDataclassHV,
         image_names: list[str],
     ) -> Tuple[dict, list]:
         """Calculate the metrics for the validation step
 
         Args:
-            predictions (PanNukeDataclass): Processed network output
-            gt (PanNukeDataclass): Ground truth values
+            predictions (PanNukeDataclassHV): Processed network output
+            gt (PanNukeDataclassHV): Ground truth values
             image_names (list(str)): List with image names
 
         Returns:

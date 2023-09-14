@@ -54,13 +54,15 @@ from cell_segmentation.utils.metrics import (
 )
 from cell_segmentation.utils.post_proc_cellvit import calculate_instances
 from cell_segmentation.utils.tools import pair_coordinates
-from models.segmentation.cell_segmentation.cellvit import (
+from models.segmentation.cell_segmentation.cellvit_stardist import (
     CellViT256StarDist,
     CellViTSAMStarDist,
     CellViTStarDist,
-    StarDistViT,
-    StarDistViT256,
-    StarDistViTSAM,
+)
+from models.segmentation.cell_segmentation.cellvit_stardist_shared import (
+    CellViT256StarDistShared,
+    CellViTSAMStarDistShared,
+    CellViTStarDistShared,
 )
 from utils.logger import Logger
 
@@ -196,7 +198,7 @@ class InferenceCellViTStarDist(InferenceCellViT):
             if model_type == "CellViTStarDist":
                 model_class = CellViTStarDist
             elif model_type == "StarDistViT":
-                model_class = StarDistViT
+                model_class = CellViTStarDistShared
             model = model_class(
                 num_nuclei_classes=self.run_conf["data"]["num_nuclei_classes"],
                 num_tissue_classes=self.run_conf["data"]["num_tissue_classes"],
@@ -215,7 +217,7 @@ class InferenceCellViTStarDist(InferenceCellViT):
             if model_type == "CellViT256StarDist":
                 model_class = CellViT256StarDist
             elif model_type == "StarDistViT256":
-                model_class = StarDistViT256
+                model_class = CellViT256StarDistShared
             model = model_class(
                 model256_path=None,
                 num_nuclei_classes=self.run_conf["data"]["num_nuclei_classes"],
@@ -229,7 +231,7 @@ class InferenceCellViTStarDist(InferenceCellViT):
             if model_type == "CellViTSAMStarDist":
                 model_class = CellViTSAMStarDist
             elif model_type == "StarDistViTSAM":
-                model_class = StarDistViTSAM
+                model_class = CellViTSAMStarDistShared
             model = model_class(
                 model_path=None,
                 num_nuclei_classes=self.run_conf["data"]["num_nuclei_classes"],

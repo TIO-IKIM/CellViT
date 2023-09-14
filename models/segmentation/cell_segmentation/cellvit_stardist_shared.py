@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
-# CellViT networks and adaptions, without sharing encoders
+# CellViT networks and adaptions based on StarDist, with shared encoders
 #
 # UNETR paper and code: https://github.com/tamasino52/UNETR
 # SAM paper and code: https://segment-anything.com/
+# StarDist paper and code: https://github.com/stardist/stardist
+# CPP-net paper and code: https://github.com/csccsccsccsc/cpp-net
 #
 # @ Fabian Hörst, fabian.hoerst@uk-essen.de
 # Institute for Artifical Intelligence in Medicine,
@@ -11,29 +13,26 @@
 from collections import OrderedDict
 from functools import partial
 from pathlib import Path
-from typing import List, Literal, Tuple, Union
+from typing import List, Literal, Union
 
-import numpy as np
 import torch
 import torch.nn as nn
 
-from cell_segmentation.utils.post_proc_cellvit import DetectionCellPostProcessor
 
 from .utils import Conv2DBlock, Deconv2DBlock, ViTCellViT, ViTCellViTDeit
+from .cellvit import CellViT, CellViTSAM, CellViT256
 
 
-class CellViT(nn.Module):
-    """CellViT Modell for cell segmentation. U-Net like network with vision transformer as backbone encoder
+class CellViTStarDistShared(CellViT):
+    """CellViT Modell with StarDist heads (shared decoder).
 
-    Skip connections are shared between branches, but each network has a distinct encoder
+    All heads are shared, just final layers are not shared
 
-    The modell is having multiple branches:
+    The moodell is having four branches:
         * tissue_types: Tissue prediction based on global class token
-        * nuclei_binary_map: Binary nuclei prediction
-        * hv_map: HV-prediction to separate isolated instances
         * nuclei_type_map: Nuclei instance-prediction
-        * [Optional, if regression loss]:
-        * regression_map: Regression map for binary prediction
+        * stardist_map: Stardist mapping
+        * dist_map: Probability distance mapping
 
     Args:
         num_nuclei_classes (int): Number of nuclei classes (including background)
@@ -44,13 +43,12 @@ class CellViT(nn.Module):
         num_heads (int): Number of heads of the backbone ViT
         extract_layers: (List[int]): List of Transformer Blocks whose outputs should be returned in addition to the tokens. First blocks starts with 1, and maximum is N=depth.
             Is used for skip connections. At least 4 skip connections needs to be returned.
+        nrays (int, optional): Number of stardist nray vectors. Default to 32.
         mlp_ratio (float, optional): MLP ratio for hidden MLP dimension of backbone ViT. Defaults to 4.
         qkv_bias (bool, optional): If bias should be used for query (q), key (k), and value (v) in backbone ViT. Defaults to True.
         drop_rate (float, optional): Dropout in MLP. Defaults to 0.
         attn_drop_rate (float, optional): Dropout for attention layer in backbone ViT. Defaults to 0.
         drop_path_rate (float, optional): Dropout for skip connection . Defaults to 0.
-        regression_loss (bool, optional): Use regressive loss for predicting vector components.
-            Adds two additional channels to the binary decoder, but returns it as own entry in dict. Defaults to False.
     """
 
     def __init__(
@@ -62,15 +60,14 @@ class CellViT(nn.Module):
         depth: int,
         num_heads: int,
         extract_layers: List,
+        nrays: int = 32,
         mlp_ratio: float = 4,
         qkv_bias: bool = True,
         drop_rate: float = 0,
         attn_drop_rate: float = 0,
         drop_path_rate: float = 0,
-        regression_loss: bool = False,
     ):
-        # For simplicity, we will assume that extract layers must have a length of 4
-        super().__init__()
+        super(CellViT, self).__init__()
         assert len(extract_layers) == 4, "Please provide 4 layers for skip connections"
 
         self.patch_size = 16
@@ -86,6 +83,8 @@ class CellViT(nn.Module):
         self.drop_rate = drop_rate
         self.attn_drop_rate = attn_drop_rate
         self.drop_path_rate = drop_path_rate
+        self.nrays = nrays
+        self.prompt_embed_dim = 256
 
         self.encoder = ViTCellViT(
             patch_size=self.patch_size,
@@ -111,42 +110,41 @@ class CellViT(nn.Module):
             self.skip_dim_12 = 256
             self.bottleneck_dim = 512
 
-        # version with shared skip_connections
-        self.decoder0 = nn.Sequential(
-            Conv2DBlock(3, 32, 3, dropout=self.drop_rate),
-            Conv2DBlock(32, 64, 3, dropout=self.drop_rate),
-        )  # skip connection after positional encoding, shape should be H, W, 64
-        self.decoder1 = nn.Sequential(
-            Deconv2DBlock(self.embed_dim, self.skip_dim_11, dropout=self.drop_rate),
-            Deconv2DBlock(self.skip_dim_11, self.skip_dim_12, dropout=self.drop_rate),
-            Deconv2DBlock(self.skip_dim_12, 128, dropout=self.drop_rate),
-        )  # skip connection 1
-        self.decoder2 = nn.Sequential(
-            Deconv2DBlock(self.embed_dim, self.skip_dim_11, dropout=self.drop_rate),
-            Deconv2DBlock(self.skip_dim_11, 256, dropout=self.drop_rate),
-        )  # skip connection 2
-        self.decoder3 = nn.Sequential(
-            Deconv2DBlock(self.embed_dim, self.bottleneck_dim, dropout=self.drop_rate)
-        )  # skip connection 3
-
-        self.regression_loss = regression_loss
-        offset_branches = 0
-        if self.regression_loss:
-            offset_branches = 2
         self.branches_output = {
-            "nuclei_binary_map": 2 + offset_branches,
-            "hv_map": 2,
+            "stardist_map": self.nrays,
+            "dist_map": 1,
             "nuclei_type_maps": self.num_nuclei_classes,
         }
 
-        self.nuclei_binary_map_decoder = self.create_upsampling_branch(
-            2 + offset_branches
-        )  # todo: adapt for helper loss
-        self.hv_map_decoder = self.create_upsampling_branch(
-            2
-        )  # todo: adapt for helper loss
-        self.nuclei_type_maps_decoder = self.create_upsampling_branch(
-            self.num_nuclei_classes
+        self.decoder = self.create_upsampling_branch()
+        self.stardist_header = nn.Sequential(
+            nn.Conv2d(
+                in_channels=64,
+                out_channels=self.nrays,
+                kernel_size=1,
+                stride=1,
+                padding=0,
+            ),
+            nn.ReLU(),
+        )
+        self.dist_header = nn.Conv2d(
+            in_channels=64,
+            out_channels=1,
+            kernel_size=1,
+            stride=1,
+            padding=0,
+        )
+        self.nuclei_type_maps_header = nn.Conv2d(
+            in_channels=64,
+            out_channels=self.num_nuclei_classes,
+            kernel_size=1,
+            stride=1,
+            padding=0,
+        )
+        self.classifier_head = (
+            nn.Linear(self.prompt_embed_dim, num_tissue_classes)
+            if num_tissue_classes > 0
+            else nn.Identity()
         )
 
     def forward(self, x: torch.Tensor, retrieve_tokens: bool = False) -> dict:
@@ -162,9 +160,7 @@ class CellViT(nn.Module):
                 * nuclei_binary_map: Raw binary cell segmentation predictions. Shape: (B, 2, H, W)
                 * hv_map: Binary HV Map predictions. Shape: (B, 2, H, W)
                 * nuclei_type_map: Raw binary nuclei type preditcions. Shape: (B, num_nuclei_classes, H, W)
-                * [Optional, if retrieve tokens]: tokens
-                * [Optional, if regression loss]:
-                * regression_map: Regression map for binary prediction. Shape: (B, 2, H, W)
+                * (optinal) tokens
         """
         assert (
             x.shape[-2] % self.patch_size == 0
@@ -187,22 +183,11 @@ class CellViT(nn.Module):
         z2 = z2[:, 1:, :].transpose(-1, -2).view(-1, self.embed_dim, *patch_dim)
         z1 = z1[:, 1:, :].transpose(-1, -2).view(-1, self.embed_dim, *patch_dim)
 
-        if self.regression_loss:
-            nb_map = self._forward_upsample(
-                z0, z1, z2, z3, z4, self.nuclei_binary_map_decoder
-            )
-            out_dict["nuclei_binary_map"] = nb_map[:, :2, :, :]
-            out_dict["regression_map"] = nb_map[:, 3:, :, :]
-        else:
-            out_dict["nuclei_binary_map"] = self._forward_upsample(
-                z0, z1, z2, z3, z4, self.nuclei_binary_map_decoder
-            )
-        out_dict["hv_map"] = self._forward_upsample(
-            z0, z1, z2, z3, z4, self.hv_map_decoder
-        )
-        out_dict["nuclei_type_map"] = self._forward_upsample(
-            z0, z1, z2, z3, z4, self.nuclei_type_maps_decoder
-        )
+        upsampled = self._forward_upsample(z0, z1, z2, z3, z4, self.decoder)
+        out_dict["stardist_map"] = self.stardist_header(upsampled)
+        out_dict["dist_map"] = self.dist_header(upsampled)
+        out_dict["nuclei_type_map"] = self.nuclei_type_maps_header(upsampled)
+
         if retrieve_tokens:
             out_dict["tokens"] = z4
 
@@ -231,26 +216,42 @@ class CellViT(nn.Module):
             torch.Tensor: Branch Output
         """
         b4 = branch_decoder.bottleneck_upsampler(z4)
-        b3 = self.decoder3(z3)
+        b3 = branch_decoder.decoder3_skip(z3)
         b3 = branch_decoder.decoder3_upsampler(torch.cat([b3, b4], dim=1))
-        b2 = self.decoder2(z2)
+        b2 = branch_decoder.decoder2_skip(z2)
         b2 = branch_decoder.decoder2_upsampler(torch.cat([b2, b3], dim=1))
-        b1 = self.decoder1(z1)
+        b1 = branch_decoder.decoder1_skip(z1)
         b1 = branch_decoder.decoder1_upsampler(torch.cat([b1, b2], dim=1))
-        b0 = self.decoder0(z0)
-        branch_output = branch_decoder.decoder0_header(torch.cat([b0, b1], dim=1))
+        b0 = branch_decoder.decoder0_skip(z0)
+        b_final = branch_decoder.decoder0_header(torch.cat([b0, b1], dim=1))
 
-        return branch_output
+        return b_final
 
-    def create_upsampling_branch(self, num_classes: int) -> nn.Module:
+    def create_upsampling_branch(self) -> nn.Module:
         """Create Upsampling branch
-
-        Args:
-            num_classes (int): Number of output classes
 
         Returns:
             nn.Module: Upsampling path
         """
+        # Skip connections
+        decoder0_skip = nn.Sequential(
+            Conv2DBlock(3, 32, 3, self.drop_rate),
+            Conv2DBlock(32, 64, 3, self.drop_rate),
+        )  # skip connection after positional encoding, shape should be H, W, 64
+        decoder1_skip = nn.Sequential(
+            Deconv2DBlock(self.embed_dim, self.skip_dim_11, dropout=self.drop_rate),
+            Deconv2DBlock(self.skip_dim_11, self.skip_dim_12, dropout=self.drop_rate),
+            Deconv2DBlock(self.skip_dim_12, 128, dropout=self.drop_rate),
+        )  # skip connection 1
+        decoder2_skip = nn.Sequential(
+            Deconv2DBlock(self.embed_dim, self.skip_dim_11, dropout=self.drop_rate),
+            Deconv2DBlock(self.skip_dim_11, 256, dropout=self.drop_rate),
+        )  # skip connection 2
+        decoder3_skip = nn.Sequential(
+            Deconv2DBlock(self.embed_dim, self.bottleneck_dim, dropout=self.drop_rate)
+        )  # skip connection 3
+
+        # Upsampling
         bottleneck_upsampler = nn.ConvTranspose2d(
             in_channels=self.embed_dim,
             out_channels=self.bottleneck_dim,
@@ -305,18 +306,15 @@ class CellViT(nn.Module):
         decoder0_header = nn.Sequential(
             Conv2DBlock(64 * 2, 64, dropout=self.drop_rate),
             Conv2DBlock(64, 64, dropout=self.drop_rate),
-            nn.Conv2d(
-                in_channels=64,
-                out_channels=num_classes,
-                kernel_size=1,
-                stride=1,
-                padding=0,
-            ),
         )
 
         decoder = nn.Sequential(
             OrderedDict(
                 [
+                    ("decoder0_skip", decoder0_skip),
+                    ("decoder1_skip", decoder1_skip),
+                    ("decoder2_skip", decoder2_skip),
+                    ("decoder3_skip", decoder3_skip),
                     ("bottleneck_upsampler", bottleneck_upsampler),
                     ("decoder3_upsampler", decoder3_upsampler),
                     ("decoder2_upsampler", decoder2_upsampler),
@@ -328,116 +326,27 @@ class CellViT(nn.Module):
 
         return decoder
 
-    def calculate_instance_map(
-        self, predictions: OrderedDict, magnification: Literal[20, 40] = 40
-    ) -> Tuple[torch.Tensor, List[dict]]:
-        """Calculate Instance Map from network predictions (after Softmax output)
 
-        Args:
-            predictions (dict): Dictionary with the following required keys:
-                * nuclei_binary_map: Binary Nucleus Predictions. Shape: (B, 2, H, W)
-                * nuclei_type_map: Type prediction of nuclei. Shape: (B, self.num_nuclei_classes, H, W)
-                * hv_map: Horizontal-Vertical nuclei mapping. Shape: (B, 2, H, W)
-            magnification (Literal[20, 40], optional): Which magnification the data has. Defaults to 40.
+class CellViT256StarDistShared(CellViTStarDistShared, CellViT256):
+    """CellViT Modell with StarDist heads (shared decoder)
+    with ViT-256 backbone settings (https://github.com/mahmoodlab/HIPT/blob/master/HIPT_4K/Checkpoints/vit256_small_dino.pth)
 
-        Returns:
-            Tuple[torch.Tensor, List[dict]]:
-                * torch.Tensor: Instance map. Each Instance has own integer. Shape: (B, H, W)
-                * List of dictionaries. Each List entry is one image. Each dict contains another dict for each detected nucleus.
-                    For each nucleus, the following information are returned: "bbox", "centroid", "contour", "type_prob", "type"
-        """
-        # reshape to B, H, W, C
-        predictions_ = predictions.copy()
-        predictions_["nuclei_type_map"] = predictions_["nuclei_type_map"].permute(
-            0, 2, 3, 1
-        )
-        predictions_["nuclei_binary_map"] = predictions_["nuclei_binary_map"].permute(
-            0, 2, 3, 1
-        )
-        predictions_["hv_map"] = predictions_["hv_map"].permute(0, 2, 3, 1)
+    Skip connections and encoder up to last layer are shared between branches
 
-        cell_post_processor = DetectionCellPostProcessor(
-            nr_types=self.num_nuclei_classes, magnification=magnification, gt=False
-        )
-        instance_preds = []
-        type_preds = []
-
-        for i in range(predictions_["nuclei_binary_map"].shape[0]):
-            pred_map = np.concatenate(
-                [
-                    torch.argmax(predictions_["nuclei_type_map"], dim=-1)[i]
-                    .detach()
-                    .cpu()[..., None],
-                    torch.argmax(predictions_["nuclei_binary_map"], dim=-1)[i]
-                    .detach()
-                    .cpu()[..., None],
-                    predictions_["hv_map"][i].detach().cpu(),
-                ],
-                axis=-1,
-            )
-            instance_pred = cell_post_processor.post_process_cell_segmentation(pred_map)
-            instance_preds.append(instance_pred[0])
-            type_preds.append(instance_pred[1])
-
-        return torch.Tensor(np.stack(instance_preds)), type_preds
-
-    def generate_instance_nuclei_map(
-        self, instance_maps: torch.Tensor, type_preds: List[dict]
-    ) -> torch.Tensor:
-        """Convert instance map (binary) to nuclei type instance map
-
-        Args:
-            instance_maps (torch.Tensor): Binary instance map, each instance has own integer. Shape: (B, H, W)
-            type_preds (List[dict]): List (len=B) of dictionary with instance type information (compare post_process_hovernet function for more details)
-
-        Returns:
-            torch.Tensor: Nuclei type instance map. Shape: (B, self.num_nuclei_classes, H, W)
-        """
-        batch_size, h, w = instance_maps.shape
-        instance_type_nuclei_maps = torch.zeros(
-            (batch_size, h, w, self.num_nuclei_classes)
-        )
-        for i in range(batch_size):
-            instance_type_nuclei_map = torch.zeros((h, w, self.num_nuclei_classes))
-            instance_map = instance_maps[i]
-            type_pred = type_preds[i]
-            for nuclei, spec in type_pred.items():
-                nuclei_type = spec["type"]
-                instance_type_nuclei_map[:, :, nuclei_type][
-                    instance_map == nuclei
-                ] = nuclei
-
-            instance_type_nuclei_maps[i, :, :, :] = instance_type_nuclei_map
-
-        instance_type_nuclei_maps = instance_type_nuclei_maps.permute(0, 3, 1, 2)
-        return torch.Tensor(instance_type_nuclei_maps)
-
-    def freeze_encoder(self):
-        """Freeze encoder to not train it"""
-        for layer_name, p in self.encoder.named_parameters():
-            if layer_name.split(".")[0] != "head":  # do not freeze head
-                p.requires_grad = False
-
-    def unfreeze_encoder(self):
-        """Unfreeze encoder to train the whole model"""
-        for p in self.encoder.parameters():
-            p.requires_grad = True
-
-
-class CellViT256(CellViT):
-    """CellViT with ViT-256 backbone settings (https://github.com/mahmoodlab/HIPT/blob/master/HIPT_4K/Checkpoints/vit256_small_dino.pth)
-
-    Skip connections are shared between branches, but each network has a distinct encoder
+    The moodell is having four branches:
+        * tissue_types: Tissue prediction based on global class token
+        * nuclei_type_map: Nuclei instance-prediction
+        * stardist_map: Stardist mapping
+        * dist_map: Probability distance mapping
 
     Args:
         model256_path (Union[Path, str]): Path to ViT 256 backbone model
         num_nuclei_classes (int): Number of nuclei classes (including background)
         num_tissue_classes (int): Number of tissue classes
+        nrays (int, optional): Number of stardist nray vectors. Defaults to 32.
         drop_rate (float, optional): Dropout in MLP. Defaults to 0.
         attn_drop_rate (float, optional): Dropout for attention layer in backbone ViT. Defaults to 0.
         drop_path_rate (float, optional): Dropout for skip connection . Defaults to 0.
-        regression_loss (bool, optional): Use regressive loss for predicting vector components.
-            Adds two additional channels to the binary decoder, but returns it as own entry in dict. Defaults to False.
     """
 
     def __init__(
@@ -445,10 +354,10 @@ class CellViT256(CellViT):
         model256_path: Union[Path, str],
         num_nuclei_classes: int,
         num_tissue_classes: int,
+        nrays: int = 32,
         drop_rate: float = 0,
         attn_drop_rate: float = 0,
         drop_path_rate: float = 0,
-        regression_loss: bool = False,  # to use regressive loss for predicting vector components
     ):
         self.patch_size = 16
         self.embed_dim = 384
@@ -460,6 +369,7 @@ class CellViT256(CellViT):
         self.input_channels = 3  # RGB
         self.num_tissue_classes = num_tissue_classes
         self.num_nuclei_classes = num_nuclei_classes
+        self.nrays = nrays
 
         super().__init__(
             num_nuclei_classes=num_nuclei_classes,
@@ -474,40 +384,31 @@ class CellViT256(CellViT):
             drop_rate=drop_rate,
             attn_drop_rate=attn_drop_rate,
             drop_path_rate=drop_path_rate,
-            regression_loss=regression_loss,
+            nrays=self.nrays,
         )
 
         self.model256_path = model256_path
 
-    def load_pretrained_encoder(self, model256_path: str):
-        """Load pretrained ViT-256 from provided path
 
-        Args:
-            model256_path (str): Path to ViT-256
-        """
-        state_dict = torch.load(str(model256_path), map_location="cpu")["teacher"]
-        state_dict = {k.replace("module.", ""): v for k, v in state_dict.items()}
-        state_dict = {k.replace("backbone.", ""): v for k, v in state_dict.items()}
-        msg = self.encoder.load_state_dict(state_dict, strict=False)
-        print(f"Loading checkpoint: {msg}")
+class CellViTSAMStarDistShared(CellViTStarDistShared, CellViTSAM):
+    """CellViT Modell with StarDist heads (shared decoder) with SAM backbone settings
 
+    Skip connections and encoder up to last layer are shared between branches
 
-class CellViTSAM(CellViT):
-    """CellViT with SAM backbone settings
-
-    Skip connections are shared between branches, but each network has a distinct encoder
+    The moodell is having four branches:
+        * tissue_types: Tissue prediction based on global class token
+        * nuclei_type_map: Nuclei instance-prediction
+        * stardist_map: Stardist mapping
+        * dist_map: Probability distance mapping
 
     Args:
-        model_path (Union[Path, str]): Path to pretrained SAM model
+        model256_path (Union[Path, str]): Path to ViT 256 backbone model
         num_nuclei_classes (int): Number of nuclei classes (including background)
         num_tissue_classes (int): Number of tissue classes
-        vit_structure (Literal["SAM-B", "SAM-L", "SAM-H"]): SAM model type
+        nrays (int, optional): Number of stardist nray vectors. Defaults to 32.
         drop_rate (float, optional): Dropout in MLP. Defaults to 0.
-        regression_loss (bool, optional): Use regressive loss for predicting vector components.
-            Adds two additional channels to the binary decoder, but returns it as own entry in dict. Defaults to False.
-
-    Raises:
-        NotImplementedError: Unknown SAM configuration
+        attn_drop_rate (float, optional): Dropout for attention layer in backbone ViT. Defaults to 0.
+        drop_path_rate (float, optional): Dropout for skip connection . Defaults to 0.
     """
 
     def __init__(
@@ -516,8 +417,8 @@ class CellViTSAM(CellViT):
         num_nuclei_classes: int,
         num_tissue_classes: int,
         vit_structure: Literal["SAM-B", "SAM-L", "SAM-H"],
+        nrays: int = 32,
         drop_rate: float = 0,
-        regression_loss: bool = False,
     ):
         if vit_structure.upper() == "SAM-B":
             self.init_vit_b()
@@ -545,7 +446,7 @@ class CellViTSAM(CellViT):
             mlp_ratio=self.mlp_ratio,
             qkv_bias=self.qkv_bias,
             drop_rate=drop_rate,
-            regression_loss=regression_loss,
+            nrays=nrays,
         )
 
         self.prompt_embed_dim = 256
@@ -570,18 +471,6 @@ class CellViTSAM(CellViT):
             else nn.Identity()
         )
 
-    def load_pretrained_encoder(self, model_path):
-        """Load pretrained SAM encoder from provided path
-
-        Args:
-            model_path (str): Path to SAM model
-        """
-        state_dict = torch.load(str(model_path), map_location="cpu")
-        image_encoder = self.encoder
-        msg = image_encoder.load_state_dict(state_dict, strict=False)
-        print(f"Loading checkpoint: {msg}")
-        self.encoder = image_encoder
-
     def forward(self, x: torch.Tensor, retrieve_tokens: bool = False):
         """Forward pass
 
@@ -592,12 +481,10 @@ class CellViTSAM(CellViT):
         Returns:
             dict: Output for all branches:
                 * tissue_types: Raw tissue type prediction. Shape: (B, num_tissue_classes)
-                * nuclei_binary_map: Raw binary cell segmentation predictions. Shape: (B, 2, H, W)
-                * hv_map: Binary HV Map predictions. Shape: (B, 2, H, W)
+                * stardist_map: Stardist map. Shape (B, n_rays, H, W)
+                * dist_map: Distance probabilities. Shape: (B, 1, H, W)
                 * nuclei_type_map: Raw binary nuclei type preditcions. Shape: (B, num_nuclei_classes, H, W)
-                * [Optional, if retrieve tokens]: tokens
-                * [Optional, if regression loss]:
-                * regression_map: Regression map for binary prediction. Shape: (B, 2, H, W)
+                * (optinal) tokens
         """
         assert (
             x.shape[-2] % self.patch_size == 0
@@ -619,46 +506,13 @@ class CellViTSAM(CellViT):
         z2 = z2.permute(0, 3, 1, 2)
         z1 = z1.permute(0, 3, 1, 2)
 
-        if self.regression_loss:
-            nb_map = self._forward_upsample(
-                z0, z1, z2, z3, z4, self.nuclei_binary_map_decoder
-            )
-            out_dict["nuclei_binary_map"] = nb_map[:, :2, :, :]
-            out_dict["regression_map"] = nb_map[:, 3:, :, :]
-        else:
-            out_dict["nuclei_binary_map"] = self._forward_upsample(
-                z0, z1, z2, z3, z4, self.nuclei_binary_map_decoder
-            )
+        upsampled = self._forward_upsample(z0, z1, z2, z3, z4, self.decoder)
 
-        out_dict["hv_map"] = self._forward_upsample(
-            z0, z1, z2, z3, z4, self.hv_map_decoder
-        )
-        out_dict["nuclei_type_map"] = self._forward_upsample(
-            z0, z1, z2, z3, z4, self.nuclei_type_maps_decoder
-        )
+        out_dict["stardist_map"] = self.stardist_header(upsampled)
+        out_dict["dist_map"] = self.dist_header(upsampled)
+        out_dict["nuclei_type_map"] = self.nuclei_type_maps_header(upsampled)
 
         if retrieve_tokens:
             out_dict["tokens"] = z4
 
         return out_dict
-
-    def init_vit_b(self):
-        self.embed_dim = 768
-        self.depth = 12
-        self.num_heads = 12
-        self.encoder_global_attn_indexes = [2, 5, 8, 11]
-        self.extract_layers = [3, 6, 9, 12]
-
-    def init_vit_l(self):
-        self.embed_dim = 1024
-        self.depth = 24
-        self.num_heads = 16
-        self.encoder_global_attn_indexes = [5, 11, 17, 23]
-        self.extract_layers = [6, 12, 18, 24]
-
-    def init_vit_h(self):
-        self.embed_dim = 1280
-        self.depth = 32
-        self.num_heads = 16
-        self.encoder_global_attn_indexes = [7, 15, 23, 31]
-        self.extract_layers = [8, 16, 24, 32]

@@ -148,6 +148,7 @@ class BaseTrainer:
         train_dataloader: DataLoader,
         val_dataloader: DataLoader,
         metric_init: dict = None,
+        eval_every: int = 1,
         **kwargs,
     ):
         """Fitting function to start training and validation of the trainer
@@ -162,6 +163,7 @@ class BaseTrainer:
                 If not provided, step 0 (epoch 0) is not logged. Should have the same scalar keys as training and validation epochs report.
                 For more information, you should have a look into the train_epoch and val_epoch methods where the wandb logging dicts are assembled.
                 Defaults to None.
+            eval_every (int, optional): How often the network should be evaluated (after how many epochs). Defaults to 1.
             **kwargs
         """
 
@@ -177,15 +179,16 @@ class BaseTrainer:
             wandb.log(train_scalar_metrics, step=epoch + 1)
             if self.log_images:
                 wandb.log(train_image_metrics, step=epoch + 1)
-            # validation epoch
-            (
-                val_scalar_metrics,
-                val_image_metrics,
-                early_stopping_metric,
-            ) = self.validation_epoch(epoch, val_dataloader)
-            wandb.log(val_scalar_metrics, step=epoch + 1)
-            if self.log_images:
-                wandb.log(val_image_metrics, step=epoch + 1)
+            if (epoch + 1) % eval_every == 0:
+                # validation epoch
+                (
+                    val_scalar_metrics,
+                    val_image_metrics,
+                    early_stopping_metric,
+                ) = self.validation_epoch(epoch, val_dataloader)
+                wandb.log(val_scalar_metrics, step=epoch + 1)
+                if self.log_images:
+                    wandb.log(val_image_metrics, step=epoch + 1)
 
             # log learning rate
             curr_lr = self.optimizer.param_groups[0]["lr"]
@@ -195,19 +198,16 @@ class BaseTrainer:
                 },
                 step=epoch + 1,
             )
-
-            # early stopping
-            if self.early_stopping is not None:
-                best_model = self.early_stopping(early_stopping_metric, epoch)
-                if best_model:
-                    self.logger.info("New best model - save checkpoint")
-                    self.save_checkpoint(epoch, "model_best.pth")
-                elif self.early_stopping.early_stop:
-                    self.logger.info("Performing early stopping!")
-                    break
-            # Currently disabled to save memori
-            # if epoch % 25 == 0:
-            #     self.save_checkpoint(epoch, f"checkpoint_{epoch}.pth")
+            if (epoch + 1) % eval_every == 0:
+                # early stopping
+                if self.early_stopping is not None:
+                    best_model = self.early_stopping(early_stopping_metric, epoch)
+                    if best_model:
+                        self.logger.info("New best model - save checkpoint")
+                        self.save_checkpoint(epoch, "model_best.pth")
+                    elif self.early_stopping.early_stop:
+                        self.logger.info("Performing early stopping!")
+                        break
             self.save_checkpoint(epoch, "latest_checkpoint.pth")
 
             # scheduling
@@ -217,9 +217,6 @@ class BaseTrainer:
                 self.scheduler.step()
             new_lr = self.optimizer.param_groups[0]["lr"]
             self.logger.debug(f"Old lr: {curr_lr:.6f} - New lr: {new_lr:.6f}")
-
-            # self.storage_instance.update_metrics()
-            # self.storage_instance.save_data()
 
     def save_checkpoint(self, epoch: int, checkpoint_name: str):
         if self.early_stopping is None:

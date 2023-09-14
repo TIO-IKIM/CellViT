@@ -1,4 +1,4 @@
-# Example configuration for HoverNet-Cell-Segmentation
+# Example configuration for StarDist-Cell-Segmentation
 
 # comment and project setup for wandb
 logging:
@@ -15,23 +15,6 @@ logging:
   level:                    # Level of logging must be either ["critical", "error", "warning", "info", "debug"] [str]
   log_images:               # If images should be logged to WandB for this run. [bool] [Optional, defaults to False]
   group:                    # WandB group tag [str] [Optional, defaults to None]
-
-# sweep options -> compare https://docs.wandb.ai/guides/sweeps and https://docs.wandb.ai/guides/sweeps/define-sweep-configuration
-# use the same keys as shown below
-# Keys are defined here: https://docs.wandb.ai/guides/sweeps/define-sweep-configuration#configuration-keys
-sweep:
-  method:                   # Sweep Method [str]
-  name:                     # Sweep Name [str]
-  metric:                   # Sweep Metric [str] (https://docs.wandb.ai/guides/sweeps/define-sweep-configuration#metric)
-    name:                   # This metric must be logged, e.g. use AUC/Validation [str]
-    goal:                   # Optimization goal. Either "maximize" or "minimize" [str]
-  early_terminate:          # Just applies for bayes method (https://docs.wandb.ai/guides/sweeps/define-sweep-configuration#early_terminate)
-    type: hyperband         # Currently: just hyperband
-    #...                     # Other options
-  run_cap:                  # Number of trials for the sweep [int]
-# Sweep parameters are defined on the according configuration section. Please be carefull to have only on "parameters" key on every level to avoid doubled key conflicts
-# Examples are given below
-# Documentation on parameters: https://docs.wandb.ai/guides/sweeps/define-sweep-configuration#parameters
 
 # seeding
 random_seed: 19             # Seed for numpy, pytorch etc. [int]
@@ -52,21 +35,24 @@ data:
 
 # model options
 model:
-  backbone:                 # Backbone Type: Options are: default, ViT256, SAM-B, SAM-L, SAM-H
+  backbone:                 # Backbone Type: Options are: default, ViT256, SAM-B, SAM-L, SAM-H, RN50 (isolated)
+                            # if RN50 is selected, all other parameters except for n_rays and num_nuclei_classes are ignored.
+                            # Some parameters might get overwritten when a specific backbone is selected such that checkpoints and pretrained weights can be loaded
   pretrained_encoder:       # Set path to a pretrained encoder [str]
   pretrained:               # Path to a pretrained model (.pt file) [str, default None]
   embed_dim:                # Embedding dimension for ViT - typical values are 384 (ViT-S), 768 (ViT-B), 1024 (ViT-L), 1280 (ViT-H) [int]
   input_channels:           # Number of input channels, usually 3 for RGB [int, default 3]
   depth:                    # Number of Transformer Blocks to use - typical values are 12 (ViT-S), 12 (ViT-B), 24 (ViT-L), 32 (ViT-H) [int]
   num_heads:                # Number of attention heads for MHA - typical values are 6 (ViT-S), 12 (ViT-B), 16 (ViT-L), 16 (ViT-H) [int]
+  extract_layers:           # List of layers to extract for skip connections - starting from 1 with a maximum value equals the depth [int]
   shared_decoders:          # If decoder networks should be shared except for the heads. [bool] [Optional, defaults to False]
-  regression_loss:          # If regression loss should be used for binary prediction head. [bool] [Optional, defaults to False]
+  n_rays:                   # N-rays of stardist. [int][Optional, default to 32]
 
 # loss function settings (best shown by an example). See all implemented loss functions in base_ml.base_loss module
 loss:
-  nuclei_binary_map:        # Name of the branch. Possible branches are "nuclei_binary_map", "hv_map", "nuclei_type_map", "tissue_types". If not defined default HoverNet settings are used [str]
+  dist_map:                 # Name of the branch. Possible branches are "nuclei_binary_map", "hv_map", "nuclei_type_map", "tissue_types". If not defined default HoverNet settings are used [str]
     bce:                    # Name of the loss [str]
-      loss_fn: xentropy_loss  # Loss_fn, name is defined in LOSS_DICT in base_ml.base_loss module [str]
+      loss_fn: BCEWithLogitsLoss  # Loss_fn, name is defined in LOSS_DICT in base_ml.base_loss module [str]
       weight: 1               # Weight parameter [int] [Optional, defaults to 1]
       args:                   # Parameters for the loss function if necessary. Does not need to be set, can also be empty. Just given as an example here
         arg1:                 # 1. Parameter etc. (Name must match to the initialization parameter given for the loss)
@@ -77,47 +63,31 @@ loss:
       loss_fn: FocalTverskyLoss # Loss_fn, name is defined in LOSS_DICT in base_ml.base_loss module [str]
       weight: 1             # Weight parameter [int] [Optional, defaults to 1]
       # optional parameters, not implemented yet
-  # hv_map:                   another branch
+  # stardist_map:             another branch
   # nuclei_type_map:          another branch
   # tissue_types:             another branch
 
 
 # training options
 training:
-############# Exemplary parameters ########################################################################################################################################
-  parameters:
-    attn_drop_rate:
-      min: 0.0
-      max: 0.15
-    drop_rate:
-      values: [0, 0.15, 0.25]
-############################################################################################################################################################################
-  batch_size: 32
-  epochs: 100
-  unfreeze_epoch:
-  drop_path_rate:
-############# Exemplary parameters (on a lower level) ######################################################################################################################
-  optimizer: AdamW
-  optimizer_hyperparameter:
-    parameters:
-      lr:
-        min: 0.00001
-        max: 0.01
-      betas:
-        values:
-          [[0.85, 0.9], [0.9, 0.999], [0.85, 0.95]]
-      weight_decay:
-        min: 0.00001
-        max: 0.001
-############################################################################################################################################################################
-  early_stopping_patience:
-  scheduler:
-    scheduler_type:
-    # hyperparameters
-  sampling_strategy:
-  sampling_gamma:
-  mixed_precision:
-  eval_every:
+  batch_size: 32            # Training Batch size [int]
+  epochs: 100               # Number of Training Epochs to use [int]
+  unfreeze_epoch:           # Epoch Number to unfreeze backbone [int]
+  drop_rate:                # Dropout rate [float] [Optional, defaults to 0]
+  attn_drop_rate:           # Dropout rate in attention layer [float] [Optional, defaults to 0]
+  drop_path_rate:           # Dropout rate in paths [float] [Optional, defaults to 0]
+  optimizer:                # Pytorch Optimizer Name. All pytorch optimizers (v1.13) are supported. [str]
+  optimizer_hyperparameter: # Hyperparamaters for the optimizers, must be named exactly as in the pytorch documation given for the selected optimizer
+    lr: 0.001               # e.g. learning-rate for Adam
+    betas: [0.85, 0.9]      # e.g. betas for Adam
+  early_stopping_patience:  # Number of epochs before applying early stopping after metric has not been improved. Metric used is total loss. [int]
+  scheduler:                # Learning rate scheduler. If no scheduler is selected here, then the learning rate stays constant
+    scheduler_type:         # Name of learning rate scheduler. Currently implemented: "constant", "exponential", "cosine", "reducelronplateau". [str]
+    # hyperparameters       # gamma [default 0.95] for "exponential", "eta_min" [default 1e-5] for CosineAnnealingLR
+  sampling_strategy:        # Sampling strategy. Implemented are "random", "cell", "tissue" and "cell+tissue" [str] [Optional, defaults to "random"]
+  sampling_gamma:           # Gamma for balancing sampling. Must be between 0 (equal weights) and 1 (100% oversampling) [float] [Optional, defaults to 1]
+  mixed_precision:          # Mixed precision Flag. [bool] [Optional, default False]
+  eval_every:               # Number of training epochs between every validation. If 1, alternating training and validation as commonly used. [int] [Optional, default 1]
 
 # transformations, here all options are given. Remove transformations by removing them from this section
 transformations:

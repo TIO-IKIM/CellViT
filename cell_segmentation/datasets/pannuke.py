@@ -11,11 +11,11 @@
 
 import logging
 import sys  # remove
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Tuple, Union
 
 sys.path.append("/homes/fhoerst/histo-projects/CellViT/")  # remove
-from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
@@ -40,6 +40,7 @@ class PanNukeDataset(CellDataset):
         folds (Union[int, list[int]]): Folds to use for this dataset
         transforms (Callable, optional): PyTorch transformations. Defaults to None.
         stardist (bool, optional): Return StarDist labels. Defaults to False
+        regression (bool, optional): Return Regression of cells in x and y direction. Defaults to False
         cache_dataset: If the dataset should be loaded to host memory in first epoch.
             Be careful, workers in DataLoader needs to be persistent to have speedup.
             Recommended to false, just use if you have enough RAM and your I/O operations might be limited.
@@ -52,6 +53,7 @@ class PanNukeDataset(CellDataset):
         folds: Union[int, list[int]],
         transforms: Callable = None,
         stardist: bool = False,
+        regression: bool = False,
         cache_dataset: bool = False,
     ) -> None:
         if isinstance(folds, int):
@@ -66,7 +68,7 @@ class PanNukeDataset(CellDataset):
         self.folds = folds
         self.cache_dataset = cache_dataset
         self.stardist = stardist
-
+        self.regression = regression
         for fold in folds:
             image_path = self.dataset / f"fold{fold}" / "images"
             fold_images = [f for f in sorted(image_path.glob("*.png")) if f.is_file()]
@@ -116,11 +118,13 @@ class PanNukeDataset(CellDataset):
                     "nuclei_type_map": Nuclei-Type-Map, for each nucleus (instance) the class is indicated by an integer. Shape (256, 256)
                     "nuclei_binary_map": Binary Nuclei-Mask, Shape (256, 256)
                     "hv_map": Horizontal and vertical instance map.
-                        Shape: (H, W, 2). First dimension is horizontal (horizontal gradient (-1 to 1)),
+                        Shape: (2 , H, W). First dimension is horizontal (horizontal gradient (-1 to 1)),
                         last is vertical (vertical gradient (-1 to 1)) Shape (2, 256, 256)
                     [Optional if stardist]
                     "dist_map": Probability distance map. Shape (256, 256)
                     "stardist_map": Stardist vector map. Shape (n_rays, 256, 256)
+                    [Optional if regression]
+                    "regression_map": Regression map. Shape (2, 256, 256). First is vertical, second horizontal.
                 str: Tissue type
                 str: Image Name
         """
@@ -173,6 +177,8 @@ class PanNukeDataset(CellDataset):
             stardist_map = PanNukeDataset.gen_stardist_maps(inst_map)
             masks["dist_map"] = torch.Tensor(dist_map).type(torch.float32)
             masks["stardist_map"] = torch.Tensor(stardist_map).type(torch.float32)
+        if self.regression:
+            masks["regression_map"] = PanNukeDataset.gen_regression_map(inst_map)
 
         return img, masks, tissue_type, Path(img_path).name
 
@@ -499,15 +505,43 @@ class PanNukeDataset(CellDataset):
 
         return dist.transpose(2, 0, 1)
 
+    @staticmethod
+    def gen_regression_map(inst_map: np.ndarray):
+        n_directions = 2
+        dist = np.zeros(inst_map.shape + (n_directions,), np.float32).transpose(2, 0, 1)
+        inst_map = fix_duplicates(inst_map)
+        inst_list = list(np.unique(inst_map))
+        if 0 in inst_list:
+            inst_list.remove(0)
+        for inst_id in inst_list:
+            inst = np.array(inst_map == inst_id, np.uint8)
+            y1, y2, x1, x2 = get_bounding_box(inst)
+            y1 = y1 - 2 if y1 - 2 >= 0 else y1
+            x1 = x1 - 2 if x1 - 2 >= 0 else x1
+            x2 = x2 + 2 if x2 + 2 <= inst_map.shape[1] - 1 else x2
+            y2 = y2 + 2 if y2 + 2 <= inst_map.shape[0] - 1 else y2
+
+            inst = inst[y1:y2, x1:x2]
+            y_mass, x_mass = center_of_mass(inst)
+            x_map = np.repeat(np.arange(1, x2 - x1 + 1)[None, :], y2 - y1, axis=0)
+            y_map = np.repeat(np.arange(1, y2 - y1 + 1)[:, None], x2 - x1, axis=1)
+            # we use a transposed coordinate system to align to HV-map, correct would be -1*x_dist_map and -1*y_dist_map
+            x_dist_map = (x_map - x_mass) * np.clip(inst, 0, 1)
+            y_dist_map = (y_map - y_mass) * np.clip(inst, 0, 1)
+            dist[0, y1:y2, x1:x2] = x_dist_map
+            dist[1, y1:y2, x1:x2] = y_dist_map
+
+        return dist
+
 
 @dataclass
-class PanNukeDataclass:
-    """Storing PanNuke Prediction/GT objects for calculating loss, metrics etc.
+class PanNukeDataclassHV:
+    """Storing PanNuke Prediction/GT objects for calculating loss, metrics etc. with HoverNet networks
 
     Args:
-        nuclei_binary_map (torch.Tensor): Softmax output for binary nuclei branch. Shape: (batch_size, H, W, 2)
-        hv_map (torch.Tensor): Logit output for HV-Map. Shape: (batch_size, H, W, 2)
-        nuclei_type_map (torch.Tensor): Softmax output for nuclei type-prediction. Shape: (batch_size, H, W, 2)
+        nuclei_binary_map (torch.Tensor): Softmax output for binary nuclei branch. Shape: (batch_size, 2, H, W)
+        hv_map (torch.Tensor): Logit output for HV-Map. Shape: (batch_size, 2, H, W)
+        nuclei_type_map (torch.Tensor): Softmax output for nuclei type-prediction. Shape: (batch_size, num_tissue_classes, H, W)
         tissue_types (torch.Tensor): Logit tissue prediction output. Shape: (batch_size, num_tissue_classes)
         instance_map (torch.Tensor): Pixel-wise nuclear instance segmentation.
             Each instance has its own integer, starting from 1. Shape: (batch_size, H, W)
@@ -521,6 +555,9 @@ class PanNukeDataclass:
             For each instance, the dictionary contains the keys: bbox (bounding box), centroid (centroid coordinates),
             contour, type_prob (probability), type (nuclei type)
             Defaults to None.
+        regression_map (torch.Tensor, optional): Regression map for binary prediction map.
+            Shape: (batch_size, 2, H, W). Defaults to None.
+        regression_loss (bool, optional): Indicating if regression map is present. Defaults to False.
         h (int, optional): Height of used input images. Defaults to 256.
         w (int, optional): Width of used input images. Defaults to 256.
         num_tissue_classes (int, optional): Number of tissue classes in the data. Defaults to 19.
@@ -535,6 +572,8 @@ class PanNukeDataclass:
     instance_types_nuclei: torch.Tensor
     batch_size: int
     instance_types: list = None
+    regression_map: torch.Tensor = None
+    regression_loss: bool = False
     h: int = 256
     w: int = 256
     num_tissue_classes: int = 19
@@ -571,6 +610,63 @@ class PanNukeDataclass:
             self.h,
             self.w,
         ], "Instance Types Nuclei must be a tensor with shape (B, num_nuclei_classes, H, W)"
+        if self.regression_map is not None:
+            self.regression_loss = True
+        else:
+            self.regression_loss = False
+
+    def get_dict(self) -> dict:
+        """Return dictionary of entries"""
+        property_dict = self.__dict__
+        if not self.regression_loss and "regression_map" in property_dict.keys():
+            property_dict.pop("regression_map")
+        return property_dict
+
+
+@dataclass
+class PanNukeDataclassStarDist:
+    """Storing PanNuke Prediction/GT objects for calculating loss, metrics etc. with StarDist networks
+
+    Args:
+        dist_map (torch.Tensor): Distance map values, bevore Sigmoid Output. Shape: (batch_size, 1, H, W)
+        stardist_map (torch.Tensor): Stardist output for vector prediction. Shape: (batch_size, n_rays, H, W)
+        nuclei_type_map (torch.Tensor): Softmax output for nuclei type-prediction. Shape: (batch_size, num_tissue_classes, H, W)
+        batch_size (int): Batch size of the experiment
+        dist_map_sigmoid (torch.Tensor, optional): Distance map values, after Sigmoid Output. Shape: (batch_size, 1, H, W). Defaults to None.
+        instance_map (torch.Tensor, optional): Pixel-wise nuclear instance segmentation.
+            Each instance has its own integer, starting from 1. Shape: (batch_size, H, W)
+            Defaults to None.
+        instance_types_nuclei (torch.Tensor, optional): Pixel-wise nuclear instance segmentation predictions, for each nuclei type.
+            Each instance has its own integer, starting from 1.
+            Shape: (batch_size, num_nuclei_classes, H, W)
+            Defaults to None.
+        instance_types (list, optional): Instance type prediction list.
+            Each list entry stands for one image. Each list entry is a dictionary with the following structure:
+            Main Key is the nuclei instance number (int), with a dict as value.
+            For each instance, the dictionary contains the keys: bbox (bounding box), centroid (centroid coordinates),
+            contour, type_prob (probability), type (nuclei type)
+            Defaults to None.
+        tissue_types (torch.Tensor, optional): Logit tissue prediction output. Shape: (batch_size, num_tissue_classes).
+            Defaults to None.
+        h (int, optional): Height of used input images. Defaults to 256.
+        w (int, optional): Width of used input images. Defaults to 256.
+        num_tissue_classes (int, optional): Number of tissue classes in the data. Defaults to 19.
+        num_nuclei_classes (int, optional): Number of nuclei types in the data (including background). Defaults to 6.
+    """
+
+    dist_map: torch.Tensor
+    stardist_map: torch.Tensor
+    nuclei_type_map: torch.Tensor
+    batch_size: int
+    dist_map_sigmoid: torch.Tensor = None
+    instance_map: torch.Tensor = None
+    instance_types_nuclei: torch.Tensor = None
+    instance_types: list = None
+    tissue_types: torch.Tensor = None
+    h: int = 256
+    w: int = 256
+    num_tissue_classes: int = 19
+    num_nuclei_classes: int = 6
 
     def get_dict(self):
         return self.__dict__
