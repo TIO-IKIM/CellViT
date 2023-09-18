@@ -175,7 +175,7 @@ class CellViTStarDist(CellViT):
         out_dict = {}
 
         classifier_logits, _, z = self.encoder(x)
-        out_dict["tissue_types"] = self.classifier_head(classifier_logits)
+        out_dict["tissue_types"] = classifier_logits
 
         z0, z1, z2, z3, z4 = x, *z
 

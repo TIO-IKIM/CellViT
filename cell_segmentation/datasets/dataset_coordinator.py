@@ -51,6 +51,7 @@ def select_dataset(
             folds=folds,
             transforms=transforms,
             stardist=dataset_config.get("stardist", False),
+            regression=dataset_config.get("regression_loss", False),
         )
     elif dataset_name.lower() == "lizzard":
         if split == "train":
@@ -63,6 +64,7 @@ def select_dataset(
             dataset_path=dataset_config["dataset_path"],
             folds=folds,
             transforms=transforms,
+            # TODO: Stardist and regression loss
         )
     else:
         raise NotImplementedError(f"Unknown dataset: {dataset_name}")

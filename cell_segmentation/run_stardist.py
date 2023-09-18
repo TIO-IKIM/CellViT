@@ -20,7 +20,6 @@ from cell_segmentation.experiments.experiment_stardist_pannuke import (
     ExperimentCellViTStarDist,
 )
 
-ExperimentCellViTStarDist.seed_run(19)  # global seeding
 from cell_segmentation.inference.inference_stardist_experiment_pannuke import (
     InferenceCellViTStarDist,
 )
@@ -49,7 +48,7 @@ if __name__ == "__main__":
             dataset_config,
         ) = inference.setup_patch_inference()
         inference.run_patch_inference(
-            trained_model, inference_dataloader, dataset_config, generate_plots=False
+            trained_model, inference_dataloader, dataset_config
         )
     else:
         experiment = ExperimentCellViTStarDist(default_conf=configuration)
@@ -92,6 +91,5 @@ if __name__ == "__main__":
                 trained_model,
                 inference_dataloader,
                 dataset_config,
-                generate_plots=False,
             )
     wandb.finish()

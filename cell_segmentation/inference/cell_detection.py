@@ -56,10 +56,12 @@ from datamodel.wsi_datamodel import WSI
 from models.segmentation.cell_segmentation.cellvit import (
     CellViT,
     CellViT256,
-    CellViT256Unshared,
     CellViTSAM,
-    CellViTSAMUnshared,
-    CellViTUnshared,
+)
+from models.segmentation.cell_segmentation.cellvit_shared import (
+    CellViT256Shared,
+    CellViTSAMShared,
+    CellViTShared,
 )
 from preprocessing.encoding.datasets.patched_wsi_inference import PatchedWSIInference
 from utils.file_handling import load_wsi_files_from_csv
@@ -142,38 +144,38 @@ class CellSegmentationInference:
         self, model_type: str
     ) -> Union[
         CellViT,
-        CellViTUnshared,
+        CellViTShared,
         CellViT256,
-        CellViTUnshared,
+        CellViT256Shared,
         CellViTSAM,
-        CellViTSAMUnshared,
+        CellViTSAMShared,
     ]:
         """Return the trained model for inference
 
         Args:
             model_type (str): Name of the model. Must either be one of:
-                CellViT, CellViTUnshared, CellViT256, CellViT256Unshared, CellViTSAM, CellViTSAMUnshared
+                CellViT, CellViTShared, CellViT256, CellViT256Shared, CellViTSAM, CellViTSAMShared
 
         Returns:
-            Union[CellViT, CellViTUnshared, CellViT256, CellViT256Unshared, CellViTSAM, CellViTSAMUnshared]: Model
+            Union[CellViT, CellViTShared, CellViT256, CellViT256Shared, CellViTSAM, CellViTSAMShared]: Model
         """
         implemented_models = [
             "CellViT",
-            "CellViTUnshared",
+            "CellViTShared",
             "CellViT256",
-            "CellViT256Unshared",
+            "CellViT256Shared",
             "CellViTSAM",
-            "CellViTSAMUnshared",
+            "CellViTSAMShared",
         ]
         if model_type not in implemented_models:
             raise NotImplementedError(
                 f"Unknown model type. Please select one of {implemented_models}"
             )
-        if model_type in ["CellViT", "CellViTUnshared"]:
+        if model_type in ["CellViT", "CellViTShared"]:
             if model_type == "CellViT":
                 model_class = CellViT
-            elif model_type == "CellViTUnshared":
-                model_class = CellViTUnshared
+            elif model_type == "CellViTShared":
+                model_class = CellViTShared
             model = model_class(
                 num_nuclei_classes=self.run_conf["data"]["num_nuclei_classes"],
                 num_tissue_classes=self.run_conf["data"]["num_tissue_classes"],
@@ -182,28 +184,31 @@ class CellSegmentationInference:
                 depth=self.run_conf["model"]["depth"],
                 num_heads=self.run_conf["model"]["num_heads"],
                 extract_layers=self.run_conf["model"]["extract_layers"],
+                regression_loss=self.run_conf["model"].get("regression_loss", False),
             )
 
-        elif model_type in ["CellViT256", "CellViT256Unshared"]:
+        elif model_type in ["CellViT256", "CellViT256Shared"]:
             if model_type == "CellViT256":
                 model_class = CellViT256
-            elif model_type == "CellViTVIT256Unshared":
-                model_class = CellViT256Unshared
+            elif model_type == "CellViTVIT256Shared":
+                model_class = CellViT256Shared
             model = model_class(
                 model256_path=None,
                 num_nuclei_classes=self.run_conf["data"]["num_nuclei_classes"],
                 num_tissue_classes=self.run_conf["data"]["num_tissue_classes"],
+                regression_loss=self.run_conf["model"].get("regression_loss", False),
             )
-        elif model_type in ["CellViTSAM", "CellViTSAMUnshared"]:
+        elif model_type in ["CellViTSAM", "CellViTSAMShared"]:
             if model_type == "CellViTSAM":
                 model_class = CellViTSAM
-            elif model_type == "CellViTSAMUnshared":
-                model_class = CellViTSAMUnshared
+            elif model_type == "CellViTSAMShared":
+                model_class = CellViTSAMShared
             model = model_class(
                 model_path=None,
                 num_nuclei_classes=self.run_conf["data"]["num_nuclei_classes"],
                 num_tissue_classes=self.run_conf["data"]["num_tissue_classes"],
                 vit_structure=self.run_conf["model"]["backbone"],
+                regression_loss=self.run_conf["model"].get("regression_loss", False),
             )
         return model
 

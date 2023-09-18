@@ -186,6 +186,7 @@ class InferenceCellViT:
                 depth=self.run_conf["model"]["depth"],
                 num_heads=self.run_conf["model"]["num_heads"],
                 extract_layers=self.run_conf["model"]["extract_layers"],
+                regression_loss=self.run_conf["model"].get("regression_loss", False),
             )
 
         elif model_type in ["CellViT256", "CellViT256Shared"]:
@@ -197,6 +198,7 @@ class InferenceCellViT:
                 model256_path=None,
                 num_nuclei_classes=self.run_conf["data"]["num_nuclei_classes"],
                 num_tissue_classes=self.run_conf["data"]["num_tissue_classes"],
+                regression_loss=self.run_conf["model"].get("regression_loss", False),
             )
         elif model_type in ["CellViTSAM", "CellViTSAMShared"]:
             if model_type == "CellViTSAM":
@@ -208,6 +210,7 @@ class InferenceCellViT:
                 num_nuclei_classes=self.run_conf["data"]["num_nuclei_classes"],
                 num_tissue_classes=self.run_conf["data"]["num_tissue_classes"],
                 vit_structure=self.run_conf["model"]["backbone"],
+                regression_loss=self.run_conf["model"].get("regression_loss", False),
             )
         return model
 

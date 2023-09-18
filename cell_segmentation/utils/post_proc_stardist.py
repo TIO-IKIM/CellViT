@@ -45,6 +45,8 @@ class StarDistPostProcessor:
 
         dists = np.transpose(stardist_map, (1, 2, 0))
         pred_type = np.transpose(pred_type, (1, 2, 0))
+        pred_type = np.argmax(pred_type, axis=-1)  # argmax to find type
+
         points, _, dists = non_maximum_suppression(dists, dist_map)
         binary_star_label = polygons_to_label(dists, points, self.image_shape)
         instance_preds = remap_label(binary_star_label)

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# CellViT Inference Method for Patch-Wise Inference on a test set
+# StarDist Inference Method for Patch-Wise Inference on a test set
 # Without merging WSI
 #
 # Aim is to calculate metrics as defined for the PanNuke dataset
@@ -7,8 +7,6 @@
 # @ Fabian Hörst, fabian.hoerst@uk-essen.de
 # Institute for Artifical Intelligence in Medicine,
 # University Medicine Essen
-
-# TODO: rewrite for new shapes and new models
 
 import argparse
 import inspect
@@ -31,17 +29,14 @@ import numpy as np
 
 # from scipy.io import savemat
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 import tqdm
 import yaml
-from sklearn.metrics import accuracy_score
 from tabulate import tabulate
 from torch.utils.data import DataLoader
 from torchmetrics.functional import dice
 from torchmetrics.functional.classification import binary_jaccard_index
 
-from base_ml.base_loss import retrieve_loss_fn
 from cell_segmentation.datasets.dataset_coordinator import select_dataset
 from cell_segmentation.inference.inference_cellvit_experiment_pannuke import (
     InferenceCellViT,
@@ -64,6 +59,7 @@ from models.segmentation.cell_segmentation.cellvit_stardist_shared import (
     CellViTSAMStarDistShared,
     CellViTStarDistShared,
 )
+from models.segmentation.cell_segmentation.cpp_net_stardist_rn50 import StarDistRN50
 from utils.logger import Logger
 
 
@@ -98,31 +94,6 @@ class InferenceCellViTStarDist(InferenceCellViT):
         self.__setup_amp()
 
         self.logger.info(f"Loaded run: {run_dir}")
-        self.loss_fn_dict = {
-            "stardist_map": {
-                "maeweighted": {
-                    "loss_fn": retrieve_loss_fn(
-                        "MAEWeighted", alpha=0.0001, apply_mask=True
-                    ),
-                    "weight": 0.2,
-                }
-            },
-            "dist_map": {
-                "bceweighted": {
-                    "loss_fn": retrieve_loss_fn("BCEWeighted", apply_mask=True),
-                    "weight": 1,
-                },
-                "mseweighted": {
-                    "loss_fn": retrieve_loss_fn("MSEWeighted"),
-                    "weight": 1,
-                },
-            },
-            "nuclei_type_map": {
-                "bce": {"loss_fn": retrieve_loss_fn("xentropy_loss"), "weight": 1},
-                "dice": {"loss_fn": retrieve_loss_fn("dice_loss"), "weight": 1},
-            },
-            "tissue_types": {"ce": {"loss_fn": nn.CrossEntropyLoss(), "weight": 1}},
-        }
         self.num_classes = self.run_conf["data"]["num_nuclei_classes"]
 
     def __load_run_conf(self) -> None:
@@ -177,7 +148,7 @@ class InferenceCellViTStarDist(InferenceCellViT):
 
         Args:
             model_type (str): Name of the model. Must either be one of:
-                CellViTStarDist, CellViT256StarDist, CellViTSAMStarDist, StarDistViT, StarDistViT256, StarDistViTSAM
+                CellViTStarDist, CellViT256StarDist, CellViTSAMStarDist, StarDistViT, StarDistViT256, StarDistViTSAM, StarDistRN50
 
         Returns:
             CellViTStarDist: Model
@@ -186,18 +157,19 @@ class InferenceCellViTStarDist(InferenceCellViT):
             "CellViTStarDist",
             "CellViT256StarDist",
             "CellViTSAMStarDist",
-            "StarDistViT",
-            "StarDistViT256",
-            "StarDistViTSAM",
+            "CellViTStarDistShared",
+            "CellViT256StarDistShared",
+            "CellViTSAMStarDistShared",
+            "StarDistRN50",
         ]
         if model_type not in implemented_models:
             raise NotImplementedError(
                 f"Unknown model type. Please select one of {implemented_models}"
             )
-        if model_type in ["CellViTStarDist", "StarDistViT"]:
+        if model_type in ["CellViTStarDist", "CellViTStarDistShared"]:
             if model_type == "CellViTStarDist":
                 model_class = CellViTStarDist
-            elif model_type == "StarDistViT":
+            elif model_type == "CellViTStarDistShared":
                 model_class = CellViTStarDistShared
             model = model_class(
                 num_nuclei_classes=self.run_conf["data"]["num_nuclei_classes"],
@@ -213,10 +185,10 @@ class InferenceCellViTStarDist(InferenceCellViT):
                 nrays=self.run_conf["model"].get("nrays", 32),
             )
 
-        elif model_type in ["CellViT256StarDist", "StarDistViT256"]:
+        elif model_type in ["CellViT256StarDist", "CellViT256StarDistShared"]:
             if model_type == "CellViT256StarDist":
                 model_class = CellViT256StarDist
-            elif model_type == "StarDistViT256":
+            elif model_type == "CellViT256StarDistShared":
                 model_class = CellViT256StarDistShared
             model = model_class(
                 model256_path=None,
@@ -227,10 +199,10 @@ class InferenceCellViTStarDist(InferenceCellViT):
                 drop_path_rate=self.run_conf["training"].get("drop_path_rate", 0),
                 nrays=self.run_conf["model"].get("nrays", 32),
             )
-        elif model_type in ["CellViTSAMStarDist", "StarDistViTSAM"]:
+        elif model_type in ["CellViTSAMStarDist", "CellViTSAMStarDistShared"]:
             if model_type == "CellViTSAMStarDist":
                 model_class = CellViTSAMStarDist
-            elif model_type == "StarDistViTSAM":
+            elif model_type == "CellViTSAMStarDistShared":
                 model_class = CellViTSAMStarDistShared
             model = model_class(
                 model_path=None,
@@ -239,6 +211,11 @@ class InferenceCellViTStarDist(InferenceCellViT):
                 vit_structure=self.run_conf["model"]["backbone"],
                 drop_rate=self.run_conf["training"].get("drop_rate", 0),
                 nrays=self.run_conf["model"].get("nrays", 32),
+            )
+        elif model_type == "StarDistRN50":
+            model = StarDistRN50(
+                n_rays=self.run_conf["model"].get("nrays", 32),
+                n_seg_cls=self.run_conf["data"]["num_nuclei_classes"],
             )
         return model
 
@@ -322,7 +299,6 @@ class InferenceCellViTStarDist(InferenceCellViT):
         model: CellViTStarDist,
         inference_dataloader: DataLoader,
         dataset_config: dict,
-        generate_plots: bool = False,
     ) -> None:
         """Run Patch inference with given setup
 
@@ -336,7 +312,6 @@ class InferenceCellViTStarDist(InferenceCellViT):
             dataset_config (dict): Dataset configuration. Required keys are:
                     * "tissue_types": describing the present tissue types with corresponding integer
                     * "nuclei_types": describing the present nuclei types with corresponding integer
-            generate_plots (bool, optional): If inference plots should be generated. Defaults to False.
         """
         # put model in eval mode
         model.to(device=self.device)
@@ -352,8 +327,6 @@ class InferenceCellViTStarDist(InferenceCellViT):
         cell_type_pq_scores = []  # pq-scores per cell type and image
         cell_type_dq_scores = []  # dq-scores per cell type and image
         cell_type_sq_scores = []  # sq-scores per cell type and image
-        tissue_pred = []  # tissue predictions for each image
-        tissue_gt = []  # ground truth tissue image class
         tissue_types_inf = []  # string repr of ground truth tissue image class
 
         paired_all_global = []  # unique matched index pair
@@ -376,9 +349,7 @@ class InferenceCellViTStarDist(InferenceCellViT):
 
         with torch.no_grad():
             for batch_idx, batch in inference_loop:
-                batch_metrics = self.inference_step(
-                    model, batch, generate_plots=generate_plots
-                )
+                batch_metrics = self.inference_step(model, batch)
                 # unpack batch_metrics
                 image_names = image_names + batch_metrics["image_names"]
 
@@ -404,8 +375,6 @@ class InferenceCellViTStarDist(InferenceCellViT):
                 cell_type_sq_scores = (
                     cell_type_sq_scores + batch_metrics["cell_type_sq_scores"]
                 )
-                tissue_pred.append(batch_metrics["tissue_pred"])
-                tissue_gt.append(batch_metrics["tissue_gt"])
 
                 # detection scores
                 true_idx_offset = (
@@ -449,9 +418,6 @@ class InferenceCellViTStarDist(InferenceCellViT):
         dq_scores = np.array(dq_scores)
         sq_scores = np.array(sq_scores)
 
-        tissue_detection_accuracy = accuracy_score(
-            y_true=np.concatenate(tissue_gt), y_pred=np.concatenate(tissue_pred)
-        )
         f1_d, prec_d, rec_d = cell_detection_scores(
             paired_true=paired_true_type,
             paired_pred=paired_pred_type,
@@ -461,7 +427,6 @@ class InferenceCellViTStarDist(InferenceCellViT):
         dataset_metrics = {
             "Binary-Cell-Dice-Mean": float(np.nanmean(binary_dice_scores)),
             "Binary-Cell-Jacard-Mean": float(np.nanmean(binary_jaccard_scores)),
-            "Tissue-Multiclass-Accuracy": tissue_detection_accuracy,
             "bPQ": float(np.nanmean(pq_scores)),
             "bDQ": float(np.nanmean(dq_scores)),
             "bSQ": float(np.nanmean(sq_scores)),
@@ -605,7 +570,6 @@ class InferenceCellViTStarDist(InferenceCellViT):
         self,
         model: CellViTStarDist,
         batch: tuple,
-        generate_plots: bool = False,
     ) -> None:
         """Inference step for a patch-wise batch
 
@@ -616,11 +580,11 @@ class InferenceCellViTStarDist(InferenceCellViT):
                 * Masks (dict)
                 * Tissue types as str
                 * Image name as str
-            generate_plots (bool, optional):  If inference plots should be generated. Defaults to False.
         """
         # unpack batch, for shape compare train_step method
         imgs = batch[0].to(self.device)
         masks = batch[1]
+        masks.pop("hv_map")
         tissue_types = list(batch[2])
         image_names = list(batch[3])
 
@@ -641,10 +605,8 @@ class InferenceCellViTStarDist(InferenceCellViT):
             gt = self.unpack_masks(masks=masks, tissue_types=tissue_types)
 
         # scores
-        batch_metrics, scores = self.calculate_step_metric(predictions, gt, image_names)
+        batch_metrics, _ = self.calculate_step_metric(predictions, gt, image_names)
         batch_metrics["tissue_types"] = tissue_types
-        if generate_plots:
-            print("Not implemented yet")
 
         return batch_metrics
 
@@ -663,7 +625,6 @@ class InferenceCellViTStarDist(InferenceCellViT):
 
         Returns:
             OrderedDict: Processed network output. Keys are:
-                * tissue_types: Logit tissue prediction output. Shape: (batch_size, num_tissue_classes)
                 * nuclei_type_map: Softmax output for nuclei instance-prediction. Shape: (batch_size, num_nuclei_classes, H, W)
                 * stardist_map: Stardist output for vector prediction. Shape: (batch_size, n_rays, H, W)
                 * dist_map: Probability distance map. Shape: (batch_size, 1, H, W)
@@ -671,23 +632,25 @@ class InferenceCellViTStarDist(InferenceCellViT):
                 * instance_types: Dictionary, Pixel-wise nuclei type predictions
                 * instance_types_nuclei: Pixel-wise nuclear instance segmentation predictions, for each nuclei type. Shape: (batch_size, num_nuclei_classes, H, W)
         """
-        predictions["tissue_types"] = predictions["tissue_types"].to(self.device)
         predictions["nuclei_type_map"] = F.softmax(
             predictions["nuclei_type_map"], dim=1
-        )
-        predictions["dist_map"] = F.sigmoid(predictions["dist_map"])
+        )  # shape: (batch_size, num_nuclei_classes, H, W)
+        predictions["dist_map_sigmoid"] = F.sigmoid(predictions["dist_map"])
         # postprocessing: apply NMS and StarDist postprocessing to generate binary and multiclass cell detections
+
         (
-            predictions["instance_map"],
+            instance_map,
             predictions["instance_types"],
+            instance_types_nuclei,
         ) = model.calculate_instance_map(
-            predictions["dist_map"],
+            predictions["dist_map_sigmoid"],
             predictions["stardist_map"],
             predictions["nuclei_type_map"],
         )
-        predictions["instance_types_nuclei"] = model.generate_instance_nuclei_map(
-            predictions["instance_map"], predictions["instance_types"]
-        ).to(self.device)
+        instance_map = instance_map.to(self.device)
+        instance_types_nuclei = instance_types_nuclei.to(self.device)
+        predictions["instance_map"] = instance_map
+        predictions["instance_types_nuclei"] = instance_types_nuclei
 
         return predictions
 
@@ -728,7 +691,9 @@ class InferenceCellViTStarDist(InferenceCellViT):
             "stardist_map": masks["stardist_map"].to(
                 self.device
             ),  # shape: (batch_size, nrays, H, W)
-            "dist_map": masks["dist_map"].to(self.device),  # shape: (batch_size, H, W)
+            "dist_map": masks["dist_map"].to(self.device)[
+                :, None, :, :
+            ],  # shape: (batch_size, 1, H, W), TODO: check if None is necessary because of shape?
             "instance_map": masks["instance_map"].to(
                 self.device
             ),  # shape: (batch_size, H, W) -> each instance has one integer
@@ -749,24 +714,23 @@ class InferenceCellViTStarDist(InferenceCellViT):
         return gt
 
     def calculate_step_metric(self, predictions, gt, image_names) -> Tuple[dict, list]:
-        # TODO: Adapt Docstring
         """Calculate the metrics for the validation step
 
         Args:
             predictions (OrderedDict): OrderedDict: Processed network output. Keys are:
-                * nuclei_binary_map: Softmax output for binary nuclei prediction branch. Shape: (batch_size, H, W, 2)
-                * hv_map: Logit output for hv-prediction. Shape: (batch_size, H, W, 2)
-                * nuclei_type_map: Softmax output for hv-prediction. Shape: (batch_size, H, W, 2)
-                * tissue_types: Logit tissue prediction output. Shape: (batch_size, num_tissue_classes)
+                * nuclei_type_map: Softmax output for nuclei instance-prediction. Shape: (batch_size, num_nuclei_classes, H, W)
+                * stardist_map: Stardist output for vector prediction. Shape: (batch_size, n_rays, H, W)
+                * dist_map: Probability distance map. Shape: (batch_size, 1, H, W)
                 * instance_map: Pixel-wise nuclear instance segmentation predictions. Shape: (batch_size, H, W)
                 * instance_types: Dictionary, Pixel-wise nuclei type predictions
-                * instance_types_nuclei: Pixel-wsie nuclear instance segmentation predictions, for each nuclei type. Shape: (batch_size, H, W, num_nuclei_classes)
+                * instance_types_nuclei: Pixel-wise nuclear instance segmentation predictions, for each nuclei type. Shape: (batch_size, num_nuclei_classes, H, W)
+
             gt (dict): Ground truth values, with keys:
+                * nuclei_type_map: One-hot encoded nuclei type maps Shape: (batch_size, num_nuclei_classes, H, W)
+                * stardist_map: Stardist output. Shape: (batch_size, n_rays H, W)
+                * dist_map:  Probability distance map. Shape: (batch_size, H, W)
                 * instance_map: Pixel-wise nuclear instance segmentations. Shape: (batch_size, H, W) -> each instance has one integer
-                * nuclei_binary_map: One-Hot encoded binary map. Shape: (batch_size, H, W, 2)
-                * hv_map: HV-map. Shape: (batch_size, H, W, 2)
-                * nuclei_type_map: One-hot encoded nuclei type maps Shape: (batch_size, H, W, num_nuclei_classes)
-                * instance_types_nuclei: Shape: (batch_size, H, W, num_nuclei_classes) -> instance has one integer, for each nuclei class
+                * instance_types_nuclei: Shape: (batch_size, num_nuclei_classes, H, W) -> instance has one integer, for each nuclei class
                 * tissue_types: Tissue types, as torch.Tensor with integer values. Shape: batch_size
 
         Returns:
@@ -776,22 +740,10 @@ class InferenceCellViTStarDist(InferenceCellViT):
         """
 
         # preparation and device movement
-        predictions["tissue_types_classes"] = F.softmax(
-            predictions["tissue_types"], dim=-1
-        )
-        pred_tissue = (
-            torch.argmax(predictions["tissue_types_classes"], dim=-1)
-            .detach()
-            .cpu()
-            .numpy()
-            .astype(np.uint8)
-        )
         predictions["instance_map"] = predictions["instance_map"].detach().cpu()
         predictions["instance_types_nuclei"] = (
             predictions["instance_types_nuclei"].detach().cpu().numpy().astype("int32")
         )
-        instance_maps_gt = gt["instance_map"].detach().cpu()
-        gt["tissue_types"] = gt["tissue_types"].detach().cpu().numpy().astype(np.uint8)
         gt["instance_types_nuclei"] = (
             gt["instance_types_nuclei"].detach().cpu().numpy().astype("int32")
         )
@@ -825,7 +777,7 @@ class InferenceCellViTStarDist(InferenceCellViT):
         true_idx_offset = 0
         pred_idx_offset = 0
 
-        for i in range(len(pred_tissue)):
+        for i in range(predictions["instance_map"].shape[0]):
             # binary dice score: Score for cell detection per image, without background
             pred_binary_map = (
                 torch.clip(predictions["instance_map"][i], min=0, max=1)
@@ -857,7 +809,7 @@ class InferenceCellViTStarDist(InferenceCellViT):
 
             # pq values
             remapped_instance_pred = remap_label(predictions["instance_map"][i])
-            remapped_gt = remap_label(instance_maps_gt[i])
+            remapped_gt = remap_label(gt["instance_map"][i].detach().cpu())
             [dq, sq, pq], _ = get_fast_pq(true=remapped_gt, pred=remapped_instance_pred)
             pq_scores.append(pq)
             dq_scores.append(dq)
@@ -876,12 +828,15 @@ class InferenceCellViTStarDist(InferenceCellViT):
             nuclei_type_sq = []
             for j in range(0, self.num_classes):
                 pred_nuclei_instance_class = remap_label(
-                    predictions["instance_types_nuclei"][i][..., j]
+                    predictions["instance_types_nuclei"][i][j, ...]
                 )
                 target_nuclei_instance_class = remap_label(
-                    gt["instance_types_nuclei"][i][..., j]
+                    gt["instance_types_nuclei"][i][j, ...]
                 )
-
+                # plt.imshow(predictions["instance_types_nuclei"][i][j])
+                # plt.savefig("pred.png")
+                # plt.imshow(gt["instance_types_nuclei"][i][j])
+                # plt.savefig("gt.png")
                 # if ground truth is empty, skip from calculation
                 if len(np.unique(target_nuclei_instance_class)) == 1:
                     pq_tmp = np.nan
@@ -964,8 +919,6 @@ class InferenceCellViTStarDist(InferenceCellViT):
             "cell_type_pq_scores": cell_type_pq_scores,
             "cell_type_dq_scores": cell_type_dq_scores,
             "cell_type_sq_scores": cell_type_sq_scores,
-            "tissue_pred": pred_tissue,
-            "tissue_gt": gt["tissue_types"],
             "paired_all": paired_all,
             "unpaired_true_all": unpaired_true_all,
             "unpaired_pred_all": unpaired_pred_all,
@@ -1009,11 +962,6 @@ class InferenceCellViTParser:
             choices=[20, 40],
             default=40,
         )
-        parser.add_argument(
-            "--plots",
-            action="store_true",
-            help="Generate inference plots in run_dir. Not implemented yet",
-        )
 
         self.parser = parser
 
@@ -1034,6 +982,4 @@ if __name__ == "__main__":
     )
     model, dataloader, conf = inf.setup_patch_inference()
 
-    inf.run_patch_inference(
-        model, dataloader, conf, generate_plots=configuration["plots"]
-    )
+    inf.run_patch_inference(model, dataloader, conf)

@@ -290,9 +290,11 @@ class ExperimentCellViTStarDist(ExperimentCellVitPanNuke):
         Returns:
             nn.Module: StarDist training model with given setup
         """
+        # reseed needed, due to subprocess seeding compatibility
         self.seed_run(self.default_conf["random_seed"])
-        implemented_backbones = ["default", "vit256", "sam-b", "sam-l", "sam-h", "rn50"]
 
+        # check for backbones
+        implemented_backbones = ["default", "vit256", "sam-b", "sam-l", "sam-h", "rn50"]
         if backbone_type.lower() not in implemented_backbones:
             raise NotImplementedError(
                 f"Unknown Backbone Type - Currently supported are: {implemented_backbones}"

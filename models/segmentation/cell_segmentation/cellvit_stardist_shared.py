@@ -13,14 +13,16 @@
 from collections import OrderedDict
 from functools import partial
 from pathlib import Path
-from typing import List, Literal, Union
+from typing import List, Literal, Tuple, Union
 
+import numpy as np
 import torch
 import torch.nn as nn
 
+from cell_segmentation.utils.post_proc_stardist import StarDistPostProcessor
 
+from .cellvit import CellViT, CellViT256, CellViTSAM
 from .utils import Conv2DBlock, Deconv2DBlock, ViTCellViT, ViTCellViTDeit
-from .cellvit import CellViT, CellViTSAM, CellViT256
 
 
 class CellViTStarDistShared(CellViT):
@@ -172,7 +174,7 @@ class CellViTStarDistShared(CellViT):
         out_dict = {}
 
         classifier_logits, _, z = self.encoder(x)
-        out_dict["tissue_types"] = self.classifier_head(classifier_logits)
+        out_dict["tissue_types"] = classifier_logits
 
         z0, z1, z2, z3, z4 = x, *z
 
@@ -325,6 +327,48 @@ class CellViTStarDistShared(CellViT):
         )
 
         return decoder
+
+    def calculate_instance_map(
+        self,
+        dist_map: torch.Tensor,
+        stardist_map: torch.Tensor,
+        nuclei_type_map: torch.Tensor,
+    ) -> Tuple[torch.Tensor, List[dict], torch.Tensor]:
+        """Calculate binary nuclei prediction map, nuclei dict and nuclei type map
+
+        Args:
+            dist_map (torch.Tensor): Distance probabilities. Shape: (B, 1, H, W)
+            stardist_map (torch.Tensor): Stardist probabilities. Shape: (B, n_rays, H, W)
+            nuclei_type_map (torch.Tensor): Nuclei type map. Shape: (B, num_nuclei_types, H, W)
+
+        Returns:
+            Tuple[torch.Tensor, List[dict], torch.Tensor]:
+                * torch.Tensor: Instance map. Each Instance has own integer. Shape: (B, H, W)
+                * List of dictionaries. Each List entry is one image. Each dict contains another dict for each detected nucleus.
+                    For each nucleus, the following information are returned: "bbox", "centroid", "contour", "type_prob", "type"
+                * nuclei-instance predictions with shape (B, num_nuclei_types, H, W)
+        """
+        b, n, h, w = nuclei_type_map.shape
+        cell_post_processor = StarDistPostProcessor(nr_types=n, image_shape=(h, w))
+        instance_preds = []
+        type_preds = []
+        instance_type_preds = []
+
+        for i in range(dist_map.shape[0]):
+            (
+                instance_pred,
+                type_pred,
+                instance_type_pred,
+            ) = cell_post_processor.post_proc_stardist(
+                dist_map[i].squeeze().detach().cpu().numpy().astype(np.float32),
+                stardist_map[i].detach().cpu().numpy().astype(np.float32),
+                nuclei_type_map[i].detach().cpu().numpy().astype(np.float32),
+            )
+            instance_preds.append(instance_pred)
+            type_preds.append(type_pred)
+            instance_type_preds.append(instance_type_pred)
+
+        return torch.stack(instance_preds), type_preds, torch.stack(instance_type_preds)
 
 
 class CellViT256StarDistShared(CellViTStarDistShared, CellViT256):

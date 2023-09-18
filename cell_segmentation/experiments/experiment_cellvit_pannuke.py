@@ -503,6 +503,9 @@ class ExperimentCellVitPanNuke(BaseExperiment):
             raise RuntimeError(
                 "Provide either val_split or val_fold in configuration file, one is necessary."
             )
+        if "regression_loss" in self.run_conf["model"].keys():
+            self.run_conf["data"]["regression_loss"] = True
+
         full_dataset = select_dataset(
             dataset_name=dataset_name,
             split="train",

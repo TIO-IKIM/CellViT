@@ -249,15 +249,18 @@ class DetectionCellPostProcessor:
         return proced_pred
 
 
-def calculate_instances(pred_types, pred_insts):
+def calculate_instances(
+    pred_types: torch.Tensor, pred_insts: torch.Tensor
+) -> list[dict]:
     """Best used for GT
 
     Args:
-        pred_types (_type_): _description_
-        pred_insts (_type_): _description_
+        pred_types (torch.Tensor): Binary or type map ground-truth.
+             Shape must be (B, C, H, W) with C=1 for binary or num_nuclei_types for multi-class.
+        pred_insts (torch.Tensor): Ground-Truth instance map with shape (B, H, W)
 
     Returns:
-        _type_: _description_
+        list[dict]: Dictionary with nuclei informations, similar to #TODO: find description
     """
     type_preds = []
     pred_types = pred_types.permute(0, 2, 3, 1)

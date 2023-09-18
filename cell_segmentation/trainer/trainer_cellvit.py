@@ -66,9 +66,6 @@ class CellViTTrainer(BaseTrainer):
         log_images (bool, optional): If images should be logged to WandB. Defaults to False.
         magnification (int, optional): Image magnification. Please select either 40 or 20. Defaults to 40.
         mixed_precision (bool, optional): If mixed-precision should be used. Defaults to False.
-        regression_loss (bool, optional): Use regressive loss for predicting vector components.
-            Adds two additional channels to the binary and hv decoder. Defaults to False.
-            Currently not implemented!
     """
 
     def __init__(
@@ -87,7 +84,6 @@ class CellViTTrainer(BaseTrainer):
         log_images: bool = False,
         magnification: int = 40,
         mixed_precision: bool = False,
-        regression_loss: bool = False,
     ):
         super().__init__(
             model=model,
@@ -425,7 +421,8 @@ class CellViTTrainer(BaseTrainer):
             f"Loss: {self.loss_avg_tracker['Total_Loss'].avg:.4f} - "
             f"Binary-Cell-Dice: {np.nanmean(binary_dice_scores):.4f} - "
             f"Binary-Cell-Jacard: {np.nanmean(binary_jaccard_scores):.4f} - "
-            f"PQ-Score: {np.nanmean(pq_scores):.4f} - "
+            f"bPQ-Score: {np.nanmean(pq_scores):.4f} - "
+            f"mPQ-Score: {scalar_metrics['mPQ/Validation']:.4f} - "
             f"Tissue-MC-Acc.: {tissue_detection_accuracy:.4f}"
         )
 
@@ -504,8 +501,8 @@ class CellViTTrainer(BaseTrainer):
         Args:
             predictions (dict): Dictionary with the following keys:
                 * tissue_types: Logit tissue prediction output. Shape: (batch_size, num_tissue_classes)
-                * nuclei_binary_map: Logit output for binary nuclei prediction branch. Shape: (batch_size, H, W, 2)
-                * hv_map: Logit output for hv-prediction. Shape: (batch_size, H, W, 2)
+                * nuclei_binary_map: Logit output for binary nuclei prediction branch. Shape: (batch_size, 2, H, W)
+                * hv_map: Logit output for hv-prediction. Shape: (batch_size, 2, H, W)
                 * nuclei_type_map: Logit output for nuclei instance-prediction. Shape: (batch_size, num_nuclei_classes, H, W)
 
         Returns:
@@ -599,6 +596,9 @@ class CellViTTrainer(BaseTrainer):
             .type(torch.LongTensor)
             .to(self.device),  # shape: batch_size
         }
+        if "regression_map" in masks:
+            gt["regression_map"] = masks["regression_map"].to(self.device)
+
         gt = PanNukeDataclassHV(**gt, batch_size=gt["tissue_types"].shape[0])
         return gt
 

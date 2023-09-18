@@ -185,7 +185,7 @@ class CellViTShared(CellViT, nn.Module):
         if self.regression_loss:
             nb_map = self.nuclei_binary_map_decoder(upsampled)
             out_dict["nuclei_binary_map"] = nb_map[:, :2, :, :]
-            out_dict["regression_map"] = nb_map[:, 3:, :, :]
+            out_dict["regression_map"] = nb_map[:, 2:, :, :]
         else:
             out_dict["nuclei_binary_map"] = self.nuclei_binary_map_decoder(upsampled)
         out_dict["hv_map"] = self.hv_map_decoder(upsampled)
@@ -523,7 +523,7 @@ class CellViTSAMShared(CellViTShared):
         if self.regression_loss:
             nb_map = self.nuclei_binary_map_decoder(upsampled)
             out_dict["nuclei_binary_map"] = nb_map[:, :2, :, :]
-            out_dict["regression_map"] = nb_map[:, 3:, :, :]
+            out_dict["regression_map"] = nb_map[:, 2:, :, :]
         else:
             out_dict["nuclei_binary_map"] = self.nuclei_binary_map_decoder(upsampled)
 

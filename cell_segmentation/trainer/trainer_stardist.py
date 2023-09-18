@@ -27,6 +27,9 @@ from cell_segmentation.trainer.trainer_cellvit import CellViTTrainer
 from cell_segmentation.utils.metrics import get_fast_pq, remap_label
 from models.segmentation.cell_segmentation.cellvit import CellViT
 
+# import warnings
+# warnings.filterwarnings("ignore", category=DeprecationWarning)
+
 
 class CellViTStarDistTrainer(CellViTTrainer):
     """CellViTStarDist trainer class
@@ -95,7 +98,6 @@ class CellViTStarDistTrainer(CellViTTrainer):
             log_images=log_images,
             magnification=magnification,
             mixed_precision=mixed_precision,
-            regression_loss=False,
         )
 
     def train_step(
@@ -154,7 +156,9 @@ class CellViTStarDistTrainer(CellViTTrainer):
                     self.model.zero_grad()
         else:
             predictions_ = self.model.forward(imgs)
-            predictions = self.unpack_predictions(predictions=predictions_)
+            predictions = self.unpack_predictions(
+                predictions=predictions_, skip_postprocessing=True
+            )
             gt = self.unpack_masks(masks=masks, tissue_types=tissue_types)
 
             # calculate loss
@@ -369,7 +373,6 @@ class CellViTStarDistTrainer(CellViTTrainer):
             ]:
                 continue
             if branch not in self.loss_fn_dict:
-                # self.logger.debug
                 continue
             branch_loss_fns = self.loss_fn_dict[branch]
             for loss_name, loss_setting in branch_loss_fns.items():
@@ -393,7 +396,6 @@ class CellViTStarDistTrainer(CellViTTrainer):
                     loss_value.detach().cpu().numpy()
                 )
         self.loss_avg_tracker["Total_Loss"].update(total_loss.detach().cpu().numpy())
-
         return total_loss
 
     def calculate_step_metric_train(

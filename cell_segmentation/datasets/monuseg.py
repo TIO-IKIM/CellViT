@@ -30,6 +30,7 @@ class MoNuSegDataset(Dataset):
         dataset_path: Union[Path, str],
         transforms: Callable = None,
         patching: bool = False,
+        overlap: int = 0,
     ) -> None:
         """MoNuSeg Dataset
 
@@ -37,7 +38,8 @@ class MoNuSegDataset(Dataset):
             dataset_path (Union[Path, str]): Path to dataset
             transforms (Callable, optional): Transformations to apply on images. Defaults to None.
             patching (bool, optional): If patches with size 256px should be used Otherwise, the entire MoNuSeg images are loaded. Defaults to False.
-
+            overlap: (bool, optional): If overlap should be used for patch sampling. Overlap in pixels.
+                Recommended value other than 0 is 64. Defaults to 0.
         Raises:
             FileNotFoundError: If no ground-truth annotation file was found in path
         """
@@ -46,6 +48,7 @@ class MoNuSegDataset(Dataset):
         self.masks = []
         self.img_names = []
         self.patching = patching
+        self.overlap = overlap
 
         image_path = self.dataset / "images"
         label_path = self.dataset / "labels"
@@ -93,8 +96,12 @@ class MoNuSegDataset(Dataset):
         if torch.max(img) >= 5:
             img = img / 255
 
-        if self.patching:
+        if self.patching and self.overlap == 0:
             img = rearrange(img, "c (h i) (w j) -> c h w i j", i=256, j=256)
+        if self.patching and self.overlap != 0:
+            img = img.unfold(1, 256, 256 - self.overlap).unfold(
+                2, 256, 256 - self.overlap
+            )
 
         masks = {
             "instance_map": torch.Tensor(mask).type(torch.int64),

@@ -362,9 +362,23 @@ class BaseExperiment:
         torch.manual_seed(seed)
         torch.cuda.manual_seed_all(seed)
         torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
         os.environ["PYTHONHASHSEED"] = str(seed)
         np.random.seed(seed)
         random.seed(seed)
+        from packaging.version import parse, Version
+
+        try:
+            import tensorflow as tf
+        except ImportError:
+            pass
+        else:
+            if parse(tf.__version__) >= Version("2.0.0"):
+                tf.random.set_seed(seed)
+            elif parse(tf.__version__) <= Version("1.13.2"):
+                tf.set_random_seed(seed)
+            else:
+                tf.compat.v1.set_random_seed(seed)
 
     @staticmethod
     def seed_worker(worker_id) -> None:

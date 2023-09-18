@@ -176,7 +176,7 @@ class CellViT(nn.Module):
         out_dict = {}
 
         classifier_logits, _, z = self.encoder(x)
-        out_dict["tissue_types"] = self.classifier_head(classifier_logits)
+        out_dict["tissue_types"] = classifier_logits
 
         z0, z1, z2, z3, z4 = x, *z
 
@@ -192,7 +192,7 @@ class CellViT(nn.Module):
                 z0, z1, z2, z3, z4, self.nuclei_binary_map_decoder
             )
             out_dict["nuclei_binary_map"] = nb_map[:, :2, :, :]
-            out_dict["regression_map"] = nb_map[:, 3:, :, :]
+            out_dict["regression_map"] = nb_map[:, 2:, :, :]
         else:
             out_dict["nuclei_binary_map"] = self._forward_upsample(
                 z0, z1, z2, z3, z4, self.nuclei_binary_map_decoder
@@ -624,7 +624,7 @@ class CellViTSAM(CellViT):
                 z0, z1, z2, z3, z4, self.nuclei_binary_map_decoder
             )
             out_dict["nuclei_binary_map"] = nb_map[:, :2, :, :]
-            out_dict["regression_map"] = nb_map[:, 3:, :, :]
+            out_dict["regression_map"] = nb_map[:, 2:, :, :]
         else:
             out_dict["nuclei_binary_map"] = self._forward_upsample(
                 z0, z1, z2, z3, z4, self.nuclei_binary_map_decoder
