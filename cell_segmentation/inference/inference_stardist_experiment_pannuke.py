@@ -940,7 +940,7 @@ class InferenceCellViTParser:
         parser.add_argument(
             "--run_dir",
             type=str,
-            default="/homes/fhoerst/histo-projects/CellViT/debug/2023-09-08T115159_CellViTSAMStarDist-SAM-H-Fold-1",  # TODO: remove
+            default="/homes/fhoerst/histo-projects/CellViT/results/PanNuke/Revision/CellViTStarDist/Common-Loss/SAM-H/Shared-decoder/CPP-Net-Setting/2023-09-17T065947_CellViTSAMStarDist-H-Shared-Fold-3",  # TODO: remove
             help="Logging directory of a training run.",
             # required=True,
         )

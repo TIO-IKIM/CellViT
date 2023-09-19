@@ -5,8 +5,6 @@
 # Institute for Artifical Intelligence in Medicine,
 # University Medicine Essen
 
-# TODO: rewrite for new shapes
-
 import argparse
 import inspect
 import os
@@ -19,7 +17,7 @@ parentdir = os.path.dirname(parentdir)
 sys.path.insert(0, parentdir)
 
 from pathlib import Path
-from typing import List, Union
+from typing import List, Union, Tuple
 
 import albumentations as A
 import cv2 as cv2
@@ -339,7 +337,7 @@ class MoNuSegInference:
             cell_list = self.post_process_patching_overlap(
                 predictions_, overlap=self.overlap
             )
-            image_metrics = self.calculate_step_metric_overlap(
+            image_metrics, predictions = self.calculate_step_metric_overlap(
                 cell_list=cell_list, gt=mask, image_name=image_name
             )
 
@@ -350,12 +348,17 @@ class MoNuSegInference:
         ]
         if generate_plots:
             if self.overlap == 0 and self.patching:
+                batch_size = img.shape[0]
+                num_elems = int(np.sqrt(batch_size))
                 img = torch.permute(img, (0, 2, 3, 1))
-                img = rearrange(img, "(i j) h w c -> (i h) (j w) c", i=4, j=4)
+                img = rearrange(
+                    img, "(i j) h w c -> (i h) (j w) c", i=num_elems, j=num_elems
+                )
                 img = torch.unsqueeze(img, dim=0)
                 img = torch.permute(img, (0, 3, 1, 2))
             elif self.overlap != 0 and self.patching:
-                total_img = torch.zeros((3, 1024, 1024))
+                h, w = mask["nuclei_binary_map"].shape[1:]
+                total_img = torch.zeros((3, h, w))
                 decomposed_patch_num = int(np.sqrt(img.shape[0]))
                 for i in range(decomposed_patch_num):
                     for j in range(decomposed_patch_num):
@@ -365,6 +368,7 @@ class MoNuSegInference:
                             :, x_global : x_global + 256, y_global : y_global + 256
                         ] = img[i * 5 + j]
                 img = total_img
+                img = img[None, :, :, :]
             self.plot_results(
                 img=img,
                 predictions=predictions,
@@ -379,17 +383,22 @@ class MoNuSegInference:
     def calculate_step_metric(
         self, predictions: dict, gt: dict, image_name: List[str]
     ) -> dict:
-        """_summary_
+        """Calculate step metric for one MoNuSeg image.
 
         Args:
             predictions (dict): Necssary keys:
-                * instance_map: Shape: (1, H, W)
-                *
-                *
+                * instance_map: Pixel-wise nuclear instance segmentation.
+                    Each instance has its own integer, starting from 1. Shape: (1, H, W)
+                * nuclei_binary_map: Softmax output for binary nuclei branch. Shape: (1, 2, H, W)
+                * instance_types: Instance type prediction list.
+                    Each list entry stands for one image. Each list entry is a dictionary with the following structure:
+                    Main Key is the nuclei instance number (int), with a dict as value.
+                    For each instance, the dictionary contains the keys: bbox (bounding box), centroid (centroid coordinates),
+                    contour, type_prob (probability), type (nuclei type). Actually just one list entry, as we expecting batch-size=1 (one image)
             gt (dict): Necessary keys:
-                * instance_map: Shape: (1, H, W)
-                * nuclei_binary_map: ()
-                * instance_types: List with nuclei dict, but actuall just one list entry.
+                * instance_map
+                * nuclei_binary_map
+                * instance_types
             image_name (List[str]): Name of the image, list with [str]. List is necessary for backward compatibility
 
         Returns:
@@ -409,13 +418,6 @@ class MoNuSegInference:
 
         pred_binary_map = torch.argmax(predictions["nuclei_binary_map"], dim=1)
         target_binary_map = gt["nuclei_binary_map"].to(self.device)
-
-        # save predictions as mask
-        pred_arr = pred_binary_map.detach().cpu().numpy().squeeze()
-        pred_img = Image.fromarray((pred_arr * 255).astype(np.uint8))
-        mask_outdir = self.outdir / "masks"
-        mask_outdir.mkdir(exist_ok=True, parents=True)
-        pred_img.save(mask_outdir / image_name[0])
 
         cell_dice = (
             dice(preds=pred_binary_map, target=target_binary_map, ignore_index=0)
@@ -531,19 +533,39 @@ class MoNuSegInference:
 
         return predictions
 
-    def post_process_patching(self, predictions):
-        # TODO: docstring
-        # TODO: check if shapes are still correct
-        # h = predictions["nuclei_binary_map"].shape[-1]
-        # i = int(h / 256)
+    def post_process_patching(self, predictions: dict) -> dict:
+        """Post-process patching by reassamble (without overlap) stitched predictions to one big image prediction
+
+        Args:
+            predictions (dict): Necessary keys:
+                * nuclei_binary_map: Logit binary prediction. Shape: (B, 2, 256, 256)
+                * hv_map: Logit output for hv-prediction. Shape: (B, 2, H, W)
+                * nuclei_type_map: Logit output for nuclei instance-prediction. Shape: (B, num_nuclei_classes, 256, 256)
+        Returns:
+            dict: Return elements that have been changed:
+                * nuclei_binary_map: Shape: (1, 2, H, W)
+                * hv_map: Shape: (1, 2, H, W)
+                * nuclei_type_map: (1, num_nuclei_classes, H, W)
+        """
+        batch_size = predictions["nuclei_binary_map"].shape[0]
+        num_elems = int(np.sqrt(batch_size))
         predictions["nuclei_binary_map"] = rearrange(
-            predictions["nuclei_binary_map"], "(i j) d w h ->d (i w) (j h)", i=4, j=4
+            predictions["nuclei_binary_map"],
+            "(i j) d w h ->d (i w) (j h)",
+            i=num_elems,
+            j=num_elems,
         )
         predictions["hv_map"] = rearrange(
-            predictions["hv_map"], "(i j) d w h -> d (i w) (j h)", i=4, j=4
+            predictions["hv_map"],
+            "(i j) d w h -> d (i w) (j h)",
+            i=num_elems,
+            j=num_elems,
         )
         predictions["nuclei_type_map"] = rearrange(
-            predictions["nuclei_type_map"], "(i j) d w h -> d (i w) (j h)", i=4, j=4
+            predictions["nuclei_type_map"],
+            "(i j) d w h -> d (i w) (j h)",
+            i=num_elems,
+            j=num_elems,
         )
 
         predictions["nuclei_binary_map"] = torch.unsqueeze(
@@ -644,9 +666,36 @@ class MoNuSegInference:
 
         return cell_list
 
-    def calculate_step_metric_overlap(self, cell_list, gt, image_name):
+    def calculate_step_metric_overlap(
+        self, cell_list: List[dict], gt: dict, image_name: List[str]
+    ) -> Tuple[dict, dict]:
+        """Calculate step metric and return merged predictions for plotting
+
+        Args:
+            cell_list (List[dict]): List with cell dicts
+            gt (dict): Ground-Truth dictionary
+            image_name (List[str]): Image Name as list with just one entry
+
+        Returns:
+            Tuple[dict, dict]:
+                dict: Image metrics for one MoNuSeg image. Keys are:
+                * image_name
+                * binary_dice_score
+                * binary_jaccard_score
+                * pq_score
+                * dq_score
+                * sq_score
+                * f1_d
+                * prec_d
+                * rec_d
+                dict: Predictions, reshaped for one image and for plotting
+                * nuclei_binary_map: Shape (1, 2, 1024, 1024) or (1, 2, 1024, 1024)
+                * instance_map: Shape (1, 1024, 1024) or or (1, 2, 512, 512)
+                * instance_types: Dict for each nuclei
+        """
         predictions = {}
-        instance_type_map = np.zeros((1024, 1024), dtype=np.int32)
+        h, w = gt["nuclei_binary_map"].shape[1:]
+        instance_type_map = np.zeros((h, w), dtype=np.int32)
 
         for instance, cell in enumerate(cell_list):
             contour = np.array(cell["contour"])[None, :, :]
@@ -657,17 +706,9 @@ class MoNuSegInference:
 
         pred_arr = np.clip(instance_type_map, 0, 1)
         target_binary_map = gt["nuclei_binary_map"].to(self.device).squeeze()
+        predictions["nuclei_binary_map"] = pred_arr
 
-        # TODO: check about saving
-        # pred_img = Image.fromarray((pred_arr * 255).astype(np.uint8))
-        # mask_outdir = self.outdir / "masks"
-        # mask_outdir.mkdir(exist_ok=True, parents=True)
-        # #pred_img.save(mask_outdir / "test.png") #image_name[0])
-        # pred_img.save("test1.png")
-        # gt_img = Image.fromarray((target_binary_map * 255).detach().cpu().numpy().astype(np.uint8))
-        # mask_outdir = self.outdir / "masks"
-        # mask_outdir.mkdir(exist_ok=True, parents=True)
-        # gt_img.save(mask_outdir / f"gt_{image_name[0]}")
+        predictions["instance_types"] = cell_list
 
         cell_dice = (
             dice(
@@ -726,7 +767,21 @@ class MoNuSegInference:
             "rec_d": rec_d,
         }
 
-        return image_metrics
+        # align to common shapes
+        cleaned_instance_types = {
+            k + 1: v for k, v in enumerate(predictions["instance_types"])
+        }
+        for cell, results in cleaned_instance_types.items():
+            results["contour"] = np.array(results["contour"])
+            cleaned_instance_types[cell] = results
+        predictions["instance_types"] = cleaned_instance_types
+        predictions["instance_map"] = predictions["instance_map"][None, :, :]
+        predictions["nuclei_binary_map"] = F.one_hot(
+            torch.Tensor(predictions["nuclei_binary_map"]).type(torch.int64),
+            num_classes=2,
+        ).permute(2, 0, 1)[None, :, :, :]
+
+        return image_metrics, predictions
 
     def plot_results(
         self,
@@ -740,23 +795,27 @@ class MoNuSegInference:
         """Plot MoNuSeg results
 
         Args:
-            img (torch.Tensor): Image as torch.Tensor, with Shape (1, 3, 1024, 1024)
-            predictions (dict): Prediction dictionary
-            ground_truth (dict): Ground-Truth dictionary
+            img (torch.Tensor): Image as torch.Tensor, with Shape (1, 3, 1024, 1024) or (1, 3, 512, 512)
+            predictions (dict): Prediction dictionary. Necessary keys:
+                * nuclei_binary_map: Shape (1, 2, 1024, 1024) or (1, 2, 512, 512)
+                * instance_map: Shape (1, 1024, 1024) or (1, 512, 512)
+                * instance_types: List[dict], but just one entry in list
+            ground_truth (dict): Ground-Truth dictionary. Necessary keys:
+                * nuclei_binary_map: (1, 1024, 1024) or or (1, 512, 512)
+                * instance_map: (1, 1024, 1024) or or (1, 512, 512)
+                * instance_types: List[dict], but just one entry in list
             img_name (str): Image name as string
             outdir (Path): Output directory for storing
             scores (List[float]): Scores as list [Dice, Jaccard, bPQ]
         """
         outdir = Path(outdir) / "plots"
         outdir.mkdir(exist_ok=True, parents=True)
-
         predictions["nuclei_binary_map"] = predictions["nuclei_binary_map"].permute(
             0, 2, 3, 1
         )
-        ground_truth["hv_map"] = ground_truth["hv_map"].permute(0, 2, 3, 1)
 
-        h = ground_truth["hv_map"].shape[1]
-        w = ground_truth["hv_map"].shape[2]
+        h = ground_truth["instance_map"].shape[1]
+        w = ground_truth["instance_map"].shape[2]
 
         # process image and other maps
         sample_image = img.permute(0, 2, 3, 1).contiguous().cpu().numpy()
@@ -770,7 +829,7 @@ class MoNuSegInference:
 
         gt_sample_binary_map = (
             ground_truth["nuclei_binary_map"].detach().cpu().numpy()[0]
-        )
+        ).astype(np.float16)
         gt_sample_instance_map = ground_truth["instance_map"].detach().cpu().numpy()[0]
 
         binary_cmap = plt.get_cmap("Greys_r")
@@ -801,7 +860,7 @@ class MoNuSegInference:
             binary_cmap(gt_sample_binary_map * 255)
         )
         placeholder[h : 2 * h, w : 2 * w, :3] = rgba2rgb(
-            binary_cmap(pred_sample_binary_map)
+            binary_cmap(pred_sample_binary_map * 255)
         )
 
         # instance_predictions
@@ -916,13 +975,11 @@ class InferenceCellViTMoNuSegParser:
         parser.add_argument(
             "--model",
             type=str,
-            default="/homes/fhoerst/histo-projects/CellViT/results/PanNuke/Revision/CellViT/Common-Loss/ViT256/Best-Setting/2023-09-09T061759_CellViT-256-Fold-1/checkpoints/latest_checkpoint.pth",  # TODO: remove
             help="Model checkpoint file that is used for inference",
         )
         parser.add_argument(
             "--dataset",
             type=str,
-            default="/projects/datashare/tio/histopathology/public-datasets/MoNuSeg/1024/testing",  # TODO: remove
             help="Path to MoNuSeg dataset.",
         )
         parser.add_argument(
@@ -945,7 +1002,7 @@ class InferenceCellViTMoNuSegParser:
             "--patching",
             type=bool,
             help="Patch to 256px images. Default: False",
-            default=False,  # TODO
+            default=False,
         )
         parser.add_argument(
             "--overlap",
@@ -957,7 +1014,7 @@ class InferenceCellViTMoNuSegParser:
             "--plots",
             type=bool,
             help="Generate result plots. Default: False",
-            default=True,  # TODO:
+            default=False,
         )
 
         self.parser = parser
