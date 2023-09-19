@@ -26,7 +26,7 @@ from torchmetrics.functional.classification import binary_jaccard_index
 
 from base_ml.base_early_stopping import EarlyStopping
 from base_ml.base_trainer import BaseTrainer
-from cell_segmentation.datasets.pannuke import PanNukeDataclassHV
+from models.segmentation.cell_segmentation.cellvit import DataclassHVStorage
 from cell_segmentation.utils.metrics import get_fast_pq, remap_label
 from cell_segmentation.utils.tools import cropping_center
 from models.segmentation.cell_segmentation.cellvit import CellViT
@@ -495,7 +495,7 @@ class CellViTTrainer(BaseTrainer):
 
         return batch_metrics, return_example_images
 
-    def unpack_predictions(self, predictions: dict) -> PanNukeDataclassHV:
+    def unpack_predictions(self, predictions: dict) -> DataclassHVStorage:
         """Unpack the given predictions. Main focus lays on reshaping and postprocessing predictions, e.g. separating instances
 
         Args:
@@ -506,7 +506,7 @@ class CellViTTrainer(BaseTrainer):
                 * nuclei_type_map: Logit output for nuclei instance-prediction. Shape: (batch_size, num_nuclei_classes, H, W)
 
         Returns:
-            PanNukeDataclassHV: Processed network output
+            DataclassHVStorage: Processed network output
         """
         predictions["tissue_types"] = predictions["tissue_types"].to(self.device)
         predictions["nuclei_binary_map"] = F.softmax(
@@ -530,7 +530,7 @@ class CellViTTrainer(BaseTrainer):
         if "regression_map" not in predictions.keys():
             predictions["regression_map"] = None
 
-        predictions = PanNukeDataclassHV(
+        predictions = DataclassHVStorage(
             nuclei_binary_map=predictions["nuclei_binary_map"],
             hv_map=predictions["hv_map"],
             nuclei_type_map=predictions["nuclei_type_map"],
@@ -544,7 +544,7 @@ class CellViTTrainer(BaseTrainer):
 
         return predictions
 
-    def unpack_masks(self, masks: dict, tissue_types: list) -> PanNukeDataclassHV:
+    def unpack_masks(self, masks: dict, tissue_types: list) -> DataclassHVStorage:
         """Unpack the given masks. Main focus lays on reshaping and postprocessing masks to generate one dict
 
         Args:
@@ -558,7 +558,7 @@ class CellViTTrainer(BaseTrainer):
             tissue_types (list): List of string names of ground-truth tissue types
 
         Returns:
-            PanNukeDataclassHV: GT-Results with matching shapes and output types
+            DataclassHVStorage: GT-Results with matching shapes and output types
         """
         # get ground truth values, perform one hot encoding for segmentation maps
         gt_nuclei_binary_map_onehot = (
@@ -599,17 +599,17 @@ class CellViTTrainer(BaseTrainer):
         if "regression_map" in masks:
             gt["regression_map"] = masks["regression_map"].to(self.device)
 
-        gt = PanNukeDataclassHV(**gt, batch_size=gt["tissue_types"].shape[0])
+        gt = DataclassHVStorage(**gt, batch_size=gt["tissue_types"].shape[0])
         return gt
 
     def calculate_loss(
-        self, predictions: PanNukeDataclassHV, gt: PanNukeDataclassHV
+        self, predictions: DataclassHVStorage, gt: DataclassHVStorage
     ) -> torch.Tensor:
         """Calculate the loss
 
         Args:
-            predictions (PanNukeDataclassHV): Predictions
-            gt (PanNukeDataclassHV): Ground-Truth values
+            predictions (DataclassHVStorage): Predictions
+            gt (DataclassHVStorage): Ground-Truth values
 
         Returns:
             torch.Tensor: Loss
@@ -650,13 +650,13 @@ class CellViTTrainer(BaseTrainer):
         return total_loss
 
     def calculate_step_metric_train(
-        self, predictions: PanNukeDataclassHV, gt: PanNukeDataclassHV
+        self, predictions: DataclassHVStorage, gt: DataclassHVStorage
     ) -> dict:
         """Calculate the metrics for the training step
 
         Args:
-            predictions (PanNukeDataclassHV): Processed network output
-            gt (PanNukeDataclassHV): Ground truth values
+            predictions (DataclassHVStorage): Processed network output
+            gt (DataclassHVStorage): Ground truth values
         Returns:
             dict: Dictionary with metrics. Keys:
                 binary_dice_scores, binary_jaccard_scores, tissue_pred, tissue_gt
@@ -730,8 +730,8 @@ class CellViTTrainer(BaseTrainer):
         """Calculate the metrics for the training step
 
         Args:
-            predictions (PanNukeDataclassHV): OrderedDict: Processed network output
-            gt (PanNukeDataclassHV): Ground truth values
+            predictions (DataclassHVStorage): OrderedDict: Processed network output
+            gt (DataclassHVStorage): Ground truth values
         Returns:
             dict: Dictionary with metrics. Keys:
                 binary_dice_scores, binary_jaccard_scores, tissue_pred, tissue_gt
@@ -837,8 +837,8 @@ class CellViTTrainer(BaseTrainer):
     @staticmethod
     def generate_example_image(
         imgs: Union[torch.Tensor, np.ndarray],
-        predictions: PanNukeDataclassHV,
-        gt: PanNukeDataclassHV,
+        predictions: DataclassHVStorage,
+        gt: DataclassHVStorage,
         num_nuclei_classes: int,
         num_images: int = 2,
     ) -> plt.Figure:
@@ -847,8 +847,8 @@ class CellViTTrainer(BaseTrainer):
         Args:
             imgs (Union[torch.Tensor, np.ndarray]): Images to process, a random number (num_images) is selected from this stack
                 Shape: (batch_size, 3, H', W')
-            predictions (PanNukeDataclassHV): Predictions
-            gt (PanNukeDataclassHV): gt
+            predictions (DataclassHVStorage): Predictions
+            gt (DataclassHVStorage): gt
             num_nuclei_classes (int): Number of total nuclei classes including background
             num_images (int, optional): Number of example patches to display. Defaults to 2.
 

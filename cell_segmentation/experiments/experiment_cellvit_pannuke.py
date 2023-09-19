@@ -184,9 +184,7 @@ class ExperimentCellVitPanNuke(BaseExperiment):
             input_shape=self.run_conf["data"].get("input_shape", 256),
         )
 
-        dataset_name = self.run_conf["data"]["dataset"]
         train_dataset, val_dataset = self.get_datasets(
-            dataset_name=dataset_name,
             train_transforms=train_transforms,
             val_transforms=val_transforms,
         )
@@ -203,7 +201,7 @@ class ExperimentCellVitPanNuke(BaseExperiment):
             train_dataset,
             batch_size=self.run_conf["training"]["batch_size"],
             sampler=training_sampler,
-            num_workers=8,
+            num_workers=16,
             pin_memory=False,
             worker_init_fn=self.seed_worker,
         )
@@ -211,7 +209,7 @@ class ExperimentCellVitPanNuke(BaseExperiment):
         val_dataloader = DataLoader(
             val_dataset,
             batch_size=128,
-            num_workers=8,
+            num_workers=16,
             pin_memory=True,
             worker_init_fn=self.seed_worker,
         )
@@ -468,14 +466,12 @@ class ExperimentCellVitPanNuke(BaseExperiment):
 
     def get_datasets(
         self,
-        dataset_name: str,
         train_transforms: Callable = None,
         val_transforms: Callable = None,
     ) -> Tuple[Dataset, Dataset]:
         """Retrieve training dataset and validation dataset
 
         Args:
-            dataset_name (str): Name of dataset to use
             train_transforms (Callable, optional): PyTorch transformations for train set. Defaults to None.
             val_transforms (Callable, optional): PyTorch transformations for validation set. Defaults to None.
 
@@ -507,7 +503,7 @@ class ExperimentCellVitPanNuke(BaseExperiment):
             self.run_conf["data"]["regression_loss"] = True
 
         full_dataset = select_dataset(
-            dataset_name=dataset_name,
+            dataset_name="pannuke",
             split="train",
             dataset_config=self.run_conf["data"],
             transforms=train_transforms,
@@ -527,7 +523,7 @@ class ExperimentCellVitPanNuke(BaseExperiment):
         else:
             train_dataset = full_dataset
             val_dataset = select_dataset(
-                dataset_name=dataset_name,
+                dataset_name="pannuke",
                 split="validation",
                 dataset_config=self.run_conf["data"],
                 transforms=val_transforms,
@@ -551,7 +547,7 @@ class ExperimentCellVitPanNuke(BaseExperiment):
             pretrained_model (Union[Path, str], optional): Path to a pretrained model. Defaults to None.
             backbone_type (str, optional): Backbone Type. Currently supported are default (None, ViT256, SAM-B, SAM-L, SAM-H). Defaults to None
             shared_decoders (bool, optional): If shared skip decoders should be used. Defaults to False.
-            regression_loss (bool, optional):
+            regression_loss (bool, optional): If regression loss is used. Defaults to False
 
         Returns:
             CellViT: CellViT training model with given setup
@@ -560,8 +556,8 @@ class ExperimentCellVitPanNuke(BaseExperiment):
         self.seed_run(self.default_conf["random_seed"])
 
         # check for backbones
-        implemented_backbones = ["default", "ViT256", "SAM-B", "SAM-L", "SAM-H"]
-        if backbone_type not in implemented_backbones:
+        implemented_backbones = ["default", "vit256", "sam-b", "sam-l", "sam-h"]
+        if backbone_type.lower() not in implemented_backbones:
             raise NotImplementedError(
                 f"Unknown Backbone Type - Currently supported are: {implemented_backbones}"
             )
@@ -592,7 +588,7 @@ class ExperimentCellVitPanNuke(BaseExperiment):
                 self.logger.info(model.load_state_dict(cellvit_pretrained, strict=True))
                 self.logger.info("Loaded CellViT model")
 
-        if backbone_type == "ViT256":
+        if backbone_type.lower() == "vit256":
             if shared_decoders:
                 model_class = CellViT256Shared
             else:
@@ -615,7 +611,7 @@ class ExperimentCellVitPanNuke(BaseExperiment):
                 self.logger.info(model.load_state_dict(cellvit_pretrained, strict=True))
             model.freeze_encoder()
             self.logger.info("Loaded CellVit256 model")
-        if backbone_type in ["SAM-B", "SAM-L", "SAM-H"]:
+        if backbone_type.lower() in ["sam-b", "sam-l", "sam-h"]:
             if shared_decoders:
                 model_class = CellViTSAMShared
             else:

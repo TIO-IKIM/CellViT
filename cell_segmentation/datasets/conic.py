@@ -34,6 +34,8 @@ class CoNicDataset(CellDataset):
         dataset_path (Union[Path, str]): Path to Lizzard dataset. Structure is described under ./docs/readmes/cell_segmentation.md
         folds (Union[int, list[int]]): Folds to use for this dataset
         transforms (Callable, optional): PyTorch transformations. Defaults to None.
+        stardist (bool, optional): Return StarDist labels. Defaults to False
+        regression (bool, optional): Return Regression of cells in x and y direction. Defaults to False
         **kwargs are irgnored
     """
 
@@ -42,6 +44,8 @@ class CoNicDataset(CellDataset):
         dataset_path: Union[Path, str],
         folds: Union[int, list[int]],
         transforms: Callable = None,
+        stardist: bool = False,
+        regression: bool = False,
         **kwargs,
     ) -> None:
         if isinstance(folds, int):
@@ -108,6 +112,10 @@ class CoNicDataset(CellDataset):
                     "hv_map": Horizontal and vertical instance map.
                         Shape: (H, W, 2). First dimension is horizontal (horizontal gradient (-1 to 1)),
                         last is vertical (vertical gradient (-1 to 1)) Shape (256, 256, 2)
+                    "dist_map": Probability distance map. Shape (256, 256)
+                    "stardist_map": Stardist vector map. Shape (n_rays, 256, 256)
+                    [Optional if regression]
+                    "regression_map": Regression map. Shape (2, 256, 256). First is vertical, second horizontal.
                 str: Tissue type
                 str: Image Name
         """
@@ -138,6 +146,13 @@ class CoNicDataset(CellDataset):
             "nuclei_binary_map": torch.Tensor(np_map).type(torch.int64),
             "hv_map": torch.Tensor(hv_map).type(torch.float32),
         }
+        if self.stardist:
+            dist_map = PanNukeDataset.gen_distance_prob_maps(inst_map)
+            stardist_map = PanNukeDataset.gen_stardist_maps(inst_map)
+            masks["dist_map"] = torch.Tensor(dist_map).type(torch.float32)
+            masks["stardist_map"] = torch.Tensor(stardist_map).type(torch.float32)
+        if self.regression:
+            masks["regression_map"] = PanNukeDataset.gen_regression_map(inst_map)
 
         return img, masks, "Colon", Path(img_path).name
 

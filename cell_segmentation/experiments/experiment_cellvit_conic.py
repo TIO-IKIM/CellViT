@@ -64,7 +64,6 @@ from models.segmentation.cell_segmentation.cellvit_shared import (
 from utils.tools import close_logger
 
 
-# TODO: adapt load model please
 class ExperimentCellViTCoNic(BaseExperiment):
     def __init__(self, default_conf: dict, checkpoint=None) -> None:
         super().__init__(default_conf, checkpoint)
@@ -75,9 +74,6 @@ class ExperimentCellViTCoNic(BaseExperiment):
         ### Setup
         # close loggers
         self.close_remaining_logger()
-
-        # seeding
-        self.seed_run(seed=self.default_conf["random_seed"])
 
         # get the config for the current run
         self.run_conf = copy.deepcopy(self.default_conf)
@@ -145,7 +141,6 @@ class ExperimentCellViTCoNic(BaseExperiment):
         self.logger.info(f"Using device: {device}")
 
         # loss functions
-
         loss_fn_dict = self.get_loss_fn(self.run_conf.get("loss", {}))
         self.logger.info("Loss functions:")
         self.logger.info(loss_fn_dict)
@@ -155,9 +150,8 @@ class ExperimentCellViTCoNic(BaseExperiment):
             pretrained_encoder=self.run_conf["model"].get("pretrained_encoder", None),
             pretrained_model=self.run_conf["model"].get("pretrained", None),
             backbone_type=self.run_conf["model"].get("backbone", "default"),
-            shared_skip_connections=self.run_conf["model"].get(
-                "shared_skip_connections", False
-            ),
+            shared_decoders=self.run_conf["model"].get("shared_decoders", False),
+            regression_loss=self.run_conf["model"].get("regression_loss", False),
         )
         model.to(device)
 
@@ -189,9 +183,7 @@ class ExperimentCellViTCoNic(BaseExperiment):
             input_shape=self.run_conf["data"].get("input_shape", 256),
         )
 
-        dataset_name = self.run_conf["data"]["dataset"]
         train_dataset, val_dataset = self.get_datasets(
-            dataset_name=dataset_name,
             train_transforms=train_transforms,
             val_transforms=val_transforms,
         )
@@ -215,7 +207,7 @@ class ExperimentCellViTCoNic(BaseExperiment):
 
         val_dataloader = DataLoader(
             val_dataset,
-            batch_size=16,
+            batch_size=128,
             num_workers=16,
             pin_memory=True,
             worker_init_fn=self.seed_worker,
@@ -238,7 +230,6 @@ class ExperimentCellViTCoNic(BaseExperiment):
             log_images=self.run_conf["logging"].get("log_images", False),
             magnification=self.run_conf["data"].get("magnification", 40),
             mixed_precision=self.run_conf["training"].get("mixed_precision", False),
-            regression_loss=self.run_conf["model"].get("regression_loss", False),
         )
 
         # Load checkpoint if provided
@@ -388,7 +379,18 @@ class ExperimentCellViTCoNic(BaseExperiment):
                 "bce": {"loss_fn": retrieve_loss_fn("xentropy_loss"), "weight": 1},
                 "dice": {"loss_fn": retrieve_loss_fn("dice_loss"), "weight": 1},
             }
-
+        if "regression_loss" in loss_fn_settings.keys():
+            loss_fn_dict["regression_map"] = {}
+            for loss_name, loss_sett in loss_fn_settings["regression_loss"].items():
+                parameters = loss_sett.get("args", {})
+                loss_fn_dict["regression_map"][loss_name] = {
+                    "loss_fn": retrieve_loss_fn(loss_sett["loss_fn"], **parameters),
+                    "weight": loss_sett["weight"],
+                }
+        elif "regression_loss" in self.run_conf["model"].keys():
+            loss_fn_dict["regression_map"] = {
+                "mse": {"loss_fn": retrieve_loss_fn("mse_loss_maps"), "weight": 1},
+            }
         return loss_fn_dict
 
     def get_scheduler(self, scheduler_type: str, optimizer: Optimizer) -> _LRScheduler:
@@ -445,33 +447,44 @@ class ExperimentCellViTCoNic(BaseExperiment):
 
     def get_datasets(
         self,
-        dataset_name: str,
         train_transforms: Callable = None,
         val_transforms: Callable = None,
     ) -> Tuple[Dataset, Dataset]:
         """Retrieve training dataset and validation dataset
 
         Args:
-            dataset_name (str): Name of dataset to use
             train_transforms (Callable, optional): PyTorch transformations for train set. Defaults to None.
             val_transforms (Callable, optional): PyTorch transformations for validation set. Defaults to None.
 
         Returns:
             Tuple[Dataset, Dataset]: Training dataset and validation dataset
         """
-        if "val_split" in self.run_conf["data"] and "val_fold" in self.run_conf["data"]:
+        if (
+            "val_split" in self.run_conf["data"]
+            and "val_folds" in self.run_conf["data"]
+        ):
             raise RuntimeError(
-                "Provide either val_split or val_fold in configuration file, not both."
+                "Provide either val_splits or val_folds in configuration file, not both."
             )
         if (
             "val_split" not in self.run_conf["data"]
-            and "val_fold" not in self.run_conf["data"]
+            and "val_folds" not in self.run_conf["data"]
+        ):
+            raise RuntimeError(
+                "Provide either val_split or val_folds in configuration file, one is necessary."
+            )
+        if (
+            "val_split" not in self.run_conf["data"]
+            and "val_folds" not in self.run_conf["data"]
         ):
             raise RuntimeError(
                 "Provide either val_split or val_fold in configuration file, one is necessary."
             )
+        if "regression_loss" in self.run_conf["model"].keys():
+            self.run_conf["data"]["regression_loss"] = True
+
         full_dataset = select_dataset(
-            dataset_name=dataset_name,
+            dataset_name="conic",
             split="train",
             dataset_config=self.run_conf["data"],
             transforms=train_transforms,
@@ -480,10 +493,10 @@ class ExperimentCellViTCoNic(BaseExperiment):
             generator_split = torch.Generator().manual_seed(
                 self.default_conf["random_seed"]
             )
-            val_split = float(self.run_conf["data"]["val_split"])
+            val_splits = float(self.run_conf["data"]["val_split"])
             train_dataset, val_dataset = torch.utils.data.random_split(
                 full_dataset,
-                lengths=[1 - val_split, val_split],
+                lengths=[1 - val_splits, val_splits],
                 generator=generator_split,
             )
             val_dataset.dataset = copy.deepcopy(full_dataset)
@@ -491,7 +504,7 @@ class ExperimentCellViTCoNic(BaseExperiment):
         else:
             train_dataset = full_dataset
             val_dataset = select_dataset(
-                dataset_name=dataset_name,
+                dataset_name="conic",
                 split="validation",
                 dataset_config=self.run_conf["data"],
                 transforms=val_transforms,
@@ -504,7 +517,9 @@ class ExperimentCellViTCoNic(BaseExperiment):
         pretrained_encoder: Union[Path, str] = None,
         pretrained_model: Union[Path, str] = None,
         backbone_type: str = "default",
-        shared_skip_connections: bool = False,
+        shared_decoders: bool = False,
+        regression_loss: bool = False,
+        **kwargs,
     ) -> CellViT:
         """Return the CellViT training model
 
@@ -512,21 +527,26 @@ class ExperimentCellViTCoNic(BaseExperiment):
             pretrained_encoder (Union[Path, str]): Path to a pretrained encoder. Defaults to None.
             pretrained_model (Union[Path, str], optional): Path to a pretrained model. Defaults to None.
             backbone_type (str, optional): Backbone Type. Currently supported are default (None, ViT256, SAM-B, SAM-L, SAM-H). Defaults to None
-            shared_skip_connections (bool, optional): If shared skip connections should be used. Defaults to False.
+            shared_decoders (bool, optional): If shared skip decoders should be used. Defaults to False.
+            regression_loss (bool, optional): If regression loss is used. Defaults to False
 
         Returns:
             CellViT: CellViT training model with given setup
         """
-        implemented_backbones = ["default", "ViT256", "SAM-B", "SAM-L", "SAM-H"]
-        if backbone_type not in implemented_backbones:
+        # reseed needed, due to subprocess seeding compatibility
+        self.seed_run(self.default_conf["random_seed"])
+
+        # check for backbones
+        implemented_backbones = ["default", "vit256", "sam-b", "sam-l", "sam-h"]
+        if backbone_type.lower() not in implemented_backbones:
             raise NotImplementedError(
                 f"Unknown Backbone Type - Currently supported are: {implemented_backbones}"
             )
         if backbone_type.lower() == "default":
-            if shared_skip_connections:
-                model_class = CellViT
-            else:
+            if shared_decoders:
                 model_class = CellViTShared
+            else:
+                model_class = CellViT
             model = model_class(
                 num_nuclei_classes=self.run_conf["data"]["num_nuclei_classes"],
                 num_tissue_classes=1,
@@ -538,7 +558,7 @@ class ExperimentCellViTCoNic(BaseExperiment):
                 drop_rate=self.run_conf["training"].get("drop_rate", 0),
                 attn_drop_rate=self.run_conf["training"].get("attn_drop_rate", 0),
                 drop_path_rate=self.run_conf["training"].get("drop_path_rate", 0),
-                regression_loss=self.run_conf["model"].get("regression_loss", False),
+                regression_loss=regression_loss,
             )
 
             if pretrained_model is not None:
@@ -549,11 +569,11 @@ class ExperimentCellViTCoNic(BaseExperiment):
                 self.logger.info(model.load_state_dict(cellvit_pretrained, strict=True))
                 self.logger.info("Loaded CellViT model")
 
-        if backbone_type == "ViT256":
-            if shared_skip_connections:
-                model_class = CellViT256
-            else:
+        if backbone_type.lower() == "vit256":
+            if shared_decoders:
                 model_class = CellViT256Shared
+            else:
+                model_class = CellViT256
             model = model_class(
                 model256_path=pretrained_encoder,
                 num_nuclei_classes=self.run_conf["data"]["num_nuclei_classes"],
@@ -561,7 +581,7 @@ class ExperimentCellViTCoNic(BaseExperiment):
                 drop_rate=self.run_conf["training"].get("drop_rate", 0),
                 attn_drop_rate=self.run_conf["training"].get("attn_drop_rate", 0),
                 drop_path_rate=self.run_conf["training"].get("drop_path_rate", 0),
-                regression_loss=self.run_conf["model"].get("regression_loss", False),
+                regression_loss=regression_loss,
             )
             model.load_pretrained_encoder(model.model256_path)
             if pretrained_model is not None:
@@ -572,18 +592,18 @@ class ExperimentCellViTCoNic(BaseExperiment):
                 self.logger.info(model.load_state_dict(cellvit_pretrained, strict=True))
             model.freeze_encoder()
             self.logger.info("Loaded CellVit256 model")
-        if backbone_type in ["SAM-B", "SAM-L", "SAM-H"]:
-            if shared_skip_connections:
-                model_class = CellViTSAM
-            else:
+        if backbone_type.lower() in ["sam-b", "sam-l", "sam-h"]:
+            if shared_decoders:
                 model_class = CellViTSAMShared
+            else:
+                model_class = CellViTSAM
             model = model_class(
                 model_path=pretrained_encoder,
                 num_nuclei_classes=self.run_conf["data"]["num_nuclei_classes"],
                 num_tissue_classes=1,
                 vit_structure=backbone_type,
                 drop_rate=self.run_conf["training"].get("drop_rate", 0),
-                regression_loss=self.run_conf["model"].get("regression_loss", False),
+                regression_loss=regression_loss,
             )
             model.load_pretrained_encoder(model.model_path)
             if pretrained_model is not None:
@@ -633,6 +653,7 @@ class ExperimentCellViTCoNic(BaseExperiment):
                 - A.ColorJitter: Key in transform_settings: colorjitter, parameters: p, scale_setting, scale_color
                 - A.Superpixels: Key in transform_settings: superpixels, parameters: p
                 - A.ZoomBlur: Key in transform_settings: zoomblur, parameters: p
+                - A.RandomSizedCrop: Key in transform_settings: randomsizedcrop, parameters: p
                 - A.ElasticTransform: Key in transform_settings: elastictransform, parameters: p
             Always implemented at the end of the pipeline:
                 - A.Normalize with given mean (default: (0.5, 0.5, 0.5)) and std (default: (0.5, 0.5, 0.5))
@@ -708,6 +729,17 @@ class ExperimentCellViTCoNic(BaseExperiment):
             p = transform_settings["zoomblur"]["p"]
             if p > 0 and p <= 1:
                 transform_list.append(A.ZoomBlur(p=p, max_factor=1.05))
+        if "RandomSizedCrop".lower() in transform_settings:
+            p = transform_settings["randomsizedcrop"]["p"]
+            if p > 0 and p <= 1:
+                transform_list.append(
+                    A.RandomSizedCrop(
+                        min_max_height=(input_shape / 2, input_shape),
+                        height=input_shape,
+                        width=input_shape,
+                        p=p,
+                    )
+                )
         if "ElasticTransform".lower() in transform_settings:
             p = transform_settings["elastictransform"]["p"]
             if p > 0 and p <= 1:
@@ -747,7 +779,10 @@ class ExperimentCellViTCoNic(BaseExperiment):
             Sampler: Sampler for training
         """
         if strategy.lower() == "random":
-            sampler = RandomSampler(train_dataset)
+            sampling_generator = torch.Generator().manual_seed(
+                self.default_conf["random_seed"]
+            )
+            sampler = RandomSampler(train_dataset, generator=sampling_generator)
             self.logger.info("Using RandomSampler")
         else:
             # this solution is not accurate when a subset is used since the weights are calculated on the whole training dataset

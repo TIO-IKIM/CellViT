@@ -53,7 +53,7 @@ def select_dataset(
             stardist=dataset_config.get("stardist", False),
             regression=dataset_config.get("regression_loss", False),
         )
-    elif dataset_name.lower() == "lizzard":
+    elif dataset_name.lower() == "conic":
         if split == "train":
             folds = dataset_config["train_folds"]
         if split == "val" or split == "validation":
@@ -64,6 +64,8 @@ def select_dataset(
             dataset_path=dataset_config["dataset_path"],
             folds=folds,
             transforms=transforms,
+            stardist=dataset_config.get("stardist", False),
+            regression=dataset_config.get("regression_loss", False),
             # TODO: Stardist and regression loss
         )
     else:

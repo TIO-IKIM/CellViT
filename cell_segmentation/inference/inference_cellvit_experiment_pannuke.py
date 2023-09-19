@@ -40,7 +40,7 @@ from torchmetrics.functional.classification import binary_jaccard_index
 from torchvision import transforms
 
 from cell_segmentation.datasets.dataset_coordinator import select_dataset
-from cell_segmentation.datasets.pannuke import PanNukeDataclassHV
+from models.segmentation.cell_segmentation.cellvit import DataclassHVStorage
 from cell_segmentation.utils.metrics import (
     cell_detection_scores,
     cell_type_detection_scores,
@@ -649,7 +649,7 @@ class InferenceCellViT:
 
     def unpack_predictions(
         self, predictions: dict, model: CellViT
-    ) -> PanNukeDataclassHV:
+    ) -> DataclassHVStorage:
         """Unpack the given predictions. Main focus lays on reshaping and postprocessing predictions, e.g. separating instances
 
         Args:
@@ -661,7 +661,7 @@ class InferenceCellViT:
             model (CellViT): Current model
 
         Returns:
-            PanNukeDataclassHV: Processed network output
+            DataclassHVStorage: Processed network output
 
         """
         predictions["tissue_types"] = predictions["tissue_types"].to(self.device)
@@ -682,7 +682,7 @@ class InferenceCellViT:
         ).to(
             self.device
         )  # shape: (batch_size, num_nuclei_classes, H, W)
-        predictions = PanNukeDataclassHV(
+        predictions = DataclassHVStorage(
             nuclei_binary_map=predictions["nuclei_binary_map"],
             hv_map=predictions["hv_map"],
             nuclei_type_map=predictions["nuclei_type_map"],
@@ -697,7 +697,7 @@ class InferenceCellViT:
 
     def unpack_masks(
         self, masks: dict, tissue_types: list, model: CellViT
-    ) -> PanNukeDataclassHV:
+    ) -> DataclassHVStorage:
         # get ground truth values, perform one hot encoding for segmentation maps
         gt_nuclei_binary_map_onehot = (
             F.one_hot(masks["nuclei_binary_map"], num_classes=2)
@@ -739,20 +739,20 @@ class InferenceCellViT:
         gt["instance_types"] = calculate_instances(
             gt["nuclei_type_map"], gt["instance_map"]
         )
-        gt = PanNukeDataclassHV(**gt, batch_size=gt["tissue_types"].shape[0])
+        gt = DataclassHVStorage(**gt, batch_size=gt["tissue_types"].shape[0])
         return gt
 
     def calculate_step_metric(
         self,
-        predictions: PanNukeDataclassHV,
-        gt: PanNukeDataclassHV,
+        predictions: DataclassHVStorage,
+        gt: DataclassHVStorage,
         image_names: list[str],
     ) -> Tuple[dict, list]:
         """Calculate the metrics for the validation step
 
         Args:
-            predictions (PanNukeDataclassHV): Processed network output
-            gt (PanNukeDataclassHV): Ground truth values
+            predictions (DataclassHVStorage): Processed network output
+            gt (DataclassHVStorage): Ground truth values
             image_names (list(str)): List with image names
 
         Returns:

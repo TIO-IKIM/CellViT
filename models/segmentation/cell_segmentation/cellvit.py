@@ -9,6 +9,7 @@
 # University Medicine Essen
 
 from collections import OrderedDict
+from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
 from typing import List, Literal, Tuple, Union
@@ -662,3 +663,92 @@ class CellViTSAM(CellViT):
         self.num_heads = 16
         self.encoder_global_attn_indexes = [7, 15, 23, 31]
         self.extract_layers = [8, 16, 24, 32]
+
+
+@dataclass
+class DataclassHVStorage:
+    """Storing PanNuke Prediction/GT objects for calculating loss, metrics etc. with HoverNet networks
+
+    Args:
+        nuclei_binary_map (torch.Tensor): Softmax output for binary nuclei branch. Shape: (batch_size, 2, H, W)
+        hv_map (torch.Tensor): Logit output for HV-Map. Shape: (batch_size, 2, H, W)
+        nuclei_type_map (torch.Tensor): Softmax output for nuclei type-prediction. Shape: (batch_size, num_tissue_classes, H, W)
+        tissue_types (torch.Tensor): Logit tissue prediction output. Shape: (batch_size, num_tissue_classes)
+        instance_map (torch.Tensor): Pixel-wise nuclear instance segmentation.
+            Each instance has its own integer, starting from 1. Shape: (batch_size, H, W)
+        instance_types_nuclei: Pixel-wise nuclear instance segmentation predictions, for each nuclei type.
+            Each instance has its own integer, starting from 1.
+            Shape: (batch_size, num_nuclei_classes, H, W)
+        batch_size (int): Batch size of the experiment
+        instance_types (list, optional): Instance type prediction list.
+            Each list entry stands for one image. Each list entry is a dictionary with the following structure:
+            Main Key is the nuclei instance number (int), with a dict as value.
+            For each instance, the dictionary contains the keys: bbox (bounding box), centroid (centroid coordinates),
+            contour, type_prob (probability), type (nuclei type)
+            Defaults to None.
+        regression_map (torch.Tensor, optional): Regression map for binary prediction map.
+            Shape: (batch_size, 2, H, W). Defaults to None.
+        regression_loss (bool, optional): Indicating if regression map is present. Defaults to False.
+        h (int, optional): Height of used input images. Defaults to 256.
+        w (int, optional): Width of used input images. Defaults to 256.
+        num_tissue_classes (int, optional): Number of tissue classes in the data. Defaults to 19.
+        num_nuclei_classes (int, optional): Number of nuclei types in the data (including background). Defaults to 6.
+    """
+
+    nuclei_binary_map: torch.Tensor
+    hv_map: torch.Tensor
+    tissue_types: torch.Tensor
+    nuclei_type_map: torch.Tensor
+    instance_map: torch.Tensor
+    instance_types_nuclei: torch.Tensor
+    batch_size: int
+    instance_types: list = None
+    regression_map: torch.Tensor = None
+    regression_loss: bool = False
+    h: int = 256
+    w: int = 256
+    num_tissue_classes: int = 19
+    num_nuclei_classes: int = 6
+
+    def __post_init__(self):
+        # check shape of every element
+        assert list(self.nuclei_binary_map.shape) == [
+            self.batch_size,
+            2,
+            self.h,
+            self.w,
+        ], "Nuclei Binary Map must be a softmax tensor with shape (B, 2, H, W)"
+        assert list(self.hv_map.shape) == [
+            self.batch_size,
+            2,
+            self.h,
+            self.w,
+        ], "HV Map must be a tensor with shape (B, 2, H, W)"
+        assert list(self.nuclei_type_map.shape) == [
+            self.batch_size,
+            self.num_nuclei_classes,
+            self.h,
+            self.w,
+        ], "Nuclei Type Map must be a tensor with shape (B, num_nuclei_classes, H, W)"
+        assert list(self.instance_map.shape) == [
+            self.batch_size,
+            self.h,
+            self.w,
+        ], "Instance Map must be a tensor with shape (B, H, W)"
+        assert list(self.instance_types_nuclei.shape) == [
+            self.batch_size,
+            self.num_nuclei_classes,
+            self.h,
+            self.w,
+        ], "Instance Types Nuclei must be a tensor with shape (B, num_nuclei_classes, H, W)"
+        if self.regression_map is not None:
+            self.regression_loss = True
+        else:
+            self.regression_loss = False
+
+    def get_dict(self) -> dict:
+        """Return dictionary of entries"""
+        property_dict = self.__dict__
+        if not self.regression_loss and "regression_map" in property_dict.keys():
+            property_dict.pop("regression_map")
+        return property_dict

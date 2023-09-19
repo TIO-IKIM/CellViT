@@ -249,7 +249,6 @@ class ExperimentCellViTStarDist(ExperimentCellVitPanNuke):
 
     def get_datasets(
         self,
-        dataset_name: str,
         train_transforms: Callable = None,
         val_transforms: Callable = None,
     ) -> Tuple[Dataset, Dataset]:
@@ -265,7 +264,6 @@ class ExperimentCellViTStarDist(ExperimentCellVitPanNuke):
         """
         self.run_conf["data"]["stardist"] = True
         train_dataset, val_dataset = super().get_datasets(
-            dataset_name=dataset_name,
             train_transforms=train_transforms,
             val_transforms=val_transforms,
         )

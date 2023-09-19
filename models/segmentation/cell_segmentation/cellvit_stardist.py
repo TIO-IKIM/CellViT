@@ -10,6 +10,7 @@
 # Institute for Artifical Intelligence in Medicine,
 # University Medicine Essen
 
+from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
 from typing import List, Literal, Tuple, Union
@@ -426,3 +427,52 @@ class CellViTSAMStarDist(CellViTStarDist, CellViTSAM):
             out_dict["tokens"] = z4
 
         return out_dict
+
+
+@dataclass
+class DataclassStarDistStorage:
+    """Storing PanNuke Prediction/GT objects for calculating loss, metrics etc. with StarDist networks
+
+    Args:
+        dist_map (torch.Tensor): Distance map values, bevore Sigmoid Output. Shape: (batch_size, 1, H, W)
+        stardist_map (torch.Tensor): Stardist output for vector prediction. Shape: (batch_size, n_rays, H, W)
+        nuclei_type_map (torch.Tensor): Softmax output for nuclei type-prediction. Shape: (batch_size, num_tissue_classes, H, W)
+        batch_size (int): Batch size of the experiment
+        dist_map_sigmoid (torch.Tensor, optional): Distance map values, after Sigmoid Output. Shape: (batch_size, 1, H, W). Defaults to None.
+        instance_map (torch.Tensor, optional): Pixel-wise nuclear instance segmentation.
+            Each instance has its own integer, starting from 1. Shape: (batch_size, H, W)
+            Defaults to None.
+        instance_types_nuclei (torch.Tensor, optional): Pixel-wise nuclear instance segmentation predictions, for each nuclei type.
+            Each instance has its own integer, starting from 1.
+            Shape: (batch_size, num_nuclei_classes, H, W)
+            Defaults to None.
+        instance_types (list, optional): Instance type prediction list.
+            Each list entry stands for one image. Each list entry is a dictionary with the following structure:
+            Main Key is the nuclei instance number (int), with a dict as value.
+            For each instance, the dictionary contains the keys: bbox (bounding box), centroid (centroid coordinates),
+            contour, type_prob (probability), type (nuclei type)
+            Defaults to None.
+        tissue_types (torch.Tensor, optional): Logit tissue prediction output. Shape: (batch_size, num_tissue_classes).
+            Defaults to None.
+        h (int, optional): Height of used input images. Defaults to 256.
+        w (int, optional): Width of used input images. Defaults to 256.
+        num_tissue_classes (int, optional): Number of tissue classes in the data. Defaults to 19.
+        num_nuclei_classes (int, optional): Number of nuclei types in the data (including background). Defaults to 6.
+    """
+
+    dist_map: torch.Tensor
+    stardist_map: torch.Tensor
+    nuclei_type_map: torch.Tensor
+    batch_size: int
+    dist_map_sigmoid: torch.Tensor = None
+    instance_map: torch.Tensor = None
+    instance_types_nuclei: torch.Tensor = None
+    instance_types: list = None
+    tissue_types: torch.Tensor = None
+    h: int = 256
+    w: int = 256
+    num_tissue_classes: int = 19
+    num_nuclei_classes: int = 6
+
+    def get_dict(self):
+        return self.__dict__

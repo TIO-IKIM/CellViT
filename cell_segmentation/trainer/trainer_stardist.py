@@ -21,7 +21,9 @@ from torch.optim.lr_scheduler import _LRScheduler
 from torchmetrics.functional import dice
 from torchmetrics.functional.classification import binary_jaccard_index
 from base_ml.base_early_stopping import EarlyStopping
-from cell_segmentation.datasets.pannuke import PanNukeDataclassStarDist
+from models.segmentation.cell_segmentation.cellvit_stardist import (
+    DataclassStarDistStorage,
+)
 
 from cell_segmentation.trainer.trainer_cellvit import CellViTTrainer
 from cell_segmentation.utils.metrics import get_fast_pq, remap_label
@@ -254,7 +256,7 @@ class CellViTStarDistTrainer(CellViTTrainer):
 
     def unpack_predictions(
         self, predictions: dict, skip_postprocessing: bool = False
-    ) -> PanNukeDataclassStarDist:
+    ) -> DataclassStarDistStorage:
         """Unpack the given predictions. Main focus lays on reshaping and postprocessing predictions, e.g. separating instances
 
         Args:
@@ -267,7 +269,7 @@ class CellViTStarDistTrainer(CellViTTrainer):
             skip_postprocessing (bool, optional): If true, postprocesssing for separating nuclei and creating maps is skipped.
                 Helpfull for speeding up training. Defaults to False.
         Returns:
-            PanNukeDataclassStarDist: Processed network output
+            DataclassStarDistStorage: Processed network output
         """
         predictions["nuclei_type_map"] = F.softmax(
             predictions["nuclei_type_map"], dim=1
@@ -290,14 +292,14 @@ class CellViTStarDistTrainer(CellViTTrainer):
             predictions["instance_map"] = instance_map
             predictions["instance_types_nuclei"] = instance_types_nuclei
 
-        predictions = PanNukeDataclassStarDist(
+        predictions = DataclassStarDistStorage(
             **predictions,
             batch_size=predictions["nuclei_type_map"].shape[0],
         )
 
         return predictions
 
-    def unpack_masks(self, masks: dict, tissue_types: list) -> PanNukeDataclassStarDist:
+    def unpack_masks(self, masks: dict, tissue_types: list) -> DataclassStarDistStorage:
         """Unpack the given masks. Main focus lays on reshaping and postprocessing masks to generate one dict
 
         Args:
@@ -311,7 +313,7 @@ class CellViTStarDistTrainer(CellViTTrainer):
             tissue_types (list): List of string names of ground-truth tissue types
 
         Returns:
-            PanNukeDataclassStarDist: Output ground truth values
+            DataclassStarDistStorage: Output ground truth values
 
         """
         nuclei_type_maps = torch.squeeze(masks["nuclei_type_map"]).type(torch.int64)
@@ -346,17 +348,17 @@ class CellViTStarDistTrainer(CellViTTrainer):
             .type(torch.LongTensor)
             .to(self.device),  # shape: batch_size
         }
-        gt = PanNukeDataclassStarDist(**gt, batch_size=gt["tissue_types"].shape[0])
+        gt = DataclassStarDistStorage(**gt, batch_size=gt["tissue_types"].shape[0])
         return gt
 
     def calculate_loss(
-        self, predictions: PanNukeDataclassStarDist, gt: PanNukeDataclassStarDist
+        self, predictions: DataclassStarDistStorage, gt: DataclassStarDistStorage
     ) -> torch.Tensor:
         """Calculate the loss
 
         Args:
-            predictions (PanNukeDataclassStarDist): Processed network output
-            gt (PanNukeDataclassStarDist): Ground truth values
+            predictions (DataclassStarDistStorage): Processed network output
+            gt (DataclassStarDistStorage): Ground truth values
 
         Returns:
             torch.Tensor: Loss
@@ -399,13 +401,13 @@ class CellViTStarDistTrainer(CellViTTrainer):
         return total_loss
 
     def calculate_step_metric_train(
-        self, predictions: PanNukeDataclassStarDist, gt: PanNukeDataclassStarDist
+        self, predictions: DataclassStarDistStorage, gt: DataclassStarDistStorage
     ) -> dict:
         """Calculate the metrics for the training step
 
         Args:
-            predictions (PanNukeDataclassStarDist): Processed network output
-            gt (PanNukeDataclassStarDist): Ground truth values
+            predictions (DataclassStarDistStorage): Processed network output
+            gt (DataclassStarDistStorage): Ground truth values
 
         Returns:
             dict: Dictionary with metrics. Keys:
@@ -497,7 +499,7 @@ class CellViTStarDistTrainer(CellViTTrainer):
         return batch_metrics
 
     def calculate_step_metric_validation(
-        self, predictions: PanNukeDataclassStarDist, gt: PanNukeDataclassStarDist
+        self, predictions: DataclassStarDistStorage, gt: DataclassStarDistStorage
     ) -> dict:
         """Calculate the metrics for the validation step
 
