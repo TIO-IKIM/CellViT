@@ -540,6 +540,7 @@ class CellViTTrainer(BaseTrainer):
             instance_types_nuclei=predictions["instance_types_nuclei"],
             batch_size=predictions["tissue_types"].shape[0],
             regression_map=predictions["regression_map"],
+            num_nuclei_classes=self.num_classes,
         )
 
         return predictions
@@ -599,7 +600,11 @@ class CellViTTrainer(BaseTrainer):
         if "regression_map" in masks:
             gt["regression_map"] = masks["regression_map"].to(self.device)
 
-        gt = DataclassHVStorage(**gt, batch_size=gt["tissue_types"].shape[0])
+        gt = DataclassHVStorage(
+            **gt,
+            batch_size=gt["tissue_types"].shape[0],
+            num_nuclei_classes=self.num_classes,
+        )
         return gt
 
     def calculate_loss(

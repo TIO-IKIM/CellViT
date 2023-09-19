@@ -57,7 +57,8 @@ class CoNicDataset(CellDataset):
         self.masks = []
         self.img_names = []
         self.folds = folds
-
+        self.stardist = stardist
+        self.regression = regression
         for fold in folds:
             image_path = self.dataset / f"fold{fold}" / "images"
             fold_images = [f for f in sorted(image_path.glob("*.png")) if f.is_file()]
