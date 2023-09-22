@@ -7,17 +7,14 @@ logging:
   - Fold-2
   - ViT256
   - Bare
-  wandb_dir: ./results/PanNuke
-  log_dir: ./results/PanNuke/Revision/CellViT/Common-Loss/ViT256/Ablation-Study/Bare/2023-09-09T232403_CellViT-256-Bare-Fold-2
+  wandb_dir: ./CellViT/results/PanNuke
   level: Debug
   group: CellViT256-Bare
-  run_id: yx5n18u9
-  wandb_file: yx5n18u9
 random_seed: 19
 gpu: 0
 data:
   dataset: PanNuke
-  dataset_path: ./PanNuke
+  dataset_path: ./PanNuke/digitalhistologyhub
   train_folds:
   - 1
   val_folds:

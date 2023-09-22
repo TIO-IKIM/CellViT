@@ -139,6 +139,8 @@ class CellViTStarDist(CellViT):
         self.stardist_decoder = self.create_upsampling_branch(
             self.branches_output["stardist_map"]
         )
+        self.stardist_activation_function = nn.ReLU()  # TODO: rename
+
         self.dist_decoder = self.create_upsampling_branch(
             self.branches_output["dist_map"]
         )
@@ -187,9 +189,9 @@ class CellViTStarDist(CellViT):
         z2 = z2[:, 1:, :].transpose(-1, -2).view(-1, self.embed_dim, *patch_dim)
         z1 = z1[:, 1:, :].transpose(-1, -2).view(-1, self.embed_dim, *patch_dim)
 
-        out_dict["stardist_map"] = self._forward_upsample(
-            z0, z1, z2, z3, z4, self.stardist_decoder
-        )
+        out_dict["stardist_map"] = self.stardist_activation_function(
+            self._forward_upsample(z0, z1, z2, z3, z4, self.stardist_decoder)
+        )  # TODO: rename
         out_dict["dist_map"] = self._forward_upsample(
             z0, z1, z2, z3, z4, self.dist_decoder
         )
@@ -377,8 +379,9 @@ class CellViTSAMStarDist(CellViTStarDist, CellViTSAM):
             if num_tissue_classes > 0
             else nn.Identity()
         )
+        self.final_activation_ray = nn.ReLU()
 
-    def forward(self, x: torch.Tensor, retrieve_tokens: bool = False):
+    def forward(self, x: torch.Tensor, retrieve_tokens: bool = False) -> dict:
         """Forward pass
 
         Args:
@@ -413,8 +416,8 @@ class CellViTSAMStarDist(CellViTStarDist, CellViTSAM):
         z2 = z2.permute(0, 3, 1, 2)
         z1 = z1.permute(0, 3, 1, 2)
 
-        out_dict["stardist_map"] = self._forward_upsample(
-            z0, z1, z2, z3, z4, self.stardist_decoder
+        out_dict["stardist_map"] = self.final_activation_ray(
+            self._forward_upsample(z0, z1, z2, z3, z4, self.stardist_decoder)
         )
         out_dict["dist_map"] = self._forward_upsample(
             z0, z1, z2, z3, z4, self.dist_decoder

@@ -7,17 +7,14 @@ logging:
   - Fold-3
   - ViT256
   - Flipping-Transforms
-  wandb_dir: ./results/PanNuke
-  log_dir: ./results/PanNuke/Revision/CellViT/Common-Loss/ViT256/Ablation-Study/Flipping-Transforms/2023-09-08T110317_CellViT-256-Flipping-Transforms-Fold-3
+  wandb_dir: ./CellViT/results/PanNuke
   level: Debug
   group: CellViT256-Flipping-Transforms
-  run_id: xllm07xw
-  wandb_file: xllm07xw
 random_seed: 19
 gpu: 0
 data:
   dataset: PanNuke
-  dataset_path: ./PanNuke
+  dataset_path: ./PanNuke/digitalhistologyhub
   train_folds:
   - 2
   val_folds:

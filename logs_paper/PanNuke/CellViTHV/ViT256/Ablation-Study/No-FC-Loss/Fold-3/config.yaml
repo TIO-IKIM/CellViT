@@ -7,17 +7,14 @@ logging:
   - Fold-3
   - ViT256
   - No-FC-Loss
-  wandb_dir: ./results/PanNuke
-  log_dir: ./results/PanNuke/Revision/CellViT/Common-Loss/ViT256/Ablation-Study/No-FC-Loss/2023-09-08T110317_CellViT-256-No-FC-Loss-Fold-3
+  wandb_dir: ./CellViT/results/PanNuke
   level: Debug
   group: CellViT256-No-FC-Loss
-  run_id: zl8hj4cz
-  wandb_file: zl8hj4cz
 random_seed: 19
 gpu: 0
 data:
   dataset: PanNuke
-  dataset_path: ./PanNuke
+  dataset_path: ./PanNuke/digitalhistologyhub
   train_folds:
   - 2
   val_folds:

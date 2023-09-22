@@ -16,6 +16,10 @@ sys.path.insert(0, parentdir)
 parentdir = os.path.dirname(parentdir)
 sys.path.insert(0, parentdir)
 
+from base_ml.base_experiment import BaseExperiment
+
+BaseExperiment.seed_run(1232)
+
 from pathlib import Path
 from typing import List, Union, Tuple
 
@@ -366,7 +370,7 @@ class MoNuSegInference:
                         y_global = j * 256 - j * self.overlap
                         total_img[
                             :, x_global : x_global + 256, y_global : y_global + 256
-                        ] = img[i * 5 + j]
+                        ] = img[i * decomposed_patch_num + j]
                 img = total_img
                 img = img[None, :, :, :]
             self.plot_results(
@@ -626,7 +630,9 @@ class MoNuSegInference:
             for j in range(decomposed_patch_num):
                 x_global = i * 256 - i * overlap
                 y_global = j * 256 - j * overlap
-                patch_instance_types = predictions["instance_types"][i * 5 + j]
+                patch_instance_types = predictions["instance_types"][
+                    i * decomposed_patch_num + j
+                ]
                 for cell in patch_instance_types.values():
                     if cell["type"] == 0:
                         continue

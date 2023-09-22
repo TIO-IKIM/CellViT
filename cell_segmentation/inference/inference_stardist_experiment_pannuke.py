@@ -19,6 +19,10 @@ sys.path.insert(0, parentdir)
 parentdir = os.path.dirname(parentdir)
 sys.path.insert(0, parentdir)
 
+from base_ml.base_experiment import BaseExperiment
+
+BaseExperiment.seed_run(1232)
+
 import json
 from collections import OrderedDict
 from pathlib import Path
@@ -46,6 +50,7 @@ from cell_segmentation.utils.metrics import (
     cell_type_detection_scores,
     get_fast_pq,
     remap_label,
+    binarize,
 )
 from cell_segmentation.utils.post_proc_cellvit import calculate_instances
 from cell_segmentation.utils.tools import pair_coordinates
@@ -750,6 +755,7 @@ class InferenceCellViTStarDist(InferenceCellViT):
         gt["instance_types"] = calculate_instances(
             gt["nuclei_type_map"], gt["instance_map"]
         )
+        instance_maps_gt = gt["instance_map"].detach().cpu()
 
         # segmentation scores
         binary_dice_scores = []  # binary dice scores per image
@@ -811,6 +817,16 @@ class InferenceCellViTStarDist(InferenceCellViT):
             remapped_instance_pred = remap_label(predictions["instance_map"][i])
             remapped_gt = remap_label(gt["instance_map"][i].detach().cpu())
             [dq, sq, pq], _ = get_fast_pq(true=remapped_gt, pred=remapped_instance_pred)
+            if len(np.unique(instance_maps_gt[i])) == 1:
+                dq, sq, pq = np.nan, np.nan, np.nan
+            else:
+                remapped_instance_pred = binarize(
+                    predictions["instance_types_nuclei"][i][1:].transpose(1, 2, 0)
+                )
+                remapped_gt = remap_label(instance_maps_gt[i])
+                [dq, sq, pq], _ = get_fast_pq(
+                    true=remapped_gt, pred=remapped_instance_pred
+                )
             pq_scores.append(pq)
             dq_scores.append(dq)
             sq_scores.append(sq)

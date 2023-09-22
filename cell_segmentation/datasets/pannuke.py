@@ -30,6 +30,8 @@ from cell_segmentation.utils.tools import fix_duplicates, get_bounding_box
 logger = logging.getLogger()
 logger.addHandler(logging.NullHandler())
 
+from natsort import natsorted
+
 
 class PanNukeDataset(CellDataset):
     """PanNuke dataset
@@ -70,7 +72,9 @@ class PanNukeDataset(CellDataset):
         self.regression = regression
         for fold in folds:
             image_path = self.dataset / f"fold{fold}" / "images"
-            fold_images = [f for f in sorted(image_path.glob("*.png")) if f.is_file()]
+            fold_images = [
+                f for f in natsorted(image_path.glob("*.png")) if f.is_file()
+            ]
 
             # sanity_check: mask must exist for image
             for fold_image in fold_images:

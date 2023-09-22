@@ -7,17 +7,14 @@ logging:
   - Fold-2
   - ViT256
   - Shared-decoders
-  wandb_dir: ./results/PanNuke
-  log_dir: ./results/PanNuke/Revision/CellViT/Common-Loss/ViT256/Ablation-Study/Shared-decoders/2023-09-12T074817_CellViT-256-Shared-decoders-Fold-2
+  wandb_dir: ./CellViT/results/PanNuke
   level: Debug
   group: CellViT256-Shared-decoders
-  run_id: 6izrgbub
-  wandb_file: 6izrgbub
 random_seed: 19
 gpu: 0
 data:
   dataset: PanNuke
-  dataset_path: ./PanNuke
+  dataset_path: ./PanNuke/digitalhistologyhub
   train_folds:
   - 1
   val_folds:

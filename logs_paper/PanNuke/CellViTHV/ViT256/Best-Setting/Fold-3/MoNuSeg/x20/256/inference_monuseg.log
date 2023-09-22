@@ -1,0 +1,12 @@
+Loading model: ./CellViT/results/PanNuke/Revision/CellViT/Common-Loss/ViT256/Best-Setting/Fold-3/checkpoints/latest_checkpoint.pth
+<All keys matched successfully>
+Loading inference transformations
+******************** Binary Dataset metrics ********************
+Binary-Cell-Dice-Mean:    0.8076247572898865
+Binary-Cell-Jacard-Mean:  0.678014874458313
+bPQ:                      0.589422217612551
+bDQ:                      0.7774320145425687
+bSQ:                      0.7575548880341791
+f1_detection:             0.827217233996769
+precision_detection:      0.898656748410997
+recall_detection:         0.7680396272872152

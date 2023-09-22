@@ -7,17 +7,14 @@ logging:
   - Fold-3
   - ViT256
   - Oversampling
-  wandb_dir: ./results/PanNuke
-  log_dir: ./results/PanNuke/Revision/CellViT/Common-Loss/ViT256/Ablation-Study/Oversampling/2023-09-10T053112_CellViT-256-Oversampling-Fold-3
+  wandb_dir: ./CellViT/results/PanNuke
   level: Debug
   group: CellViT256-Oversampling
-  run_id: p1h897um
-  wandb_file: p1h897um
 random_seed: 19
 gpu: 0
 data:
   dataset: PanNuke
-  dataset_path: ./PanNuke
+  dataset_path: ./PanNuke/digitalhistologyhub
   train_folds:
   - 2
   val_folds:
