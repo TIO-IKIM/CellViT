@@ -483,7 +483,7 @@ class CellViT256CPP(CellViTCPP, CellViT256):
         self.model256_path = model256_path
 
 
-class CellViTSAMStarDist(CellViTCPP, CellViTSAM):
+class CellViTSAMCPP(CellViTCPP, CellViTSAM):
     """CellViT Modell with StarDist heads (separated decoder) with SAM backbone settings
 
     Skip connections are shared between branches, but each network has a distinct encoder

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Running an Experiment Using StarDist cell segmentation network
+# Running an Experiment Using CPP-Net cell segmentation network
 #
 # @ Fabian Hörst, fabian.hoerst@uk-essen.de
 # Institute for Artifical Intelligence in Medicine,
@@ -16,12 +16,12 @@ sys.path.insert(0, parentdir)
 import wandb
 
 from base_ml.base_cli import ExperimentBaseParser
-from cell_segmentation.experiments.experiment_stardist_pannuke import (
-    ExperimentCellViTStarDist,
+from cell_segmentation.experiments.experiment_cpp_net_pannuke import (
+    ExperimentCellViTCPP,
 )
 
-from cell_segmentation.inference.inference_stardist_experiment_pannuke import (
-    InferenceCellViTStarDist,
+from cell_segmentation.inference.inference_cpp_net_experiment_pannuke import (
+    InferenceCellViTCPP,
 )
 
 if __name__ == "__main__":
@@ -32,11 +32,11 @@ if __name__ == "__main__":
     # Setup experiment
     if "checkpoint" in configuration:
         # continue checkpoint
-        experiment = ExperimentCellViTStarDist(
+        experiment = ExperimentCellViTCPP(
             default_conf=configuration, checkpoint=configuration["checkpoint"]
         )
         outdir = experiment.run_experiment()
-        inference = InferenceCellViTStarDist(
+        inference = InferenceCellViTCPP(
             run_dir=outdir,
             gpu=configuration["gpu"],
             checkpoint_name=configuration["eval_checkpoint"],
@@ -51,10 +51,10 @@ if __name__ == "__main__":
             trained_model, inference_dataloader, dataset_config
         )
     else:
-        experiment = ExperimentCellViTStarDist(default_conf=configuration)
+        experiment = ExperimentCellViTCPP(default_conf=configuration)
         if configuration["run_sweep"] is True:
             # run new sweep
-            sweep_configuration = ExperimentCellViTStarDist.extract_sweep_arguments(
+            sweep_configuration = ExperimentCellViTCPP.extract_sweep_arguments(
                 configuration
             )
             os.environ["WANDB_DIR"] = os.path.abspath(
@@ -76,7 +76,7 @@ if __name__ == "__main__":
         else:
             # casual run
             outdir = experiment.run_experiment()
-            inference = InferenceCellViTStarDist(
+            inference = InferenceCellViTCPP(
                 run_dir=outdir,
                 gpu=configuration["gpu"],
                 checkpoint_name=configuration["eval_checkpoint"],
