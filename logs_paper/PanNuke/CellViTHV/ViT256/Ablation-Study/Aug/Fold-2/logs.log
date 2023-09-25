@@ -1,6 +1,4 @@
 2023-09-09 16:56:32,594 [INFO] - Instantiated Logger. WandB init and config update finished.
-2023-09-09 16:56:32,594 [INFO] - Run ist stored here: ./CellViT/results/PanNuke/Revision/CellViT/Common-Loss/ViT256/Ablation-Study/Aug/2023-09-09T165624_CellViT-256-Aug-Fold-2
-2023-09-09 16:56:32,612 [DEBUG] - Stored config under: ./CellViT/results/PanNuke/Revision/CellViT/Common-Loss/ViT256/Ablation-Study/Aug/2023-09-09T165624_CellViT-256-Aug-Fold-2/config.yaml
 2023-09-09 16:56:32,659 [INFO] - Cuda devices: [<torch.cuda.device object at 0x7ee6c3f65520>]
 2023-09-09 16:56:32,660 [INFO] - Using GPU: cuda:0
 2023-09-09 16:56:32,660 [INFO] - Using device: cuda:0
@@ -1306,4 +1304,4 @@ Estimated Total Size (MB): 1859.98
 2023-09-10 03:47:56,461 [INFO] - Validation epoch stats:   Loss: 4.9523 - Binary-Cell-Dice: 0.8088 - Binary-Cell-Jacard: 0.7337 - PQ-Score: 0.6286 - Tissue-MC-Acc.: 0.9379
 2023-09-10 03:47:56,469 [INFO] - New best model - save checkpoint
 2023-09-10 03:48:18,936 [DEBUG] - Old lr: 0.000000 - New lr: 0.000000
-2023-09-10 03:48:18,937 [INFO] - Finished run l0vwp3pu
+2023-09-10 03:48:18,937 [INFO] -

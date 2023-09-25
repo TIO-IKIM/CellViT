@@ -1,5 +1,3 @@
-Loaded run: ./CellViT/results/PanNuke/Revision/CellViT/Common-Loss/ViT256/Ablation-Study/Random/2023-09-20T060407_CellViT-Random-Fold-1
-Loading best model from ./CellViT/results/PanNuke/Revision/CellViT/Common-Loss/ViT256/Ablation-Study/Random/2023-09-20T060407_CellViT-Random-Fold-1/checkpoints/latest_checkpoint.pth
 <All keys matched successfully>
 Performing Inference on test set: [2]
 ******************** Binary Dataset metrics ********************

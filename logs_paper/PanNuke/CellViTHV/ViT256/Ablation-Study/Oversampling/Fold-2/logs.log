@@ -1,6 +1,4 @@
 2023-09-10 04:31:44,288 [INFO] - Instantiated Logger. WandB init and config update finished.
-2023-09-10 04:31:44,288 [INFO] - Run ist stored here: ./CellViT/results/PanNuke/Revision/CellViT/Common-Loss/ViT256/Ablation-Study/Oversampling/2023-09-10T043108_CellViT-256-Oversampling-Fold-2
-2023-09-10 04:31:44,311 [DEBUG] - Stored config under: ./CellViT/results/PanNuke/Revision/CellViT/Common-Loss/ViT256/Ablation-Study/Oversampling/2023-09-10T043108_CellViT-256-Oversampling-Fold-2/config.yaml
 2023-09-10 04:31:44,358 [INFO] - Cuda devices: [<torch.cuda.device object at 0x7f55e88fb9a0>]
 2023-09-10 04:31:44,358 [INFO] - Using GPU: cuda:0
 2023-09-10 04:31:44,358 [INFO] - Using device: cuda:0
@@ -1282,4 +1280,4 @@ Estimated Total Size (MB): 1859.98
 2023-09-10 13:21:40,697 [INFO] - Training epoch stats:     Loss: 2.7828 - Binary-Cell-Dice: 0.9413 - Binary-Cell-Jacard: 0.9536 - Tissue-MC-Acc.: 1.0000
 2023-09-10 13:23:43,020 [INFO] - Validation epoch stats:   Loss: 6.1477 - Binary-Cell-Dice: 0.7784 - Binary-Cell-Jacard: 0.6811 - PQ-Score: 0.5581 - Tissue-MC-Acc.: 0.9266
 2023-09-10 13:23:58,716 [DEBUG] - Old lr: 0.000000 - New lr: 0.000000
-2023-09-10 13:23:58,722 [INFO] - Finished run jlxlg45n
+2023-09-10 13:23:58,722 [INFO] -

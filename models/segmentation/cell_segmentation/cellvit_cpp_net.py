@@ -374,7 +374,7 @@ class CellViTCPP(CellViT):
             "stardist_map": stardist_head_out,
             "stardist_map_refined": ray_refined,
             "dist_map": dist_map_head_out,
-            "nuclei_type_maps": type_map_head_out,
+            "nuclei_type_map": type_map_head_out,
             "tissue_types": classifier_logits,
         }
 
@@ -618,7 +618,7 @@ class CellViTSAMCPP(CellViTCPP, CellViTSAM):
             "stardist_map": stardist_head_out,
             "stardist_map_refined": ray_refined,
             "dist_map": dist_map_head_out,
-            "nuclei_type_maps": type_map_head_out,
+            "nuclei_type_map": type_map_head_out,
             "tissue_types": self.classifier_head(classifier_logits),
         }
 

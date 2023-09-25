@@ -710,41 +710,41 @@ class DataclassHVStorage:
     num_tissue_classes: int = 19
     num_nuclei_classes: int = 6
 
-    def __post_init__(self):
-        # check shape of every element
-        assert list(self.nuclei_binary_map.shape) == [
-            self.batch_size,
-            2,
-            self.h,
-            self.w,
-        ], "Nuclei Binary Map must be a softmax tensor with shape (B, 2, H, W)"
-        assert list(self.hv_map.shape) == [
-            self.batch_size,
-            2,
-            self.h,
-            self.w,
-        ], "HV Map must be a tensor with shape (B, 2, H, W)"
-        assert list(self.nuclei_type_map.shape) == [
-            self.batch_size,
-            self.num_nuclei_classes,
-            self.h,
-            self.w,
-        ], "Nuclei Type Map must be a tensor with shape (B, num_nuclei_classes, H, W)"
-        assert list(self.instance_map.shape) == [
-            self.batch_size,
-            self.h,
-            self.w,
-        ], "Instance Map must be a tensor with shape (B, H, W)"
-        assert list(self.instance_types_nuclei.shape) == [
-            self.batch_size,
-            self.num_nuclei_classes,
-            self.h,
-            self.w,
-        ], "Instance Types Nuclei must be a tensor with shape (B, num_nuclei_classes, H, W)"
-        if self.regression_map is not None:
-            self.regression_loss = True
-        else:
-            self.regression_loss = False
+    # def __post_init__(self):
+    #     # check shape of every element
+    #     assert list(self.nuclei_binary_map.shape) == [
+    #         self.batch_size,
+    #         2,
+    #         self.h,
+    #         self.w,
+    #     ], "Nuclei Binary Map must be a softmax tensor with shape (B, 2, H, W)"
+    #     assert list(self.hv_map.shape) == [
+    #         self.batch_size,
+    #         2,
+    #         self.h,
+    #         self.w,
+    #     ], "HV Map must be a tensor with shape (B, 2, H, W)"
+    #     assert list(self.nuclei_type_map.shape) == [
+    #         self.batch_size,
+    #         self.num_nuclei_classes,
+    #         self.h,
+    #         self.w,
+    #     ], "Nuclei Type Map must be a tensor with shape (B, num_nuclei_classes, H, W)"
+    #     assert list(self.instance_map.shape) == [
+    #         self.batch_size,
+    #         self.h,
+    #         self.w,
+    #     ], "Instance Map must be a tensor with shape (B, H, W)"
+    #     assert list(self.instance_types_nuclei.shape) == [
+    #         self.batch_size,
+    #         self.num_nuclei_classes,
+    #         self.h,
+    #         self.w,
+    #     ], "Instance Types Nuclei must be a tensor with shape (B, num_nuclei_classes, H, W)"
+    #     if self.regression_map is not None:
+    #         self.regression_loss = True
+    #     else:
+    #         self.regression_loss = False
 
     def get_dict(self) -> dict:
         """Return dictionary of entries"""

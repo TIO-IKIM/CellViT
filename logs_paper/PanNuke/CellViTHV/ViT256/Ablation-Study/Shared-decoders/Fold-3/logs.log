@@ -1,6 +1,4 @@
 2023-09-12 07:48:26,539 [INFO] - Instantiated Logger. WandB init and config update finished.
-2023-09-12 07:48:26,540 [INFO] - Run ist stored here: ./CellViT/results/PanNuke/Revision/CellViT/Common-Loss/ViT256/Ablation-Study/Shared-decoders/2023-09-12T074817_CellViT-256-Shared-decoders-Fold-3
-2023-09-12 07:48:26,557 [DEBUG] - Stored config under: ./CellViT/results/PanNuke/Revision/CellViT/Common-Loss/ViT256/Ablation-Study/Shared-decoders/2023-09-12T074817_CellViT-256-Shared-decoders-Fold-3/config.yaml
 2023-09-12 07:48:26,597 [INFO] - Cuda devices: [<torch.cuda.device object at 0x7ee6f8b9dc40>]
 2023-09-12 07:48:26,597 [INFO] - Using GPU: cuda:0
 2023-09-12 07:48:26,597 [INFO] - Using device: cuda:0
@@ -1044,4 +1042,4 @@ Estimated Total Size (MB): 764.64
 2023-09-12 18:33:53,563 [INFO] - Training epoch stats:     Loss: 4.7375 - Binary-Cell-Dice: 0.8322 - Binary-Cell-Jacard: 0.7603 - Tissue-MC-Acc.: 0.9945
 2023-09-12 18:35:52,180 [INFO] - Validation epoch stats:   Loss: 4.9616 - Binary-Cell-Dice: 0.7980 - Binary-Cell-Jacard: 0.7229 - PQ-Score: 0.6138 - Tissue-MC-Acc.: 0.9592
 2023-09-12 18:37:06,913 [DEBUG] - Old lr: 0.000000 - New lr: 0.000000
-2023-09-12 18:37:06,988 [INFO] - Finished run ke8krtw8
+2023-09-12 18:37:06,988 [INFO] -

@@ -1264,4 +1264,4 @@ Estimated Total Size (MB): 2578.66
 2023-09-09 21:29:09,801 [INFO] - Training epoch stats:     Loss: 4.5719 - Binary-Cell-Dice: 0.8285 - Binary-Cell-Jacard: 0.7616 - Tissue-MC-Acc.: 0.9913
 2023-09-09 21:31:48,304 [INFO] - Validation epoch stats:   Loss: 4.9281 - Binary-Cell-Dice: 0.8113 - Binary-Cell-Jacard: 0.7372 - PQ-Score: 0.6367 - Tissue-MC-Acc.: 0.9014
 2023-09-09 21:32:27,717 [DEBUG] - Old lr: 0.000000 - New lr: 0.000000
-2023-09-09 21:32:27,723 [INFO] - Finished run xc96yy14
+2023-09-09 21:32:27,723 [INFO] -

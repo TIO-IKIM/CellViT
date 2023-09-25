@@ -1,6 +1,4 @@
 2023-09-08 11:03:28,957 [INFO] - Instantiated Logger. WandB init and config update finished.
-2023-09-08 11:03:28,958 [INFO] - Run ist stored here: ./CellViT/results/PanNuke/Revision/CellViT/Common-Loss/ViT256/Ablation-Study/Flipping-Transforms/2023-09-08T110317_CellViT-256-Flipping-Transforms-Fold-2
-2023-09-08 11:03:28,986 [DEBUG] - Stored config under: ./CellViT/results/PanNuke/Revision/CellViT/Common-Loss/ViT256/Ablation-Study/Flipping-Transforms/2023-09-08T110317_CellViT-256-Flipping-Transforms-Fold-2/config.yaml
 2023-09-08 11:03:29,028 [INFO] - Cuda devices: [<torch.cuda.device object at 0x7f89d42fbd90>]
 2023-09-08 11:03:29,028 [INFO] - Using GPU: cuda:0
 2023-09-08 11:03:29,028 [INFO] - Using device: cuda:0
@@ -1302,4 +1300,4 @@ Estimated Total Size (MB): 1859.98
 2023-09-09 01:12:27,068 [INFO] - Training epoch stats:     Loss: 4.0934 - Binary-Cell-Dice: 0.8596 - Binary-Cell-Jacard: 0.8074 - Tissue-MC-Acc.: 0.9996
 2023-09-09 01:15:40,226 [INFO] - Validation epoch stats:   Loss: 5.1781 - Binary-Cell-Dice: 0.8017 - Binary-Cell-Jacard: 0.7231 - PQ-Score: 0.6183 - Tissue-MC-Acc.: 0.9431
 2023-09-09 01:15:48,830 [DEBUG] - Old lr: 0.000000 - New lr: 0.000000
-2023-09-09 01:15:48,833 [INFO] - Finished run hz2fyspp
+2023-09-09 01:15:48,833 [INFO] -

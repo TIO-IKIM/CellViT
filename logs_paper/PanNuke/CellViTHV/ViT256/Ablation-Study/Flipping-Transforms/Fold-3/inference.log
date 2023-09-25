@@ -1,5 +1,3 @@
-Loaded run: ./CellViT/results/PanNuke/Revision/CellViT/Common-Loss/ViT256/Ablation-Study/Flipping-Transforms/Fold-3
-Loading best model from ./CellViT/results/PanNuke/Revision/CellViT/Common-Loss/ViT256/Ablation-Study/Flipping-Transforms/Fold-3/checkpoints/latest_checkpoint.pth
 <All keys matched successfully>
 Performing Inference on test set: [0]
 ******************** Binary Dataset metrics ********************

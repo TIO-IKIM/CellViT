@@ -1,6 +1,4 @@
 2023-09-10 05:31:21,072 [INFO] - Instantiated Logger. WandB init and config update finished.
-2023-09-10 05:31:21,073 [INFO] - Run ist stored here: ./CellViT/results/PanNuke/Revision/CellViT/Common-Loss/ViT256/Ablation-Study/Oversampling/2023-09-10T053112_CellViT-256-Oversampling-Fold-3
-2023-09-10 05:31:21,096 [DEBUG] - Stored config under: ./CellViT/results/PanNuke/Revision/CellViT/Common-Loss/ViT256/Ablation-Study/Oversampling/2023-09-10T053112_CellViT-256-Oversampling-Fold-3/config.yaml
 2023-09-10 05:31:21,163 [INFO] - Cuda devices: [<torch.cuda.device object at 0x7ef45450f9a0>]
 2023-09-10 05:31:21,164 [INFO] - Using GPU: cuda:0
 2023-09-10 05:31:21,164 [INFO] - Using device: cuda:0
@@ -1283,4 +1281,4 @@ Estimated Total Size (MB): 1859.98
 2023-09-10 15:38:49,126 [INFO] - Training epoch stats:     Loss: 2.7553 - Binary-Cell-Dice: 0.9462 - Binary-Cell-Jacard: 0.9549 - Tissue-MC-Acc.: 0.9996
 2023-09-10 15:41:10,538 [INFO] - Validation epoch stats:   Loss: 6.1283 - Binary-Cell-Dice: 0.7668 - Binary-Cell-Jacard: 0.6714 - PQ-Score: 0.5473 - Tissue-MC-Acc.: 0.9417
 2023-09-10 15:41:17,070 [DEBUG] - Old lr: 0.000000 - New lr: 0.000000
-2023-09-10 15:41:17,071 [INFO] - Finished run p1h897um
+2023-09-10 15:41:17,071 [INFO] -

@@ -1,6 +1,4 @@
 2023-09-10 01:48:04,766 [INFO] - Instantiated Logger. WandB init and config update finished.
-2023-09-10 01:48:04,766 [INFO] - Run ist stored here: ./CellViT/results/PanNuke/Revision/CellViT/Common-Loss/SAM-H/Best-Setting/2023-09-10T014745_CellViT-SAM-H-Fold-2
-2023-09-10 01:48:04,796 [DEBUG] - Stored config under: ./CellViT/results/PanNuke/Revision/CellViT/Common-Loss/SAM-H/Best-Setting/2023-09-10T014745_CellViT-SAM-H-Fold-2/config.yaml
 2023-09-10 01:48:04,862 [INFO] - Cuda devices: [<torch.cuda.device object at 0x7ee4a9dab400>]
 2023-09-10 01:48:04,863 [INFO] - Using GPU: cuda:0
 2023-09-10 01:48:04,863 [INFO] - Using device: cuda:0
@@ -1538,4 +1536,4 @@ Estimated Total Size (MB): 6002.34
 2023-09-10 18:26:09,545 [INFO] - Training epoch stats:     Loss: 4.2406 - Binary-Cell-Dice: 0.8543 - Binary-Cell-Jacard: 0.8053 - Tissue-MC-Acc.: 0.9972
 2023-09-10 18:28:24,409 [INFO] - Validation epoch stats:   Loss: 5.0308 - Binary-Cell-Dice: 0.8097 - Binary-Cell-Jacard: 0.7360 - PQ-Score: 0.6403 - Tissue-MC-Acc.: 0.9059
 2023-09-10 18:30:13,935 [DEBUG] - Old lr: 0.000000 - New lr: 0.000000
-2023-09-10 18:30:14,250 [INFO] - Finished run bpcq3j96
+2023-09-10 18:30:14,250 [INFO] -
