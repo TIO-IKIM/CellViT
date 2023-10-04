@@ -1,7 +1,6 @@
 # Byte-compiled / optimized / DLL files
 __pycache__/
-# *.py[cod]
-# *$py.class
+
 
 # development
 .vscode
@@ -30,8 +29,8 @@ configs/Conic
 
 # pretrained models
 *.pth
-
 docker/
+
 # Notebooks
 notebooks/
 
@@ -43,20 +42,12 @@ slurm
 
 # example
 example/output
-outputs
-results/wandb
-results/slurm
-
+example/TCGA-V5-A7RE-11A-01-TS1.57401526-EF9E-49AC-8FF6-B4F9652311CE.svs
+example/test_dataset
 
 # results
-results/PanNuke/SAM/SAM-H/2023-08-08T150447_CellViT-SAM-H-SOTA-Fold-1
-results/PanNuke/SAM/SAM-H/2023-08-08T202809_CellViT-SAM-H-SOTA-Fold-2
-results/PanNuke/ViT256/2023-08-08T150612_CellViT-256-SOTA-Fold-1
-results/PanNuke/ViT256/2023-08-08T201151_CellViT-256-SOTA-Fold-3
-results/PanNuke/ViT256/2023-08-08T201154_CellViT-256-SOTA-Fold-2
 results/
 
+# other
 .DS_Store
-example/test_dataset
-runs.txt
 Orig-Metrics
