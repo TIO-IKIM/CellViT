@@ -24,7 +24,9 @@ docs/Makefile
 
 # local configs
 configs/projects
-configs/PanNuke/
+configs/PanNuke
+configs/Lizzard
+configs/Conic
 
 # pretrained models
 *.pth

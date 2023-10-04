@@ -260,7 +260,7 @@ def calculate_instances(
         pred_insts (torch.Tensor): Ground-Truth instance map with shape (B, H, W)
 
     Returns:
-        list[dict]: Dictionary with nuclei informations, similar to #TODO: find description
+        list[dict]: Dictionary with nuclei informations, output similar to post_process_cell_segmentation
     """
     type_preds = []
     pred_types = pred_types.permute(0, 2, 3, 1)

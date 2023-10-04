@@ -627,7 +627,6 @@ class InferenceCellViT:
         image_names = list(batch[3])
 
         model.zero_grad()
-
         if self.mixed_precision:
             with torch.autocast(device_type="cuda", dtype=torch.float16):
                 predictions = model.forward(imgs)

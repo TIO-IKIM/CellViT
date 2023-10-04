@@ -1,0 +1,11 @@
+<All keys matched successfully>
+Loading inference transformations
+******************** Binary Dataset metrics ********************
+Binary-Cell-Dice-Mean:    0.8289602398872375
+Binary-Cell-Jacard-Mean:  0.7087440490722656
+bPQ:                      0.6413872468044476
+bDQ:                      0.82474996859377
+bSQ:                      0.7768475632201738
+f1_detection:             0.8329691255008317
+precision_detection:      0.8581969938120462
+recall_detection:         0.8104620798743626

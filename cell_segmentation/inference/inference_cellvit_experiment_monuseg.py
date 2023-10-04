@@ -982,17 +982,19 @@ class InferenceCellViTMoNuSegParser:
             "--model",
             type=str,
             help="Model checkpoint file that is used for inference",
+            default="/homes/fhoerst/histo-projects/CellViT/results/PanNuke/Revision/CellViT/Common-Loss/SAM-H/x20/Fold-1-x20/checkpoints/latest_checkpoint.pth",
         )
         parser.add_argument(
             "--dataset",
             type=str,
             help="Path to MoNuSeg dataset.",
+            default="/projects/datashare/tio/histopathology/public-datasets/MoNuSeg/1024/testing",
         )
         parser.add_argument(
             "--outdir",
             type=str,
-            default="/homes/fhoerst/histo-projects/CellViT/results/PanNuke/Revision/CellViT/Common-Loss/ViT256/Best-Setting/2023-09-09T061759_CellViT-256-Fold-1/MoNuSeg/1024",  # TODO: remove
             help="Path to output directory to store results.",
+            default="/homes/fhoerst/histo-projects/CellViT/results/PanNuke/Revision/CellViT/Common-Loss/SAM-H/x20/Fold-1-x20/MoNuSeg/x40/256_64",
         )
         parser.add_argument(
             "--gpu", type=int, help="Cuda-GPU ID for inference. Default: 0", default=0
@@ -1002,25 +1004,25 @@ class InferenceCellViTMoNuSegParser:
             type=int,
             help="Dataset Magnification. Either 20 or 40. Default: 40",
             choices=[20, 40],
-            default=40,
+            default=20,
         )
         parser.add_argument(
             "--patching",
             type=bool,
             help="Patch to 256px images. Default: False",
-            default=False,
+            default=True,
         )
         parser.add_argument(
             "--overlap",
             type=int,
             help="Patch overlap, just valid for patching",
-            default=0,
+            default=64,
         )
         parser.add_argument(
             "--plots",
             type=bool,
             help="Generate result plots. Default: False",
-            default=False,
+            default=True,
         )
 
         self.parser = parser

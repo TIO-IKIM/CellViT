@@ -1,4 +1,4 @@
-Loading model: ./CellViT/results/PanNuke/Revision/CellViT/Common-Loss/ViT256/Best-Setting/Fold-3/checkpoints/latest_checkpoint.pth
+Loading model: /homes/fhoerst/histo-projects/CellViT/results/PanNuke/Revision/CellViT/Common-Loss/ViT256/Best-Setting/Fold-3/checkpoints/latest_checkpoint.pth
 <All keys matched successfully>
 Loading inference transformations
 Detected cells before cleaning: 1134

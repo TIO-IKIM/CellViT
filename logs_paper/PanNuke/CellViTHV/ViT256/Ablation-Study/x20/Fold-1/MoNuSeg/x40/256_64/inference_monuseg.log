@@ -1,0 +1,140 @@
+<All keys matched successfully>
+Loading inference transformations
+Detected cells before cleaning: 1374
+Initializing Cell-Postprocessor
+Finding edge-cells for merging
+Removal of cells detected multiple times
+Iteration 0: Found overlap of # cells: 284
+Iteration 1: Found overlap of # cells: 4
+Iteration 2: Found overlap of # cells: 0
+Found all overlapping cells
+Detected cells after cleaning: 821
+Detected cells before cleaning: 1530
+Initializing Cell-Postprocessor
+Finding edge-cells for merging
+Removal of cells detected multiple times
+Iteration 0: Found overlap of # cells: 348
+Iteration 1: Found overlap of # cells: 5
+Iteration 2: Found overlap of # cells: 0
+Found all overlapping cells
+Detected cells after cleaning: 904
+Detected cells before cleaning: 1023
+Initializing Cell-Postprocessor
+Finding edge-cells for merging
+Removal of cells detected multiple times
+Iteration 0: Found overlap of # cells: 220
+Iteration 1: Found overlap of # cells: 5
+Iteration 2: Found overlap of # cells: 0
+Found all overlapping cells
+Detected cells after cleaning: 625
+Detected cells before cleaning: 852
+Initializing Cell-Postprocessor
+Finding edge-cells for merging
+Removal of cells detected multiple times
+Iteration 0: Found overlap of # cells: 191
+Iteration 1: Found overlap of # cells: 2
+Iteration 2: Found overlap of # cells: 0
+Found all overlapping cells
+Detected cells after cleaning: 512
+Detected cells before cleaning: 990
+Initializing Cell-Postprocessor
+Finding edge-cells for merging
+Removal of cells detected multiple times
+Iteration 0: Found overlap of # cells: 212
+Iteration 1: Found overlap of # cells: 6
+Iteration 2: Found overlap of # cells: 0
+Found all overlapping cells
+Detected cells after cleaning: 627
+Detected cells before cleaning: 397
+Initializing Cell-Postprocessor
+Finding edge-cells for merging
+Removal of cells detected multiple times
+Iteration 0: Found overlap of # cells: 86
+Iteration 1: Found overlap of # cells: 3
+Iteration 2: Found overlap of # cells: 0
+Found all overlapping cells
+Detected cells after cleaning: 264
+Detected cells before cleaning: 1459
+Initializing Cell-Postprocessor
+Finding edge-cells for merging
+Removal of cells detected multiple times
+Iteration 0: Found overlap of # cells: 362
+Iteration 1: Found overlap of # cells: 8
+Iteration 2: Found overlap of # cells: 0
+Found all overlapping cells
+Detected cells after cleaning: 858
+Detected cells before cleaning: 983
+Initializing Cell-Postprocessor
+Finding edge-cells for merging
+Removal of cells detected multiple times
+Iteration 0: Found overlap of # cells: 215
+Iteration 1: Found overlap of # cells: 3
+Iteration 2: Found overlap of # cells: 1
+Iteration 3: Found overlap of # cells: 0
+Found all overlapping cells
+Detected cells after cleaning: 579
+Detected cells before cleaning: 1047
+Initializing Cell-Postprocessor
+Finding edge-cells for merging
+Removal of cells detected multiple times
+Iteration 0: Found overlap of # cells: 181
+Iteration 1: Found overlap of # cells: 12
+Iteration 2: Found overlap of # cells: 1
+Iteration 3: Found overlap of # cells: 0
+Found all overlapping cells
+Detected cells after cleaning: 631
+Detected cells before cleaning: 716
+Initializing Cell-Postprocessor
+Finding edge-cells for merging
+Removal of cells detected multiple times
+Iteration 0: Found overlap of # cells: 140
+Iteration 1: Found overlap of # cells: 6
+Iteration 2: Found overlap of # cells: 0
+Found all overlapping cells
+Detected cells after cleaning: 416
+Detected cells before cleaning: 665
+Initializing Cell-Postprocessor
+Finding edge-cells for merging
+Removal of cells detected multiple times
+Iteration 0: Found overlap of # cells: 137
+Iteration 1: Found overlap of # cells: 3
+Iteration 2: Found overlap of # cells: 0
+Found all overlapping cells
+Detected cells after cleaning: 402
+Detected cells before cleaning: 568
+Initializing Cell-Postprocessor
+Finding edge-cells for merging
+Removal of cells detected multiple times
+Iteration 0: Found overlap of # cells: 137
+Iteration 1: Found overlap of # cells: 9
+Iteration 2: Found overlap of # cells: 1
+Iteration 3: Found overlap of # cells: 0
+Found all overlapping cells
+Detected cells after cleaning: 323
+Detected cells before cleaning: 1138
+Initializing Cell-Postprocessor
+Finding edge-cells for merging
+Removal of cells detected multiple times
+Iteration 0: Found overlap of # cells: 241
+Iteration 1: Found overlap of # cells: 5
+Iteration 2: Found overlap of # cells: 0
+Found all overlapping cells
+Detected cells after cleaning: 679
+Detected cells before cleaning: 989
+Initializing Cell-Postprocessor
+Finding edge-cells for merging
+Removal of cells detected multiple times
+Iteration 0: Found overlap of # cells: 201
+Iteration 1: Found overlap of # cells: 6
+Iteration 2: Found overlap of # cells: 0
+Found all overlapping cells
+Detected cells after cleaning: 594
+******************** Binary Dataset metrics ********************
+Binary-Cell-Dice-Mean:    0.7633816003799438
+Binary-Cell-Jacard-Mean:  0.6286436319351196
+bPQ:                      0.5223803863567581
+bDQ:                      0.7090671717571826
+bSQ:                      0.7315248432676597
+f1_detection:             0.8218095812467773
+precision_detection:      0.7494342250110199
+recall_detection:         0.9186466565097824
