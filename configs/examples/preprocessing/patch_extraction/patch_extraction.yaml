@@ -47,7 +47,6 @@ overlapping_labels:           # Per default, labels (annotations) are mutually e
 # macenko stain normalization
 normalize_stains:             # Uses Macenko normalization on a portion of the whole slide images. [bool][Optional, defaults to False]
 normalization_vector_json:    # The path to a JSON file where the normalization vectors are stored. [str][Optional, defaults to None]
-adjust_brightness:            # Normalize brightness in a batch by clipping to 90 percent. Not recommended, but kept for legacy reasons. [bool][Optional, defaults to False]
 
 # finding patches
 min_intersection_ratio:       # The minimum intersection between the tissue mask and the patch.

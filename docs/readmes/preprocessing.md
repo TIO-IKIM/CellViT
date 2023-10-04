@@ -1,7 +1,5 @@
 # Preprocessing
 
-# TODO: Has to be adapted
-
 The CLI of the main script for patch extraction ([main_extraction](preprocessing/main_extraction.py)) is as follows:
 ```bash
 python3 main_extraction.py [-h]

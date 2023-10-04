@@ -36,6 +36,7 @@ data:
   val_folds:                # List of fold Numbers to use for validation [list[int]]
   test_folds:               # List of fold Numbers to use for final testing [list[int]]
   num_nuclei_classes:       # Number of different nuclei classes (including background!, e.g. 5 nuclei classes + background = 6) [int]
+  input_shape:              # Input shape of data. [int] [Optional, defaults to 256]
 
 # model options
 model:
@@ -47,7 +48,9 @@ model:
   depth:                    # Number of Transformer Blocks to use - typical values are 12 (ViT-S), 12 (ViT-B), 24 (ViT-L), 32 (ViT-H) [int]
   num_heads:                # Number of attention heads for MHA - typical values are 6 (ViT-S), 12 (ViT-B), 16 (ViT-L), 16 (ViT-H) [int]
   extract_layers:           # List of layers to extract for skip connections - starting from 1 with a maximum value equals the depth [int]
-  shared_skip_connections:  # If skip connections should be share accross all upsampling branches [bool] [Optional, defaults to False]
+  shared_decoders:          # If decoder networks should be shared except for the heads. [bool] [Optional, defaults to False]
+  regression_loss:          # If regression loss should be used for binary prediction head. [bool] [Optional, defaults to False]
+
 
 # loss function settings (best shown by an example). See all implemented loss functions in base_ml.base_loss module
 loss:
@@ -120,4 +123,7 @@ transformations:
   normalize:                # Normalization
     mean:                   # Mean for Normalizing, default to (0.5, 0.5, 0.5) [list[float], between 0 and 1 for each entry]
     std:                    # STD for Normalizing, default to (0.5, 0.5, 0.5) [list[float], between 0 and 1 for each entry]
+
+eval_checkpoint:            # Either select "best_checkpoint.pth", "latest_checkpoint.pth" or one of the intermediate checkpoint names, e.g., "checkpoint_100.pth"
+
 ```
