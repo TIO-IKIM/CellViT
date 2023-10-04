@@ -6,16 +6,13 @@
 # University Medicine Essen
 
 import json
-import multiprocessing
 from json.decoder import JSONDecodeError
 from pathlib import Path
-from typing import Dict, List, Tuple, Union
+from typing import List, Union
 
 import numpy as np
 import yaml
 from PIL import Image
-
-from preprocessing.patch_extraction import logger
 
 
 class Storage:
@@ -98,11 +95,6 @@ class Storage:
         self.save_annotation_mask(mask_images_annotations)
         self.save_thumbnails(thumbnails)
 
-        # patch_stats
-        patch_distribution = self.metadata["label_map"]
-        self.patch_distribution = {v: 0 for k, v in patch_distribution.items()}
-        self.patch_list = []
-
     def save_meta_data(self) -> None:
         """
         Store arbitrary meta data in a yaml file on wsi output folder
@@ -158,106 +150,48 @@ class Storage:
             thumbnail.save(str(thumbnail_path))
         thumbnails["thumbnail"].save(self.wsi_path / "thumbnail.png")
 
-    def save(
-        self,
-        patch_result: Tuple[
-            List[np.ndarray], List[dict], List[np.ndarray], List[Dict[int, np.ndarray]]
-        ],
-    ) -> None:
-        """Saving a batch of patches with metadata and optional masks and context patches.
+    def save_elem_to_disk(self, patch_result) -> None:
+        patch, patch_metadata, patch_mask, context = patch_result
 
-        Args:
-            patch_result (Tuple[List[np.ndarray], List[dict], List[np.ndarray], List[Dict[int, np.ndarray]]]):
+        row = patch_metadata["row"]
+        col = patch_metadata["col"]
+        patch_fname = f"{self.wsi_name}_{row}_{col}.png"
+        patch_yaml_name = f"{self.wsi_name}_{row}_{col}.yaml"
 
-                Tuple containing:
-                * List[np.ndarray]: List with patches as numpy arrays with shape (patch_size, patch_size, 3)
-                * List[dict]: List with metadata dictionary for each patch
-                * List[np.ndarray]: List with patch masks if store_masks is True. Shape is (256, 256) for non-overlapping labels
-                    and (256, 256, num_classes) for overlapping labels.
-                * List[Dict[int, np.ndarray]: Each key is a downsampling value for the context patch
-                    and the entries are numpy array for context patches with shape [patch_size, patch_size, 3].
-        """
-        patches, patch_metadata, patch_masks, context = patch_result
-        logger.debug(
-            f"Process {multiprocessing.current_process().name} is saving {len(patches)}."
-        )
+        # Save the patch
+        Image.fromarray(patch).save(self.patches_path / patch_fname)
 
-        self.save_to_disk(
-            patches,
-            patch_metadata,
-            patch_masks if len(patch_masks) > 0 else None,
-            context,
-        )
+        # Save the metadata
+        with open(self.patch_metadata_path / patch_yaml_name, "w") as yaml_file:
+            yaml.dump(
+                patch_metadata, yaml_file, default_flow_style=False, sort_keys=False
+            )
 
-    def save_to_disk(
-        self,
-        patches: List[np.ndarray],
-        patches_metadata: List[dict],
-        patch_masks: List[np.ndarray] = None,
-        contexts: List[Dict[int, np.ndarray]] = None,
-    ) -> None:
-        """Saving the unpacked batch
+        # Save the Mask
+        if patch_mask is not None and self.store_masks:
+            np.save(
+                str(self.masks_path / f"{Path(patch_fname).stem}_mask.npy"),
+                patch_mask.squeeze(),
+            )
 
-        Args:
-            patches (List[np.ndarray]): List with patches as numpy arrays with shape (patch_size, patch_size, 3)
-            patches_metadata (List[dict]): List with metadata dictionary for each patch
-            patch_masks (List[np.ndarray], optional): List with patch masks if store_masks is True. Shape is (256, 256) for non-overlapping labels
-                    and (256, 256, num_classes) for overlapping labels. Defaults to None.
-            contexts (List[Dict[int, np.ndarray]], optional): Each key is a downsampling value for the context patch
-                    and the entries are numpy array for context patches with shape [patch_size, patch_size, 3]. Defaults to None.
-        """
-        # zip is not an option, since the contexts structure is different
-        for i, patch in enumerate(patches):
-            # Construct the new PNG filename
-            patch_metadata = patches_metadata[i]
-            row = patch_metadata["row"]
-            col = patch_metadata["col"]
-            patch_fname = f"{self.wsi_name}_{row}_{col}.png"
-            patch_yaml_name = f"{self.wsi_name}_{row}_{col}.yaml"
-
-            # Save the patch
-            Image.fromarray(patch).save(self.patches_path / patch_fname)
-
-            # Save the metadata
-            with open(self.patch_metadata_path / patch_yaml_name, "w") as yaml_file:
-                yaml.dump(
-                    patch_metadata, yaml_file, default_flow_style=False, sort_keys=False
+        # Save context patches if non empty
+        if self.save_context:
+            patch_metadata["context_scales"] = {}
+            for scale, context_images in context.items():
+                context_name = f"{Path(patch_fname).stem}_context_{scale}.png"
+                Image.fromarray(context_images).save(
+                    self.context_path / str(scale) / context_name
                 )
+                patch_metadata["context_scales"][scale] = f"./context/{context_name}"
 
-            # Save the Mask
-            if patch_masks is not None and self.store_masks:
-                np.save(
-                    str(self.masks_path / f"{Path(patch_fname).stem}_mask.npy"),
-                    patch_masks[i].squeeze(),
-                )
-                patch_metadata["mask"] = f"./masks/{Path(patch_fname).stem}_mask.npy"
-
-            # increase patch_distribution count
-            for patch_label in patch_metadata["intersected_labels"]:
-                self.patch_distribution[patch_label] += 1
-
-            patch_metadata.pop("wsi_metadata")
-            patch_metadata["metadata_path"] = f"./metadata/{patch_yaml_name}"
-
-            # Save context patches if non empty
-            if self.save_context:
-                patch_metadata["context_scales"] = {}
-                for scale, context_images in contexts.items():
-                    context_name = f"{Path(patch_fname).stem}_context_{scale}.png"
-                    Image.fromarray(context_images[i]).save(
-                        self.context_path / str(scale) / context_name
-                    )
-                    patch_metadata["context_scales"][
-                        scale
-                    ] = f"./context/{context_name}"
-
-            # append all metadata to WSI data
-            self.patch_list.append({patch_fname: patch_metadata})
-
-    def clean_up(self):
+    def clean_up(self, patch_distribution: dict, patch_metadata_list: list[dict]):
         """Clean-Up function, called after WSI has been processed. Appends WSI to `processed.json` file
         and generated a metadata file in root folder called `patch_metadata.json` with merged metadata for all patches
         in one file.
+
+        Args:
+            patch_distribution (dict): Patch distrubtion dict. Keys: Lables, values: number of patches in class
+            patch_metadata_list (list[dict]): List with all patch metadata to store
         """
         try:
             with open(str(self.output_path / "processed.json"), "r") as processed_list:
@@ -272,9 +206,9 @@ class Storage:
             json.dump(processed_files, processed_list, indent=2)
 
         # count patches per class
-        self.metadata["patch_distribution"] = self.patch_distribution
+        self.metadata["patch_distribution"] = patch_distribution
         self.save_meta_data()
 
         # save patch metadata file
         with open(self.wsi_path / "patch_metadata.json", "w") as outfile:
-            json.dump(self.patch_list, outfile, indent=2)
+            json.dump(patch_metadata_list, outfile, indent=2)

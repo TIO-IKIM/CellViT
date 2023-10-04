@@ -273,7 +273,6 @@ class PatchEmbed(nn.Module):
         self.proj = nn.Conv2d(
             in_chans, embed_dim, kernel_size=patch_size, stride=patch_size
         )
-        # TODO: check where position embedding is applied
 
     def forward(self, x):
         B, C, H, W = x.shape
@@ -620,16 +619,6 @@ class ViT256_16(nn.Module):
         features_cls256 = torch.vstack(features_cls256)
         assert features_cls256.shape[0] == num_patches
         assert features_cls256.shape[1] == 384
-        # TODO: check this
-        # try:
-        #     features_cls256_t = (
-        #         features_cls256.reshape(w_256, h_256, 384)
-        #         .transpose(0, 1)
-        #         .transpose(0, 2)
-        #         .unsqueeze(dim=0)
-        #     )
-        # except:
-        #     pass
 
         return features_cls256
 

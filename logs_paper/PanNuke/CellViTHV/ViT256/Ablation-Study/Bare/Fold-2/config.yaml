@@ -1,0 +1,121 @@
+logging:
+  mode: online
+  project: Cell-Segmentation
+  notes: CellViT-256-Bare
+  log_comment: CellViT-256-Bare-Fold-2
+  tags:
+  - Fold-2
+  - ViT256
+  - Bare
+  wandb_dir: ./CellViT/results/PanNuke
+  level: Debug
+  group: CellViT256-Bare
+random_seed: 19
+gpu: 0
+data:
+  dataset: PanNuke
+  dataset_path: ./PanNuke/digitalhistologyhub
+  train_folds:
+  - 1
+  val_folds:
+  - 0
+  test_folds:
+  - 2
+  num_nuclei_classes: 6
+  num_tissue_classes: 19
+model:
+  backbone: ViT256
+  pretrained_encoder: ./models/pretrained/ViT-256/vit256_small_dino.pth
+  shared_skip_connections: true
+loss:
+  nuclei_binary_map:
+    focaltverskyloss:
+      loss_fn: FocalTverskyLoss
+      weight: 1
+    dice:
+      loss_fn: dice_loss
+      weight: 1
+  hv_map:
+    mse:
+      loss_fn: mse_loss_maps
+      weight: 2.5
+    msge:
+      loss_fn: msge_loss_maps
+      weight: 8
+  nuclei_type_map:
+    bce:
+      loss_fn: xentropy_loss
+      weight: 0.5
+    dice:
+      loss_fn: dice_loss
+      weight: 0.2
+    mcfocaltverskyloss:
+      loss_fn: MCFocalTverskyLoss
+      weight: 0.5
+      args:
+        num_classes: 6
+  tissue_types:
+    ce:
+      loss_fn: CrossEntropyLoss
+      weight: 0.1
+training:
+  drop_rate: 0
+  attn_drop_rate: 0.1
+  drop_path_rate: 0.1
+  batch_size: 16
+  epochs: 130
+  optimizer: AdamW
+  early_stopping_patience: 130
+  scheduler:
+    scheduler_type: exponential
+    hyperparameters:
+      gamma: 0.85
+  optimizer_hyperparameter:
+    betas:
+    - 0.85
+    - 0.95
+    lr: 0.0003
+    weight_decay: 0.0001
+  unfreeze_epoch: 25
+  mixed_precision: true
+transformations:
+  normalize:
+    mean:
+    - 0.5
+    - 0.5
+    - 0.5
+    std:
+    - 0.5
+    - 0.5
+    - 0.5
+eval_checkpoint: latest_checkpoint.pth
+run_sweep: false
+agent: null
+dataset_config:
+  tissue_types:
+    Adrenal_gland: 0
+    Bile-duct: 1
+    Bladder: 2
+    Breast: 3
+    Cervix: 4
+    Colon: 5
+    Esophagus: 6
+    HeadNeck: 7
+    Kidney: 8
+    Liver: 9
+    Lung: 10
+    Ovarian: 11
+    Pancreatic: 12
+    Prostate: 13
+    Skin: 14
+    Stomach: 15
+    Testis: 16
+    Thyroid: 17
+    Uterus: 18
+  nuclei_types:
+    Background: 0
+    Neoplastic: 1
+    Inflammatory: 2
+    Connective: 3
+    Dead: 4
+    Epithelial: 5

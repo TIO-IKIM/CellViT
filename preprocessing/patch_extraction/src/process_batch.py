@@ -14,7 +14,6 @@ import numpy as np
 from openslide import OpenSlide
 from PIL import Image
 from shapely.geometry import Polygon
-
 from preprocessing.patch_extraction import logger
 from preprocessing.patch_extraction.src.utils.patch_util import (
     DeepZoomGeneratorOS,
@@ -138,6 +137,7 @@ def process_batch(
                 overlap=overlap_context,  # (1-scale) * tile_size / 2,
                 limit_bounds=True,
             )
+    # patches_count = 0
 
     for row, col, _ in batch:
         # OpenSlide: Address of the tile within the level as a (column, row) tuple

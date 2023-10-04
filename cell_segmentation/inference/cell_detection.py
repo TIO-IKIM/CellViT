@@ -56,10 +56,12 @@ from datamodel.wsi_datamodel import WSI
 from models.segmentation.cell_segmentation.cellvit import (
     CellViT,
     CellViT256,
-    CellViT256Unshared,
     CellViTSAM,
-    CellViTSAMUnshared,
-    CellViTUnshared,
+)
+from models.segmentation.cell_segmentation.cellvit_shared import (
+    CellViT256Shared,
+    CellViTSAMShared,
+    CellViTShared,
 )
 from preprocessing.encoding.datasets.patched_wsi_inference import PatchedWSIInference
 from utils.file_handling import load_wsi_files_from_csv
@@ -90,7 +92,10 @@ TYPE_NUCLEI_DICT = {
 
 class CellSegmentationInference:
     def __init__(
-        self, model_path: Union[Path, str], gpu: int, mixed_precision: bool = False
+        self,
+        model_path: Union[Path, str],
+        gpu: int,
+        enforce_mixed_precision: bool = False,
     ) -> None:
         """Cell Segmentation Inference class.
 
@@ -99,15 +104,16 @@ class CellSegmentationInference:
         Args:
             model_path (Union[Path, str]): Path to model checkpoint
             gpu (int): CUDA GPU id to use
-            mixed_precision (bool, optional): Using PyTorch autocasting with dtype float16 to speed up inference. Also good for trained amp networks.
+            enforce_mixed_precision (bool, optional): Using PyTorch autocasting with dtype float16 to speed up inference. Also good for trained amp networks.
+                Can be used to enforce amp inference even for networks trained without amp. Otherwise, the network setting is used.
                 Defaults to False.
         """
         self.model_path = Path(model_path)
-        self.mixed_precision = mixed_precision
         self.device = f"cuda:{gpu}"
         self.__instantiate_logger()
         self.__load_model()
         self.__load_inference_transforms()
+        self.__setup_amp(enforce_mixed_precision=enforce_mixed_precision)
 
     def __instantiate_logger(self) -> None:
         """Instantiate logger
@@ -138,38 +144,38 @@ class CellSegmentationInference:
         self, model_type: str
     ) -> Union[
         CellViT,
-        CellViTUnshared,
+        CellViTShared,
         CellViT256,
-        CellViTUnshared,
+        CellViT256Shared,
         CellViTSAM,
-        CellViTSAMUnshared,
+        CellViTSAMShared,
     ]:
         """Return the trained model for inference
 
         Args:
             model_type (str): Name of the model. Must either be one of:
-                CellViT, CellViTUnshared, CellViT256, CellViT256Unshared, CellViTSAM, CellViTSAMUnshared
+                CellViT, CellViTShared, CellViT256, CellViT256Shared, CellViTSAM, CellViTSAMShared
 
         Returns:
-            Union[CellViT, CellViTUnshared, CellViT256, CellViT256Unshared, CellViTSAM, CellViTSAMUnshared]: Model
+            Union[CellViT, CellViTShared, CellViT256, CellViT256Shared, CellViTSAM, CellViTSAMShared]: Model
         """
         implemented_models = [
             "CellViT",
-            "CellViTUnshared",
+            "CellViTShared",
             "CellViT256",
-            "CellViT256Unshared",
+            "CellViT256Shared",
             "CellViTSAM",
-            "CellViTSAMUnshared",
+            "CellViTSAMShared",
         ]
         if model_type not in implemented_models:
             raise NotImplementedError(
                 f"Unknown model type. Please select one of {implemented_models}"
             )
-        if model_type in ["CellViT", "CellViTUnshared"]:
+        if model_type in ["CellViT", "CellViTShared"]:
             if model_type == "CellViT":
                 model_class = CellViT
-            elif model_type == "CellViTUnshared":
-                model_class = CellViTUnshared
+            elif model_type == "CellViTShared":
+                model_class = CellViTShared
             model = model_class(
                 num_nuclei_classes=self.run_conf["data"]["num_nuclei_classes"],
                 num_tissue_classes=self.run_conf["data"]["num_tissue_classes"],
@@ -178,28 +184,31 @@ class CellSegmentationInference:
                 depth=self.run_conf["model"]["depth"],
                 num_heads=self.run_conf["model"]["num_heads"],
                 extract_layers=self.run_conf["model"]["extract_layers"],
+                regression_loss=self.run_conf["model"].get("regression_loss", False),
             )
 
-        elif model_type in ["CellViT256", "CellViT256Unshared"]:
+        elif model_type in ["CellViT256", "CellViT256Shared"]:
             if model_type == "CellViT256":
                 model_class = CellViT256
-            elif model_type == "CellViTVIT256Unshared":
-                model_class = CellViT256Unshared
+            elif model_type == "CellViTVIT256Shared":
+                model_class = CellViT256Shared
             model = model_class(
                 model256_path=None,
                 num_nuclei_classes=self.run_conf["data"]["num_nuclei_classes"],
                 num_tissue_classes=self.run_conf["data"]["num_tissue_classes"],
+                regression_loss=self.run_conf["model"].get("regression_loss", False),
             )
-        elif model_type in ["CellViTSAM", "CellViTSAMUnshared"]:
+        elif model_type in ["CellViTSAM", "CellViTSAMShared"]:
             if model_type == "CellViTSAM":
                 model_class = CellViTSAM
-            elif model_type == "CellViTSAMUnshared":
-                model_class = CellViTSAMUnshared
+            elif model_type == "CellViTSAMShared":
+                model_class = CellViTSAMShared
             model = model_class(
                 model_path=None,
                 num_nuclei_classes=self.run_conf["data"]["num_nuclei_classes"],
                 num_tissue_classes=self.run_conf["data"]["num_tissue_classes"],
                 vit_structure=self.run_conf["model"]["backbone"],
+                regression_loss=self.run_conf["model"].get("regression_loss", False),
             )
         return model
 
@@ -217,6 +226,21 @@ class CellSegmentationInference:
         self.inference_transforms = T.Compose(
             [T.ToTensor(), T.Normalize(mean=mean, std=std)]
         )
+
+    def __setup_amp(self, enforce_mixed_precision: bool = False) -> None:
+        """Setup automated mixed precision (amp) for inference.
+
+        Args:
+            enforce_mixed_precision (bool, optional): Using PyTorch autocasting with dtype float16 to speed up inference. Also good for trained amp networks.
+                Can be used to enforce amp inference even for networks trained without amp. Otherwise, the network setting is used.
+                Defaults to False.
+        """
+        if enforce_mixed_precision:
+            self.mixed_precision = enforce_mixed_precision
+        else:
+            self.mixed_precision = self.run_conf["training"].get(
+                "mixed_precision", False
+            )
 
     def process_wsi(
         self,
@@ -286,11 +310,11 @@ class CellSegmentationInference:
                 metadata = batch[1]
                 if self.mixed_precision:
                     with torch.autocast(device_type="cuda", dtype=torch.float16):
-                        predictions_ = self.model.forward(patches, retrieve_tokens=True)
+                        predictions = self.model.forward(patches, retrieve_tokens=True)
                 else:
-                    predictions_ = self.model.forward(patches, retrieve_tokens=True)
+                    predictions = self.model.forward(patches, retrieve_tokens=True)
                 # reshape, apply softmax to segmentation maps
-                predictions = self.model.reshape_model_output(predictions_, self.device)
+                # predictions = self.model.reshape_model_output(predictions_, self.device)
                 instance_types, tokens = self.get_cell_predictions_with_tokens(
                     predictions, magnification=wsi.metadata["magnification"]
                 )
@@ -309,8 +333,10 @@ class CellSegmentationInference:
                     )
 
                     # calculate coordinate on highest magnifications
-                    wsi_scaling_factor = patch_metadata["wsi_metadata"]["downsampling"]
-                    patch_size = patch_metadata["wsi_metadata"]["patch_size"]
+                    # wsi_scaling_factor = patch_metadata["wsi_metadata"]["downsampling"]
+                    # patch_size = patch_metadata["wsi_metadata"]["patch_size"]
+                    wsi_scaling_factor = wsi.metadata["downsampling"]
+                    patch_size = wsi.metadata["patch_size"]
                     x_global = int(
                         patch_metadata["row"] * patch_size * wsi_scaling_factor
                         - (patch_metadata["row"] + 0.5) * overlap
@@ -465,18 +491,17 @@ class CellSegmentationInference:
                 * List[dict]: Network tokens on cpu device with shape (batch_size, num_tokens_h, num_tokens_w, embd_dim)
         """
         predictions["nuclei_binary_map"] = F.softmax(
-            predictions["nuclei_binary_map"], dim=-1
-        )
+            predictions["nuclei_binary_map"], dim=1
+        )  # shape: (batch_size, 2, H, W)
         predictions["nuclei_type_map"] = F.softmax(
-            predictions["nuclei_type_map"], dim=-1
-        )
-
+            predictions["nuclei_type_map"], dim=1
+        )  # shape: (batch_size, num_nuclei_classes, H, W)
         # get the instance types
         (
             _,
             instance_types,
         ) = self.model.calculate_instance_map(predictions, magnification=magnification)
-        # get the tokens
+
         tokens = predictions["tokens"].to("cpu")
 
         return instance_types, tokens
@@ -877,7 +902,7 @@ class InferenceWSIParser:
     def __init__(self) -> None:
         parser = argparse.ArgumentParser(
             formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-            description="Perform CellViT inference for given run-directory with model checkpoints and logs",
+            description="Perform CellViT inference for given run-directory with model checkpoints and logs. Just for CellViT, not for StarDist models",
         )
         requiredNamed = parser.add_argument_group("required named arguments")
         requiredNamed.add_argument(
@@ -896,9 +921,10 @@ class InferenceWSIParser:
             default=40,
         )
         parser.add_argument(
-            "--mixed_precision",
+            "--enforce_amp",
             action="store_true",
-            help="Whether to use mixed precision for inference. Default: False",
+            help="Whether to use mixed precision for inference (enforced). Otherwise network default training settings are used."
+            " Default: False",
         )
         parser.add_argument(
             "--batch_size",
@@ -1014,7 +1040,7 @@ if __name__ == "__main__":
     cell_segmentation = CellSegmentationInference(
         model_path=configuration["model"],
         gpu=configuration["gpu"],
-        mixed_precision=configuration["mixed_precision"],
+        enforce_mixed_precision=configuration["enforce_amp"],
     )
 
     if command.lower() == "process_wsi":
@@ -1047,6 +1073,12 @@ if __name__ == "__main__":
                 csv_path=configuration["filelist"],
                 wsi_extension=configuration["wsi_extension"],
             )
+            wsi_filelist = [
+                Path(configuration["wsi_paths"]) / f
+                if configuration["wsi_paths"] not in f
+                else Path(f)
+                for f in wsi_filelist
+            ]
         else:
             cell_segmentation.logger.info(
                 f"Loading all files from folder {configuration['wsi_paths']}. No filelist provided."
@@ -1060,6 +1092,7 @@ if __name__ == "__main__":
                 )
             ]
         for i, wsi_path in enumerate(wsi_filelist):
+            wsi_path = Path(wsi_path)
             wsi_name = wsi_path.stem
             patched_slide_path = Path(configuration["patch_dataset_path"]) / wsi_name
             cell_segmentation.logger.info(f"File {i+1}/{len(wsi_filelist)}: {wsi_name}")

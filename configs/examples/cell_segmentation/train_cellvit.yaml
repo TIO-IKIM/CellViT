@@ -24,13 +24,14 @@ gpu:                        # Number of GPU to run experiment on [int]
 
 # setting paths and dataset
 data:
-  dataset:                  # Name of dataset, currently supported: PanNuke [str]
+  dataset:                  # Name of dataset, currently supported: PanNuke, Conic. Select your dataset and the script will autoamtically select the corresponding experiment [str]
   dataset_path:             # Path to dataset, compare ./docs/readmes/pannuke.md for further details [str]
   train_folds: [...]        # List of fold Numbers to use for training [list[int]]
   val_split:                # Percentage of training set that should be used for validation. Either val_split or val_fold must be provided, not both. [float]
   val_folds:                # List of fold Numbers to use for validation [list[int]]
   test_folds:               # List of fold Numbers to use for final testing [list[int]]
   num_nuclei_classes:       # Number of different nuclei classes (including background!, e.g. 5 nuclei classes + background = 6) [int]
+  input_shape:              # Input shape of data. [int] [Optional, defaults to 256]
 
 # model options
 model:
@@ -42,7 +43,8 @@ model:
   depth:                    # Number of Transformer Blocks to use - typical values are 12 (ViT-S), 12 (ViT-B), 24 (ViT-L), 32 (ViT-H) [int]
   num_heads:                # Number of attention heads for MHA - typical values are 6 (ViT-S), 12 (ViT-B), 16 (ViT-L), 16 (ViT-H) [int]
   extract_layers:           # List of layers to extract for skip connections - starting from 1 with a maximum value equals the depth [int]
-  shared_skip_connections:  # If skip connections should be share accross all upsampling branches [bool] [Optional, defaults to False]
+  shared_decoders:          # If decoder networks should be shared except for the heads. [bool] [Optional, defaults to False]
+  regression_loss:          # If regression loss should be used for binary prediction head. [bool] [Optional, defaults to False]
 
 # loss function settings (best shown by an example). See all implemented loss functions in base_ml.base_loss module
 loss:
@@ -83,6 +85,7 @@ training:
   sampling_strategy:        # Sampling strategy. Implemented are "random", "cell", "tissue" and "cell+tissue" [str] [Optional, defaults to "random"]
   sampling_gamma:           # Gamma for balancing sampling. Must be between 0 (equal weights) and 1 (100% oversampling) [float] [Optional, defaults to 1]
   mixed_precision:          # Mixed precision Flag. [bool] [Optional, default False]
+  eval_every:               # Number of training epochs between every validation. If 1, alternating training and validation as commonly used. [int] [Optional, default 1]
 
 # transformations, here all options are given. Remove transformations by removing them from this section
 transformations:
@@ -116,3 +119,5 @@ transformations:
   normalize:                # Normalization
     mean:                   # Mean for Normalizing, default to (0.5, 0.5, 0.5) [list[float], between 0 and 1 for each entry]
     std:                    # STD for Normalizing, default to (0.5, 0.5, 0.5) [list[float], between 0 and 1 for each entry]
+
+eval_checkpoint:            # Either select "best_checkpoint.pth", "latest_checkpoint.pth" or one of the intermediate checkpoint names, e.g., "checkpoint_100.pth"

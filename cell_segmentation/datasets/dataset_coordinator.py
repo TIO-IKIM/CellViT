@@ -8,6 +8,7 @@
 from typing import Callable
 
 from torch.utils.data import Dataset
+from cell_segmentation.datasets.conic import CoNicDataset
 
 from cell_segmentation.datasets.pannuke import PanNukeDataset
 
@@ -19,7 +20,7 @@ def select_dataset(
 
     Args:
         dataset_name (str): Name of dataset to use.
-            Must be one of: [pannuke]
+            Must be one of: [pannuke, lizzard]
         split (str): Split to use.
             Must be one of: ["train", "val", "validation", "test"]
         dataset_config (dict): Dictionary with dataset configuration settings
@@ -49,6 +50,23 @@ def select_dataset(
             dataset_path=dataset_config["dataset_path"],
             folds=folds,
             transforms=transforms,
+            stardist=dataset_config.get("stardist", False),
+            regression=dataset_config.get("regression_loss", False),
+        )
+    elif dataset_name.lower() == "conic":
+        if split == "train":
+            folds = dataset_config["train_folds"]
+        if split == "val" or split == "validation":
+            folds = dataset_config["val_folds"]
+        if split == "test":
+            folds = dataset_config["test_folds"]
+        dataset = CoNicDataset(
+            dataset_path=dataset_config["dataset_path"],
+            folds=folds,
+            transforms=transforms,
+            stardist=dataset_config.get("stardist", False),
+            regression=dataset_config.get("regression_loss", False),
+            # TODO: Stardist and regression loss
         )
     else:
         raise NotImplementedError(f"Unknown dataset: {dataset_name}")

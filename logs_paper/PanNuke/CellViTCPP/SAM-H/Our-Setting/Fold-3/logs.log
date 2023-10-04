@@ -1,0 +1,1024 @@
+2023-09-23 03:22:33,008 [INFO] - Instantiated Logger. WandB init and config update finished.
+2023-09-23 03:22:33,101 [INFO] - Cuda devices: [<torch.cuda.device object at 0x7ee4518c6af0>]
+2023-09-23 03:22:33,102 [INFO] - Using GPU: cuda:0
+2023-09-23 03:22:33,102 [INFO] - Using device: cuda:0
+2023-09-23 03:22:33,103 [INFO] - Loss functions:
+2023-09-23 03:22:33,103 [INFO] - {'dist_map': {'bceweighted': {'loss_fn': BCEWithLogitsLoss(), 'weight': 1}}, 'stardist_map': {'L1LossWeighted': {'loss_fn': L1LossWeighted(), 'weight': 1}}, 'stardist_map_refined': {'L1LossWeighted': {'loss_fn': L1LossWeighted(), 'weight': 1}}, 'nuclei_type_map': {'bce': {'loss_fn': XentropyLoss(), 'weight': 0.5}, 'dice': {'loss_fn': DiceLoss(), 'weight': 0.2}, 'mcfocaltverskyloss': {'loss_fn': MCFocalTverskyLoss(), 'weight': 0.5}}}
+2023-09-23 03:22:45,430 [INFO] - Loaded CellViT-SAM model with backbone: SAM-H
+2023-09-23 03:22:45,433 [INFO] -
+Model: CellViTSAMCPP(
+  (encoder): ViTCellViTDeit(
+    (patch_embed): PatchEmbed(
+      (proj): Conv2d(3, 1280, kernel_size=(16, 16), stride=(16, 16))
+    )
+    (blocks): ModuleList(
+      (0-31): 32 x Block(
+        (norm1): LayerNorm((1280,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=1280, out_features=3840, bias=True)
+          (proj): Linear(in_features=1280, out_features=1280, bias=True)
+        )
+        (norm2): LayerNorm((1280,), eps=1e-06, elementwise_affine=True)
+        (mlp): MLPBlock(
+          (lin1): Linear(in_features=1280, out_features=5120, bias=True)
+          (lin2): Linear(in_features=5120, out_features=1280, bias=True)
+          (act): GELU(approximate='none')
+        )
+      )
+    )
+    (neck): Sequential(
+      (0): Conv2d(1280, 256, kernel_size=(1, 1), stride=(1, 1), bias=False)
+      (1): LayerNorm2d()
+      (2): Conv2d(256, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+      (3): LayerNorm2d()
+    )
+  )
+  (decoder0): Sequential(
+    (0): Conv2DBlock(
+      (block): Sequential(
+        (0): Conv2d(3, 32, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+        (1): BatchNorm2d(32, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (2): ReLU(inplace=True)
+        (3): Dropout(p=0, inplace=False)
+      )
+    )
+    (1): Conv2DBlock(
+      (block): Sequential(
+        (0): Conv2d(32, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+        (1): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (2): ReLU(inplace=True)
+        (3): Dropout(p=0, inplace=False)
+      )
+    )
+  )
+  (decoder1): Sequential(
+    (0): Deconv2DBlock(
+      (block): Sequential(
+        (0): ConvTranspose2d(1280, 512, kernel_size=(2, 2), stride=(2, 2))
+        (1): Conv2d(512, 512, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+        (2): BatchNorm2d(512, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (3): ReLU(inplace=True)
+        (4): Dropout(p=0, inplace=False)
+      )
+    )
+    (1): Deconv2DBlock(
+      (block): Sequential(
+        (0): ConvTranspose2d(512, 256, kernel_size=(2, 2), stride=(2, 2))
+        (1): Conv2d(256, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+        (2): BatchNorm2d(256, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (3): ReLU(inplace=True)
+        (4): Dropout(p=0, inplace=False)
+      )
+    )
+    (2): Deconv2DBlock(
+      (block): Sequential(
+        (0): ConvTranspose2d(256, 128, kernel_size=(2, 2), stride=(2, 2))
+        (1): Conv2d(128, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+        (2): BatchNorm2d(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (3): ReLU(inplace=True)
+        (4): Dropout(p=0, inplace=False)
+      )
+    )
+  )
+  (decoder2): Sequential(
+    (0): Deconv2DBlock(
+      (block): Sequential(
+        (0): ConvTranspose2d(1280, 512, kernel_size=(2, 2), stride=(2, 2))
+        (1): Conv2d(512, 512, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+        (2): BatchNorm2d(512, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (3): ReLU(inplace=True)
+        (4): Dropout(p=0, inplace=False)
+      )
+    )
+    (1): Deconv2DBlock(
+      (block): Sequential(
+        (0): ConvTranspose2d(512, 256, kernel_size=(2, 2), stride=(2, 2))
+        (1): Conv2d(256, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+        (2): BatchNorm2d(256, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (3): ReLU(inplace=True)
+        (4): Dropout(p=0, inplace=False)
+      )
+    )
+  )
+  (decoder3): Sequential(
+    (0): Deconv2DBlock(
+      (block): Sequential(
+        (0): ConvTranspose2d(1280, 512, kernel_size=(2, 2), stride=(2, 2))
+        (1): Conv2d(512, 512, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+        (2): BatchNorm2d(512, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (3): ReLU(inplace=True)
+        (4): Dropout(p=0, inplace=False)
+      )
+    )
+  )
+  (stardist_decoder): Sequential(
+    (bottleneck_upsampler): ConvTranspose2d(1280, 512, kernel_size=(2, 2), stride=(2, 2))
+    (decoder3_upsampler): Sequential(
+      (0): Conv2DBlock(
+        (block): Sequential(
+          (0): Conv2d(1024, 512, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+          (1): BatchNorm2d(512, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+          (2): ReLU(inplace=True)
+          (3): Dropout(p=0, inplace=False)
+        )
+      )
+      (1): Conv2DBlock(
+        (block): Sequential(
+          (0): Conv2d(512, 512, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+          (1): BatchNorm2d(512, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+          (2): ReLU(inplace=True)
+          (3): Dropout(p=0, inplace=False)
+        )
+      )
+      (2): Conv2DBlock(
+        (block): Sequential(
+          (0): Conv2d(512, 512, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+          (1): BatchNorm2d(512, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+          (2): ReLU(inplace=True)
+          (3): Dropout(p=0, inplace=False)
+        )
+      )
+      (3): ConvTranspose2d(512, 256, kernel_size=(2, 2), stride=(2, 2))
+    )
+    (decoder2_upsampler): Sequential(
+      (0): Conv2DBlock(
+        (block): Sequential(
+          (0): Conv2d(512, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+          (1): BatchNorm2d(256, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+          (2): ReLU(inplace=True)
+          (3): Dropout(p=0, inplace=False)
+        )
+      )
+      (1): Conv2DBlock(
+        (block): Sequential(
+          (0): Conv2d(256, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+          (1): BatchNorm2d(256, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+          (2): ReLU(inplace=True)
+          (3): Dropout(p=0, inplace=False)
+        )
+      )
+      (2): ConvTranspose2d(256, 128, kernel_size=(2, 2), stride=(2, 2))
+    )
+    (decoder1_upsampler): Sequential(
+      (0): Conv2DBlock(
+        (block): Sequential(
+          (0): Conv2d(256, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+          (1): BatchNorm2d(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+          (2): ReLU(inplace=True)
+          (3): Dropout(p=0, inplace=False)
+        )
+      )
+      (1): Conv2DBlock(
+        (block): Sequential(
+          (0): Conv2d(128, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+          (1): BatchNorm2d(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+          (2): ReLU(inplace=True)
+          (3): Dropout(p=0, inplace=False)
+        )
+      )
+      (2): ConvTranspose2d(128, 64, kernel_size=(2, 2), stride=(2, 2))
+    )
+    (decoder0_header): Sequential(
+      (0): Conv2DBlock(
+        (block): Sequential(
+          (0): Conv2d(128, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+          (1): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+          (2): ReLU(inplace=True)
+          (3): Dropout(p=0, inplace=False)
+        )
+      )
+      (1): Conv2DBlock(
+        (block): Sequential(
+          (0): Conv2d(64, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+          (1): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+          (2): ReLU(inplace=True)
+          (3): Dropout(p=0, inplace=False)
+        )
+      )
+      (2): Conv2d(64, 32, kernel_size=(1, 1), stride=(1, 1))
+    )
+  )
+  (dist_decoder): Sequential(
+    (bottleneck_upsampler): ConvTranspose2d(1280, 512, kernel_size=(2, 2), stride=(2, 2))
+    (decoder3_upsampler): Sequential(
+      (0): Conv2DBlock(
+        (block): Sequential(
+          (0): Conv2d(1024, 512, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+          (1): BatchNorm2d(512, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+          (2): ReLU(inplace=True)
+          (3): Dropout(p=0, inplace=False)
+        )
+      )
+      (1): Conv2DBlock(
+        (block): Sequential(
+          (0): Conv2d(512, 512, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+          (1): BatchNorm2d(512, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+          (2): ReLU(inplace=True)
+          (3): Dropout(p=0, inplace=False)
+        )
+      )
+      (2): Conv2DBlock(
+        (block): Sequential(
+          (0): Conv2d(512, 512, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+          (1): BatchNorm2d(512, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+          (2): ReLU(inplace=True)
+          (3): Dropout(p=0, inplace=False)
+        )
+      )
+      (3): ConvTranspose2d(512, 256, kernel_size=(2, 2), stride=(2, 2))
+    )
+    (decoder2_upsampler): Sequential(
+      (0): Conv2DBlock(
+        (block): Sequential(
+          (0): Conv2d(512, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+          (1): BatchNorm2d(256, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+          (2): ReLU(inplace=True)
+          (3): Dropout(p=0, inplace=False)
+        )
+      )
+      (1): Conv2DBlock(
+        (block): Sequential(
+          (0): Conv2d(256, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+          (1): BatchNorm2d(256, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+          (2): ReLU(inplace=True)
+          (3): Dropout(p=0, inplace=False)
+        )
+      )
+      (2): ConvTranspose2d(256, 128, kernel_size=(2, 2), stride=(2, 2))
+    )
+    (decoder1_upsampler): Sequential(
+      (0): Conv2DBlock(
+        (block): Sequential(
+          (0): Conv2d(256, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+          (1): BatchNorm2d(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+          (2): ReLU(inplace=True)
+          (3): Dropout(p=0, inplace=False)
+        )
+      )
+      (1): Conv2DBlock(
+        (block): Sequential(
+          (0): Conv2d(128, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+          (1): BatchNorm2d(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+          (2): ReLU(inplace=True)
+          (3): Dropout(p=0, inplace=False)
+        )
+      )
+      (2): ConvTranspose2d(128, 64, kernel_size=(2, 2), stride=(2, 2))
+    )
+    (decoder0_header): Sequential(
+      (0): Conv2DBlock(
+        (block): Sequential(
+          (0): Conv2d(128, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+          (1): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+          (2): ReLU(inplace=True)
+          (3): Dropout(p=0, inplace=False)
+        )
+      )
+      (1): Conv2DBlock(
+        (block): Sequential(
+          (0): Conv2d(64, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+          (1): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+          (2): ReLU(inplace=True)
+          (3): Dropout(p=0, inplace=False)
+        )
+      )
+      (2): Conv2d(64, 32, kernel_size=(1, 1), stride=(1, 1))
+    )
+  )
+  (nuclei_type_maps_decoder): Sequential(
+    (bottleneck_upsampler): ConvTranspose2d(1280, 512, kernel_size=(2, 2), stride=(2, 2))
+    (decoder3_upsampler): Sequential(
+      (0): Conv2DBlock(
+        (block): Sequential(
+          (0): Conv2d(1024, 512, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+          (1): BatchNorm2d(512, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+          (2): ReLU(inplace=True)
+          (3): Dropout(p=0, inplace=False)
+        )
+      )
+      (1): Conv2DBlock(
+        (block): Sequential(
+          (0): Conv2d(512, 512, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+          (1): BatchNorm2d(512, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+          (2): ReLU(inplace=True)
+          (3): Dropout(p=0, inplace=False)
+        )
+      )
+      (2): Conv2DBlock(
+        (block): Sequential(
+          (0): Conv2d(512, 512, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+          (1): BatchNorm2d(512, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+          (2): ReLU(inplace=True)
+          (3): Dropout(p=0, inplace=False)
+        )
+      )
+      (3): ConvTranspose2d(512, 256, kernel_size=(2, 2), stride=(2, 2))
+    )
+    (decoder2_upsampler): Sequential(
+      (0): Conv2DBlock(
+        (block): Sequential(
+          (0): Conv2d(512, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+          (1): BatchNorm2d(256, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+          (2): ReLU(inplace=True)
+          (3): Dropout(p=0, inplace=False)
+        )
+      )
+      (1): Conv2DBlock(
+        (block): Sequential(
+          (0): Conv2d(256, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+          (1): BatchNorm2d(256, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+          (2): ReLU(inplace=True)
+          (3): Dropout(p=0, inplace=False)
+        )
+      )
+      (2): ConvTranspose2d(256, 128, kernel_size=(2, 2), stride=(2, 2))
+    )
+    (decoder1_upsampler): Sequential(
+      (0): Conv2DBlock(
+        (block): Sequential(
+          (0): Conv2d(256, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+          (1): BatchNorm2d(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+          (2): ReLU(inplace=True)
+          (3): Dropout(p=0, inplace=False)
+        )
+      )
+      (1): Conv2DBlock(
+        (block): Sequential(
+          (0): Conv2d(128, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+          (1): BatchNorm2d(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+          (2): ReLU(inplace=True)
+          (3): Dropout(p=0, inplace=False)
+        )
+      )
+      (2): ConvTranspose2d(128, 64, kernel_size=(2, 2), stride=(2, 2))
+    )
+    (decoder0_header): Sequential(
+      (0): Conv2DBlock(
+        (block): Sequential(
+          (0): Conv2d(128, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+          (1): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+          (2): ReLU(inplace=True)
+          (3): Dropout(p=0, inplace=False)
+        )
+      )
+      (1): Conv2DBlock(
+        (block): Sequential(
+          (0): Conv2d(64, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+          (1): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+          (2): ReLU(inplace=True)
+          (3): Dropout(p=0, inplace=False)
+        )
+      )
+      (2): Conv2d(64, 32, kernel_size=(1, 1), stride=(1, 1))
+    )
+  )
+  (stardist_head): Conv2d(32, 32, kernel_size=(1, 1), stride=(1, 1), bias=False)
+  (dist_head): Conv2d(32, 1, kernel_size=(1, 1), stride=(1, 1), bias=False)
+  (type_head): Conv2d(32, 6, kernel_size=(1, 1), stride=(1, 1), bias=False)
+  (classifier_head): Linear(in_features=256, out_features=19, bias=True)
+  (conv_0_confidence): Conv2d(32, 32, kernel_size=(1, 1), stride=(1, 1), bias=False)
+  (conv_1_confidence): Conv2d(6, 6, kernel_size=(1, 1), stride=(1, 1))
+  (sampling_features): SamplingFeatures()
+  (final_activation_ray): ReLU()
+)
+2023-09-23 03:22:47,788 [INFO] -
+===============================================================================================
+Layer (type:depth-idx)                        Output Shape              Param #
+===============================================================================================
+CellViTSAMCPP                                 [1, 19]                   15,079,520
+├─ViTCellViTDeit: 1-1                         [1, 256]                  5,242,880
+│    └─PatchEmbed: 2-1                        [1, 16, 16, 1280]         --
+│    │    └─Conv2d: 3-1                       [1, 1280, 16, 16]         (984,320)
+│    └─ModuleList: 2-2                        --                        --
+│    │    └─Block: 3-2                        [1, 16, 16, 1280]         (19,681,760)
+│    │    └─Block: 3-3                        [1, 16, 16, 1280]         (19,681,760)
+│    │    └─Block: 3-4                        [1, 16, 16, 1280]         (19,681,760)
+│    │    └─Block: 3-5                        [1, 16, 16, 1280]         (19,681,760)
+│    │    └─Block: 3-6                        [1, 16, 16, 1280]         (19,681,760)
+│    │    └─Block: 3-7                        [1, 16, 16, 1280]         (19,681,760)
+│    │    └─Block: 3-8                        [1, 16, 16, 1280]         (19,681,760)
+│    │    └─Block: 3-9                        [1, 16, 16, 1280]         (19,697,760)
+│    │    └─Block: 3-10                       [1, 16, 16, 1280]         (19,681,760)
+│    │    └─Block: 3-11                       [1, 16, 16, 1280]         (19,681,760)
+│    │    └─Block: 3-12                       [1, 16, 16, 1280]         (19,681,760)
+│    │    └─Block: 3-13                       [1, 16, 16, 1280]         (19,681,760)
+│    │    └─Block: 3-14                       [1, 16, 16, 1280]         (19,681,760)
+│    │    └─Block: 3-15                       [1, 16, 16, 1280]         (19,681,760)
+│    │    └─Block: 3-16                       [1, 16, 16, 1280]         (19,681,760)
+│    │    └─Block: 3-17                       [1, 16, 16, 1280]         (19,697,760)
+│    │    └─Block: 3-18                       [1, 16, 16, 1280]         (19,681,760)
+│    │    └─Block: 3-19                       [1, 16, 16, 1280]         (19,681,760)
+│    │    └─Block: 3-20                       [1, 16, 16, 1280]         (19,681,760)
+│    │    └─Block: 3-21                       [1, 16, 16, 1280]         (19,681,760)
+│    │    └─Block: 3-22                       [1, 16, 16, 1280]         (19,681,760)
+│    │    └─Block: 3-23                       [1, 16, 16, 1280]         (19,681,760)
+│    │    └─Block: 3-24                       [1, 16, 16, 1280]         (19,681,760)
+│    │    └─Block: 3-25                       [1, 16, 16, 1280]         (19,697,760)
+│    │    └─Block: 3-26                       [1, 16, 16, 1280]         (19,681,760)
+│    │    └─Block: 3-27                       [1, 16, 16, 1280]         (19,681,760)
+│    │    └─Block: 3-28                       [1, 16, 16, 1280]         (19,681,760)
+│    │    └─Block: 3-29                       [1, 16, 16, 1280]         (19,681,760)
+│    │    └─Block: 3-30                       [1, 16, 16, 1280]         (19,681,760)
+│    │    └─Block: 3-31                       [1, 16, 16, 1280]         (19,681,760)
+│    │    └─Block: 3-32                       [1, 16, 16, 1280]         (19,681,760)
+│    │    └─Block: 3-33                       [1, 16, 16, 1280]         (19,697,760)
+│    └─Sequential: 2-3                        [1, 256, 16, 16]          --
+│    │    └─Conv2d: 3-34                      [1, 256, 16, 16]          (327,680)
+│    │    └─LayerNorm2d: 3-35                 [1, 256, 16, 16]          (512)
+│    │    └─Conv2d: 3-36                      [1, 256, 16, 16]          (589,824)
+│    │    └─LayerNorm2d: 3-37                 [1, 256, 16, 16]          (512)
+├─Sequential: 1-10                            --                        (recursive)
+│    └─ConvTranspose2d: 2-4                   [1, 512, 32, 32]          2,621,952
+├─Sequential: 1-3                             [1, 512, 32, 32]          --
+│    └─Deconv2DBlock: 2-5                     [1, 512, 32, 32]          --
+│    │    └─Sequential: 3-38                  [1, 512, 32, 32]          4,982,784
+├─Sequential: 1-10                            --                        (recursive)
+│    └─Sequential: 2-6                        [1, 256, 64, 64]          --
+│    │    └─Conv2DBlock: 3-39                 [1, 512, 32, 32]          4,720,128
+│    │    └─Conv2DBlock: 3-40                 [1, 512, 32, 32]          2,360,832
+│    │    └─Conv2DBlock: 3-41                 [1, 512, 32, 32]          2,360,832
+│    │    └─ConvTranspose2d: 3-42             [1, 256, 64, 64]          524,544
+├─Sequential: 1-5                             [1, 256, 64, 64]          --
+│    └─Deconv2DBlock: 2-7                     [1, 512, 32, 32]          --
+│    │    └─Sequential: 3-43                  [1, 512, 32, 32]          4,982,784
+│    └─Deconv2DBlock: 2-8                     [1, 256, 64, 64]          --
+│    │    └─Sequential: 3-44                  [1, 256, 64, 64]          1,115,136
+├─Sequential: 1-10                            --                        (recursive)
+│    └─Sequential: 2-9                        [1, 128, 128, 128]        --
+│    │    └─Conv2DBlock: 3-45                 [1, 256, 64, 64]          1,180,416
+│    │    └─Conv2DBlock: 3-46                 [1, 256, 64, 64]          590,592
+│    │    └─ConvTranspose2d: 3-47             [1, 128, 128, 128]        131,200
+├─Sequential: 1-7                             [1, 128, 128, 128]        --
+│    └─Deconv2DBlock: 2-10                    [1, 512, 32, 32]          --
+│    │    └─Sequential: 3-48                  [1, 512, 32, 32]          4,982,784
+│    └─Deconv2DBlock: 2-11                    [1, 256, 64, 64]          --
+│    │    └─Sequential: 3-49                  [1, 256, 64, 64]          1,115,136
+│    └─Deconv2DBlock: 2-12                    [1, 128, 128, 128]        --
+│    │    └─Sequential: 3-50                  [1, 128, 128, 128]        279,040
+├─Sequential: 1-10                            --                        (recursive)
+│    └─Sequential: 2-13                       [1, 64, 256, 256]         --
+│    │    └─Conv2DBlock: 3-51                 [1, 128, 128, 128]        295,296
+│    │    └─Conv2DBlock: 3-52                 [1, 128, 128, 128]        147,840
+│    │    └─ConvTranspose2d: 3-53             [1, 64, 256, 256]         32,832
+├─Sequential: 1-9                             [1, 64, 256, 256]         --
+│    └─Conv2DBlock: 2-14                      [1, 32, 256, 256]         --
+│    │    └─Sequential: 3-54                  [1, 32, 256, 256]         960
+│    └─Conv2DBlock: 2-15                      [1, 64, 256, 256]         --
+│    │    └─Sequential: 3-55                  [1, 64, 256, 256]         18,624
+├─Sequential: 1-10                            --                        (recursive)
+│    └─Sequential: 2-16                       [1, 32, 256, 256]         --
+│    │    └─Conv2DBlock: 3-56                 [1, 64, 256, 256]         73,920
+│    │    └─Conv2DBlock: 3-57                 [1, 64, 256, 256]         37,056
+│    │    └─Conv2d: 3-58                      [1, 32, 256, 256]         2,080
+├─Sequential: 1-27                            --                        (recursive)
+│    └─ConvTranspose2d: 2-17                  [1, 512, 32, 32]          2,621,952
+├─Sequential: 1-12                            [1, 512, 32, 32]          (recursive)
+│    └─Deconv2DBlock: 2-18                    [1, 512, 32, 32]          (recursive)
+│    │    └─Sequential: 3-59                  [1, 512, 32, 32]          (recursive)
+├─Sequential: 1-27                            --                        (recursive)
+│    └─Sequential: 2-19                       [1, 256, 64, 64]          --
+│    │    └─Conv2DBlock: 3-60                 [1, 512, 32, 32]          4,720,128
+│    │    └─Conv2DBlock: 3-61                 [1, 512, 32, 32]          2,360,832
+│    │    └─Conv2DBlock: 3-62                 [1, 512, 32, 32]          2,360,832
+│    │    └─ConvTranspose2d: 3-63             [1, 256, 64, 64]          524,544
+├─Sequential: 1-14                            [1, 256, 64, 64]          (recursive)
+│    └─Deconv2DBlock: 2-20                    [1, 512, 32, 32]          (recursive)
+│    │    └─Sequential: 3-64                  [1, 512, 32, 32]          (recursive)
+│    └─Deconv2DBlock: 2-21                    [1, 256, 64, 64]          (recursive)
+│    │    └─Sequential: 3-65                  [1, 256, 64, 64]          (recursive)
+├─Sequential: 1-27                            --                        (recursive)
+│    └─Sequential: 2-22                       [1, 128, 128, 128]        --
+│    │    └─Conv2DBlock: 3-66                 [1, 256, 64, 64]          1,180,416
+│    │    └─Conv2DBlock: 3-67                 [1, 256, 64, 64]          590,592
+│    │    └─ConvTranspose2d: 3-68             [1, 128, 128, 128]        131,200
+├─Sequential: 1-16                            [1, 128, 128, 128]        (recursive)
+│    └─Deconv2DBlock: 2-23                    [1, 512, 32, 32]          (recursive)
+│    │    └─Sequential: 3-69                  [1, 512, 32, 32]          (recursive)
+│    └─Deconv2DBlock: 2-24                    [1, 256, 64, 64]          (recursive)
+│    │    └─Sequential: 3-70                  [1, 256, 64, 64]          (recursive)
+│    └─Deconv2DBlock: 2-25                    [1, 128, 128, 128]        (recursive)
+│    │    └─Sequential: 3-71                  [1, 128, 128, 128]        (recursive)
+├─Sequential: 1-27                            --                        (recursive)
+│    └─Sequential: 2-26                       [1, 64, 256, 256]         --
+│    │    └─Conv2DBlock: 3-72                 [1, 128, 128, 128]        295,296
+│    │    └─Conv2DBlock: 3-73                 [1, 128, 128, 128]        147,840
+│    │    └─ConvTranspose2d: 3-74             [1, 64, 256, 256]         32,832
+├─Sequential: 1-18                            [1, 64, 256, 256]         (recursive)
+│    └─Conv2DBlock: 2-27                      [1, 32, 256, 256]         (recursive)
+│    │    └─Sequential: 3-75                  [1, 32, 256, 256]         (recursive)
+│    └─Conv2DBlock: 2-28                      [1, 64, 256, 256]         (recursive)
+│    │    └─Sequential: 3-76                  [1, 64, 256, 256]         (recursive)
+├─Sequential: 1-27                            --                        (recursive)
+│    └─Sequential: 2-29                       [1, 32, 256, 256]         --
+│    │    └─Conv2DBlock: 3-77                 [1, 64, 256, 256]         73,920
+│    │    └─Conv2DBlock: 3-78                 [1, 64, 256, 256]         37,056
+│    │    └─Conv2d: 3-79                      [1, 32, 256, 256]         2,080
+│    └─ConvTranspose2d: 2-30                  [1, 512, 32, 32]          (recursive)
+├─Sequential: 1-20                            [1, 512, 32, 32]          (recursive)
+│    └─Deconv2DBlock: 2-31                    [1, 512, 32, 32]          (recursive)
+│    │    └─Sequential: 3-80                  [1, 512, 32, 32]          (recursive)
+├─Sequential: 1-27                            --                        (recursive)
+│    └─Sequential: 2-32                       [1, 256, 64, 64]          (recursive)
+│    │    └─Conv2DBlock: 3-81                 [1, 512, 32, 32]          (recursive)
+│    │    └─Conv2DBlock: 3-82                 [1, 512, 32, 32]          (recursive)
+│    │    └─Conv2DBlock: 3-83                 [1, 512, 32, 32]          (recursive)
+│    │    └─ConvTranspose2d: 3-84             [1, 256, 64, 64]          (recursive)
+├─Sequential: 1-22                            [1, 256, 64, 64]          (recursive)
+│    └─Deconv2DBlock: 2-33                    [1, 512, 32, 32]          (recursive)
+│    │    └─Sequential: 3-85                  [1, 512, 32, 32]          (recursive)
+│    └─Deconv2DBlock: 2-34                    [1, 256, 64, 64]          (recursive)
+│    │    └─Sequential: 3-86                  [1, 256, 64, 64]          (recursive)
+├─Sequential: 1-27                            --                        (recursive)
+│    └─Sequential: 2-35                       [1, 128, 128, 128]        (recursive)
+│    │    └─Conv2DBlock: 3-87                 [1, 256, 64, 64]          (recursive)
+│    │    └─Conv2DBlock: 3-88                 [1, 256, 64, 64]          (recursive)
+│    │    └─ConvTranspose2d: 3-89             [1, 128, 128, 128]        (recursive)
+├─Sequential: 1-24                            [1, 128, 128, 128]        (recursive)
+│    └─Deconv2DBlock: 2-36                    [1, 512, 32, 32]          (recursive)
+│    │    └─Sequential: 3-90                  [1, 512, 32, 32]          (recursive)
+│    └─Deconv2DBlock: 2-37                    [1, 256, 64, 64]          (recursive)
+│    │    └─Sequential: 3-91                  [1, 256, 64, 64]          (recursive)
+│    └─Deconv2DBlock: 2-38                    [1, 128, 128, 128]        (recursive)
+│    │    └─Sequential: 3-92                  [1, 128, 128, 128]        (recursive)
+├─Sequential: 1-27                            --                        (recursive)
+│    └─Sequential: 2-39                       [1, 64, 256, 256]         (recursive)
+│    │    └─Conv2DBlock: 3-93                 [1, 128, 128, 128]        (recursive)
+│    │    └─Conv2DBlock: 3-94                 [1, 128, 128, 128]        (recursive)
+│    │    └─ConvTranspose2d: 3-95             [1, 64, 256, 256]         (recursive)
+├─Sequential: 1-26                            [1, 64, 256, 256]         (recursive)
+│    └─Conv2DBlock: 2-40                      [1, 32, 256, 256]         (recursive)
+│    │    └─Sequential: 3-96                  [1, 32, 256, 256]         (recursive)
+│    └─Conv2DBlock: 2-41                      [1, 64, 256, 256]         (recursive)
+│    │    └─Sequential: 3-97                  [1, 64, 256, 256]         (recursive)
+├─Sequential: 1-27                            --                        (recursive)
+│    └─Sequential: 2-42                       [1, 32, 256, 256]         (recursive)
+│    │    └─Conv2DBlock: 3-98                 [1, 64, 256, 256]         (recursive)
+│    │    └─Conv2DBlock: 3-99                 [1, 64, 256, 256]         (recursive)
+│    │    └─Conv2d: 3-100                     [1, 32, 256, 256]         (recursive)
+├─Conv2d: 1-28                                [1, 32, 256, 256]         1,024
+├─Conv2d: 1-29                                [1, 1, 256, 256]          32
+├─Conv2d: 1-30                                [1, 6, 256, 256]          192
+├─Conv2d: 1-31                                [1, 32, 256, 256]         1,024
+├─SamplingFeatures: 1-32                      [1, 32, 256, 256]         --
+├─SamplingFeatures: 1-33                      [1, 32, 256, 256]         --
+├─SamplingFeatures: 1-34                      [1, 32, 256, 256]         --
+├─SamplingFeatures: 1-35                      [1, 32, 256, 256]         --
+├─SamplingFeatures: 1-36                      [1, 32, 256, 256]         --
+├─SamplingFeatures: 1-37                      [1, 32, 256, 256]         --
+├─SamplingFeatures: 1-38                      [1, 32, 256, 256]         --
+├─SamplingFeatures: 1-39                      [1, 32, 256, 256]         --
+├─SamplingFeatures: 1-40                      [1, 32, 256, 256]         --
+├─SamplingFeatures: 1-41                      [1, 32, 256, 256]         --
+├─Conv2d: 1-42                                [32, 6, 256, 256]         42
+├─ReLU: 1-43                                  [1, 32, 256, 256]         --
+├─Linear: 1-44                                [1, 19]                   4,883
+===============================================================================================
+Total params: 699,749,053
+Trainable params: 62,723,005
+Non-trainable params: 637,026,048
+Total mult-adds (G): 214.81
+===============================================================================================
+Input size (MB): 0.79
+Forward/backward pass size (MB): 3407.35
+Params size (MB): 2716.90
+Estimated Total Size (MB): 6125.03
+===============================================================================================
+2023-09-23 03:22:48,673 [INFO] - Loaded AdamW Optimizer with following hyperparameters:
+2023-09-23 03:22:48,673 [INFO] - {'betas': [0.85, 0.95], 'lr': 0.0003, 'weight_decay': 0.0001}
+2023-09-23 03:22:48,673 [INFO] - Using early stopping with a range of 130 and maximize strategy
+2023-09-23 03:22:49,933 [INFO] - Using Weighted Sampling with strategy: cell+tissue
+2023-09-23 03:22:49,935 [INFO] - Unique-Weights: tensor([0.5339, 0.5660, 0.5673, 0.6560, 0.6651, 0.6822, 0.6835, 0.6972, 0.6984,
+        0.7156, 0.7722, 0.7871, 0.8043, 0.8055, 0.8134, 0.8146, 0.8318, 0.8467,
+        0.9033, 0.9205, 0.9217, 0.9367, 0.9604, 0.9629, 0.9664, 0.9682, 0.9853,
+        0.9925, 0.9938, 0.9985, 1.0003, 1.0174, 1.0316, 1.0352, 1.0529, 1.0637,
+        1.0650, 1.0691, 1.0700, 1.0703, 1.0825, 1.0869, 1.0875, 1.0924, 1.0930,
+        1.0954, 1.1024, 1.1024, 1.1073, 1.1087, 1.1100, 1.1147, 1.1159, 1.1165,
+        1.1178, 1.1181, 1.1190, 1.1196, 1.1202, 1.1245, 1.1251, 1.1259, 1.1263,
+        1.1275, 1.1336, 1.1348, 1.1421, 1.1480, 1.1499, 1.1502, 1.1514, 1.1537,
+        1.1580, 1.1592, 1.1669, 1.1799, 1.1812, 1.1848, 1.1911, 1.1923, 1.1987,
+        1.2012, 1.2046, 1.2065, 1.2089, 1.2133, 1.2144, 1.2174, 1.2186, 1.2186,
+        1.2198, 1.2235, 1.2352, 1.2358, 1.2364, 1.2370, 1.2401, 1.2407, 1.2413,
+        1.2419, 1.2425, 1.2425, 1.2437, 1.2450, 1.2519, 1.2583, 1.2598, 1.2642,
+        1.2661, 1.2664, 1.2676, 1.2685, 1.2740, 1.2742, 1.2746, 1.2754, 1.2759,
+        1.2771, 1.2831, 1.2997, 1.3010, 1.3044, 1.3073, 1.3075, 1.3085, 1.3251,
+        1.3295, 1.3306, 1.3337, 1.3407, 1.3419, 1.3482, 1.3542, 1.3560, 1.3563,
+        1.3567, 1.3585, 1.3640, 1.3641, 1.3670, 1.3681, 1.3847, 1.3854, 1.3902,
+        1.3908, 1.3921, 1.3933, 1.4018, 1.4159, 1.4194, 1.4237, 1.4310, 1.4480,
+        1.4527, 1.4556, 1.4569, 1.4581, 1.4631, 1.4747, 1.4753, 1.4808, 1.4820,
+        1.5046, 1.5050, 1.5059, 1.5137, 1.5180, 1.5292, 1.5392, 1.5578, 1.5793,
+        1.5805, 1.5805, 1.6023, 1.6044, 1.6052, 1.6126, 1.6212, 1.7288, 1.7301,
+        1.7540])
+2023-09-23 03:22:49,935 [INFO] - Instantiate Trainer
+2023-09-23 03:22:49,935 [INFO] - Calling Trainer Fit
+2023-09-23 03:22:49,935 [INFO] - Starting training, total number of epochs: 130
+2023-09-23 03:22:49,936 [INFO] - Epoch: 1/130
+2023-09-23 03:25:07,350 [INFO] - Training epoch stats:     Loss: 4.4122 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0235
+2023-09-23 03:26:34,506 [DEBUG] - Old lr: 0.000300 - New lr: 0.000285
+2023-09-23 03:26:34,552 [INFO] - Epoch: 2/130
+2023-09-23 03:29:22,749 [INFO] - Training epoch stats:     Loss: 3.7045 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0305
+2023-09-23 03:29:54,881 [DEBUG] - Old lr: 0.000285 - New lr: 0.000271
+2023-09-23 03:29:54,881 [INFO] - Epoch: 3/130
+2023-09-23 03:32:18,787 [INFO] - Training epoch stats:     Loss: 3.5844 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0290
+2023-09-23 03:32:51,109 [DEBUG] - Old lr: 0.000271 - New lr: 0.000257
+2023-09-23 03:32:51,109 [INFO] - Epoch: 4/130
+2023-09-23 03:35:16,187 [INFO] - Training epoch stats:     Loss: 3.5078 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0279
+2023-09-23 03:37:15,627 [DEBUG] - Old lr: 0.000257 - New lr: 0.000244
+2023-09-23 03:37:15,628 [INFO] - Epoch: 5/130
+2023-09-23 03:39:32,616 [INFO] - Training epoch stats:     Loss: 3.4838 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0279
+2023-09-23 03:40:03,091 [DEBUG] - Old lr: 0.000244 - New lr: 0.000232
+2023-09-23 03:40:03,092 [INFO] - Epoch: 6/130
+2023-09-23 03:42:20,476 [INFO] - Training epoch stats:     Loss: 3.4741 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0327
+2023-09-23 03:43:00,409 [DEBUG] - Old lr: 0.000232 - New lr: 0.000221
+2023-09-23 03:43:00,409 [INFO] - Epoch: 7/130
+2023-09-23 03:45:27,516 [INFO] - Training epoch stats:     Loss: 3.4506 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0250
+2023-09-23 03:46:09,248 [DEBUG] - Old lr: 0.000221 - New lr: 0.000210
+2023-09-23 03:46:09,249 [INFO] - Epoch: 8/130
+2023-09-23 03:48:57,553 [INFO] - Training epoch stats:     Loss: 3.4150 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0279
+2023-09-23 03:49:56,763 [DEBUG] - Old lr: 0.000210 - New lr: 0.000199
+2023-09-23 03:49:56,763 [INFO] - Epoch: 9/130
+2023-09-23 03:52:43,091 [INFO] - Training epoch stats:     Loss: 3.4272 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0242
+2023-09-23 03:53:15,236 [DEBUG] - Old lr: 0.000199 - New lr: 0.000189
+2023-09-23 03:53:15,236 [INFO] - Epoch: 10/130
+2023-09-23 03:55:33,704 [INFO] - Training epoch stats:     Loss: 3.4088 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0283
+2023-09-23 03:59:29,856 [INFO] - Validation epoch stats:   Loss: 3.3597 - Binary-Cell-Dice: 0.7256 - Binary-Cell-Jacard: 0.6247 - bPQ-Score: 0.5223 - mPQ-Score: 0.3581 - Tissue-MC-Acc.: 0.0238
+2023-09-23 03:59:29,901 [INFO] - New best model - save checkpoint
+2023-09-23 04:01:40,417 [DEBUG] - Old lr: 0.000189 - New lr: 0.000180
+2023-09-23 04:01:40,418 [INFO] - Epoch: 11/130
+2023-09-23 04:04:02,239 [INFO] - Training epoch stats:     Loss: 3.3971 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0268
+2023-09-23 04:04:53,361 [DEBUG] - Old lr: 0.000180 - New lr: 0.000171
+2023-09-23 04:04:53,362 [INFO] - Epoch: 12/130
+2023-09-23 04:07:43,597 [INFO] - Training epoch stats:     Loss: 3.3819 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0294
+2023-09-23 04:08:17,121 [DEBUG] - Old lr: 0.000171 - New lr: 0.000162
+2023-09-23 04:08:17,121 [INFO] - Epoch: 13/130
+2023-09-23 04:10:39,123 [INFO] - Training epoch stats:     Loss: 3.3789 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0231
+2023-09-23 04:12:05,060 [DEBUG] - Old lr: 0.000162 - New lr: 0.000154
+2023-09-23 04:12:05,061 [INFO] - Epoch: 14/130
+2023-09-23 04:14:57,560 [INFO] - Training epoch stats:     Loss: 3.3697 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0287
+2023-09-23 04:15:35,560 [DEBUG] - Old lr: 0.000154 - New lr: 0.000146
+2023-09-23 04:15:35,560 [INFO] - Epoch: 15/130
+2023-09-23 04:18:25,718 [INFO] - Training epoch stats:     Loss: 3.3572 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0272
+2023-09-23 04:18:58,639 [DEBUG] - Old lr: 0.000146 - New lr: 0.000139
+2023-09-23 04:18:58,639 [INFO] - Epoch: 16/130
+2023-09-23 04:21:26,709 [INFO] - Training epoch stats:     Loss: 3.3376 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0294
+2023-09-23 04:22:52,627 [DEBUG] - Old lr: 0.000139 - New lr: 0.000132
+2023-09-23 04:22:52,627 [INFO] - Epoch: 17/130
+2023-09-23 04:25:40,317 [INFO] - Training epoch stats:     Loss: 3.3352 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0257
+2023-09-23 04:26:13,116 [DEBUG] - Old lr: 0.000132 - New lr: 0.000125
+2023-09-23 04:26:13,117 [INFO] - Epoch: 18/130
+2023-09-23 04:28:34,076 [INFO] - Training epoch stats:     Loss: 3.3050 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0272
+2023-09-23 04:29:06,453 [DEBUG] - Old lr: 0.000125 - New lr: 0.000119
+2023-09-23 04:29:06,453 [INFO] - Epoch: 19/130
+2023-09-23 04:31:31,390 [INFO] - Training epoch stats:     Loss: 3.3217 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0327
+2023-09-23 04:32:55,693 [DEBUG] - Old lr: 0.000119 - New lr: 0.000113
+2023-09-23 04:32:55,693 [INFO] - Epoch: 20/130
+2023-09-23 04:35:35,294 [INFO] - Training epoch stats:     Loss: 3.2987 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0235
+2023-09-23 04:39:23,443 [INFO] - Validation epoch stats:   Loss: 3.2884 - Binary-Cell-Dice: 0.7492 - Binary-Cell-Jacard: 0.6526 - bPQ-Score: 0.5552 - mPQ-Score: 0.4121 - Tissue-MC-Acc.: 0.0238
+2023-09-23 04:39:23,446 [INFO] - New best model - save checkpoint
+2023-09-23 04:40:28,122 [DEBUG] - Old lr: 0.000113 - New lr: 0.000108
+2023-09-23 04:40:28,124 [INFO] - Epoch: 21/130
+2023-09-23 04:42:48,879 [INFO] - Training epoch stats:     Loss: 3.2950 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0298
+2023-09-23 04:43:19,304 [DEBUG] - Old lr: 0.000108 - New lr: 0.000102
+2023-09-23 04:43:19,305 [INFO] - Epoch: 22/130
+2023-09-23 04:45:38,997 [INFO] - Training epoch stats:     Loss: 3.2948 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0250
+2023-09-23 04:46:11,477 [DEBUG] - Old lr: 0.000102 - New lr: 0.000097
+2023-09-23 04:46:11,478 [INFO] - Epoch: 23/130
+2023-09-23 04:48:40,858 [INFO] - Training epoch stats:     Loss: 3.2912 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0246
+2023-09-23 04:49:12,818 [DEBUG] - Old lr: 0.000097 - New lr: 0.000092
+2023-09-23 04:49:12,818 [INFO] - Epoch: 24/130
+2023-09-23 04:51:43,395 [INFO] - Training epoch stats:     Loss: 3.2646 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0305
+2023-09-23 04:52:14,097 [DEBUG] - Old lr: 0.000092 - New lr: 0.000088
+2023-09-23 04:52:14,098 [INFO] - Epoch: 25/130
+2023-09-23 04:54:43,662 [INFO] - Training epoch stats:     Loss: 3.2835 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0345
+2023-09-23 04:55:15,993 [DEBUG] - Old lr: 0.000088 - New lr: 0.000083
+2023-09-23 04:55:15,994 [INFO] - Epoch: 26/130
+2023-09-23 04:58:32,792 [INFO] - Training epoch stats:     Loss: 3.4359 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0305
+2023-09-23 04:59:49,354 [DEBUG] - Old lr: 0.000083 - New lr: 0.000079
+2023-09-23 04:59:49,355 [INFO] - Epoch: 27/130
+2023-09-23 05:02:58,975 [INFO] - Training epoch stats:     Loss: 3.3578 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0301
+2023-09-23 05:04:15,488 [DEBUG] - Old lr: 0.000079 - New lr: 0.000075
+2023-09-23 05:04:15,489 [INFO] - Epoch: 28/130
+2023-09-23 05:07:23,746 [INFO] - Training epoch stats:     Loss: 3.3045 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0279
+2023-09-23 05:08:38,087 [DEBUG] - Old lr: 0.000075 - New lr: 0.000071
+2023-09-23 05:08:38,088 [INFO] - Epoch: 29/130
+2023-09-23 05:11:47,937 [INFO] - Training epoch stats:     Loss: 3.3022 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0389
+2023-09-23 05:13:00,759 [DEBUG] - Old lr: 0.000071 - New lr: 0.000068
+2023-09-23 05:13:00,760 [INFO] - Epoch: 30/130
+2023-09-23 05:16:09,424 [INFO] - Training epoch stats:     Loss: 3.2682 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0378
+2023-09-23 05:19:56,549 [INFO] - Validation epoch stats:   Loss: 3.2868 - Binary-Cell-Dice: 0.7673 - Binary-Cell-Jacard: 0.6803 - bPQ-Score: 0.5897 - mPQ-Score: 0.4180 - Tissue-MC-Acc.: 0.0293
+2023-09-23 05:19:56,552 [INFO] - New best model - save checkpoint
+2023-09-23 05:22:31,920 [DEBUG] - Old lr: 0.000068 - New lr: 0.000064
+2023-09-23 05:22:31,925 [INFO] - Epoch: 31/130
+2023-09-23 05:25:29,831 [INFO] - Training epoch stats:     Loss: 3.2606 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0404
+2023-09-23 05:26:48,318 [DEBUG] - Old lr: 0.000064 - New lr: 0.000061
+2023-09-23 05:26:48,319 [INFO] - Epoch: 32/130
+2023-09-23 05:29:54,511 [INFO] - Training epoch stats:     Loss: 3.2098 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0430
+2023-09-23 05:31:13,742 [DEBUG] - Old lr: 0.000061 - New lr: 0.000058
+2023-09-23 05:31:13,743 [INFO] - Epoch: 33/130
+2023-09-23 05:34:25,079 [INFO] - Training epoch stats:     Loss: 3.2170 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0481
+2023-09-23 05:35:41,185 [DEBUG] - Old lr: 0.000058 - New lr: 0.000055
+2023-09-23 05:35:41,187 [INFO] - Epoch: 34/130
+2023-09-23 05:38:48,322 [INFO] - Training epoch stats:     Loss: 3.1964 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0456
+2023-09-23 05:40:03,434 [DEBUG] - Old lr: 0.000055 - New lr: 0.000052
+2023-09-23 05:40:03,436 [INFO] - Epoch: 35/130
+2023-09-23 05:43:10,985 [INFO] - Training epoch stats:     Loss: 3.1831 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0386
+2023-09-23 05:44:25,663 [DEBUG] - Old lr: 0.000052 - New lr: 0.000050
+2023-09-23 05:44:25,664 [INFO] - Epoch: 36/130
+2023-09-23 05:47:34,442 [INFO] - Training epoch stats:     Loss: 3.1670 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0415
+2023-09-23 05:48:50,102 [DEBUG] - Old lr: 0.000050 - New lr: 0.000047
+2023-09-23 05:48:50,103 [INFO] - Epoch: 37/130
+2023-09-23 05:51:58,643 [INFO] - Training epoch stats:     Loss: 3.1582 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0441
+2023-09-23 05:53:20,925 [DEBUG] - Old lr: 0.000047 - New lr: 0.000045
+2023-09-23 05:53:20,927 [INFO] - Epoch: 38/130
+2023-09-23 05:56:32,312 [INFO] - Training epoch stats:     Loss: 3.1598 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0503
+2023-09-23 05:57:45,693 [DEBUG] - Old lr: 0.000045 - New lr: 0.000043
+2023-09-23 05:57:45,694 [INFO] - Epoch: 39/130
+2023-09-23 06:00:52,928 [INFO] - Training epoch stats:     Loss: 3.1182 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0415
+2023-09-23 06:02:08,792 [DEBUG] - Old lr: 0.000043 - New lr: 0.000041
+2023-09-23 06:02:08,793 [INFO] - Epoch: 40/130
+2023-09-23 06:05:17,189 [INFO] - Training epoch stats:     Loss: 3.1171 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0364
+2023-09-23 06:09:03,943 [INFO] - Validation epoch stats:   Loss: 3.1808 - Binary-Cell-Dice: 0.7665 - Binary-Cell-Jacard: 0.6823 - bPQ-Score: 0.5992 - mPQ-Score: 0.4482 - Tissue-MC-Acc.: 0.0273
+2023-09-23 06:09:03,946 [INFO] - New best model - save checkpoint
+2023-09-23 06:11:48,649 [DEBUG] - Old lr: 0.000041 - New lr: 0.000039
+2023-09-23 06:11:48,650 [INFO] - Epoch: 41/130
+2023-09-23 06:14:43,208 [INFO] - Training epoch stats:     Loss: 3.1179 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0404
+2023-09-23 06:15:57,605 [DEBUG] - Old lr: 0.000039 - New lr: 0.000037
+2023-09-23 06:15:57,606 [INFO] - Epoch: 42/130
+2023-09-23 06:19:02,862 [INFO] - Training epoch stats:     Loss: 3.1126 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0320
+2023-09-23 06:20:19,970 [DEBUG] - Old lr: 0.000037 - New lr: 0.000035
+2023-09-23 06:20:19,971 [INFO] - Epoch: 43/130
+2023-09-23 06:23:28,848 [INFO] - Training epoch stats:     Loss: 3.1113 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0334
+2023-09-23 06:24:43,319 [DEBUG] - Old lr: 0.000035 - New lr: 0.000033
+2023-09-23 06:24:43,320 [INFO] - Epoch: 44/130
+2023-09-23 06:27:49,000 [INFO] - Training epoch stats:     Loss: 3.0942 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0382
+2023-09-23 06:29:05,301 [DEBUG] - Old lr: 0.000033 - New lr: 0.000031
+2023-09-23 06:29:05,302 [INFO] - Epoch: 45/130
+2023-09-23 06:32:12,150 [INFO] - Training epoch stats:     Loss: 3.0870 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0408
+2023-09-23 06:33:27,761 [DEBUG] - Old lr: 0.000031 - New lr: 0.000030
+2023-09-23 06:33:27,762 [INFO] - Epoch: 46/130
+2023-09-23 06:36:30,092 [INFO] - Training epoch stats:     Loss: 3.0880 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0356
+2023-09-23 06:37:46,287 [DEBUG] - Old lr: 0.000030 - New lr: 0.000028
+2023-09-23 06:37:46,289 [INFO] - Epoch: 47/130
+2023-09-23 06:40:51,917 [INFO] - Training epoch stats:     Loss: 3.0659 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0437
+2023-09-23 06:42:08,160 [DEBUG] - Old lr: 0.000028 - New lr: 0.000027
+2023-09-23 06:42:08,161 [INFO] - Epoch: 48/130
+2023-09-23 06:45:13,950 [INFO] - Training epoch stats:     Loss: 3.0526 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0371
+2023-09-23 06:46:52,699 [DEBUG] - Old lr: 0.000027 - New lr: 0.000026
+2023-09-23 06:46:52,700 [INFO] - Epoch: 49/130
+2023-09-23 06:49:57,378 [INFO] - Training epoch stats:     Loss: 3.0597 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0415
+2023-09-23 06:51:12,974 [DEBUG] - Old lr: 0.000026 - New lr: 0.000024
+2023-09-23 06:51:12,975 [INFO] - Epoch: 50/130
+2023-09-23 06:54:20,083 [INFO] - Training epoch stats:     Loss: 3.0480 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0378
+2023-09-23 06:58:10,903 [INFO] - Validation epoch stats:   Loss: 3.1511 - Binary-Cell-Dice: 0.7775 - Binary-Cell-Jacard: 0.6968 - bPQ-Score: 0.6072 - mPQ-Score: 0.4686 - Tissue-MC-Acc.: 0.0297
+2023-09-23 06:58:10,906 [INFO] - New best model - save checkpoint
+2023-09-23 07:00:46,341 [DEBUG] - Old lr: 0.000024 - New lr: 0.000023
+2023-09-23 07:00:46,342 [INFO] - Epoch: 51/130
+2023-09-23 07:03:45,756 [INFO] - Training epoch stats:     Loss: 3.0341 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0437
+2023-09-23 07:05:00,561 [DEBUG] - Old lr: 0.000023 - New lr: 0.000022
+2023-09-23 07:05:00,562 [INFO] - Epoch: 52/130
+2023-09-23 07:08:06,376 [INFO] - Training epoch stats:     Loss: 3.0445 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0338
+2023-09-23 07:09:34,254 [DEBUG] - Old lr: 0.000022 - New lr: 0.000021
+2023-09-23 07:09:34,255 [INFO] - Epoch: 53/130
+2023-09-23 07:12:36,897 [INFO] - Training epoch stats:     Loss: 3.0315 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0353
+2023-09-23 07:13:59,374 [DEBUG] - Old lr: 0.000021 - New lr: 0.000020
+2023-09-23 07:13:59,376 [INFO] - Epoch: 54/130
+2023-09-23 07:17:05,136 [INFO] - Training epoch stats:     Loss: 3.0168 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0434
+2023-09-23 07:18:24,029 [DEBUG] - Old lr: 0.000020 - New lr: 0.000019
+2023-09-23 07:18:24,030 [INFO] - Epoch: 55/130
+2023-09-23 07:21:31,266 [INFO] - Training epoch stats:     Loss: 3.0289 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0356
+2023-09-23 07:22:49,110 [DEBUG] - Old lr: 0.000019 - New lr: 0.000018
+2023-09-23 07:22:49,111 [INFO] - Epoch: 56/130
+2023-09-23 07:25:54,501 [INFO] - Training epoch stats:     Loss: 3.0139 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0327
+2023-09-23 07:27:17,918 [DEBUG] - Old lr: 0.000018 - New lr: 0.000017
+2023-09-23 07:27:17,919 [INFO] - Epoch: 57/130
+2023-09-23 07:30:24,658 [INFO] - Training epoch stats:     Loss: 3.0051 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0356
+2023-09-23 07:31:45,189 [DEBUG] - Old lr: 0.000017 - New lr: 0.000016
+2023-09-23 07:31:45,191 [INFO] - Epoch: 58/130
+2023-09-23 07:34:51,110 [INFO] - Training epoch stats:     Loss: 3.0150 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0378
+2023-09-23 07:36:16,817 [DEBUG] - Old lr: 0.000016 - New lr: 0.000015
+2023-09-23 07:36:16,818 [INFO] - Epoch: 59/130
+2023-09-23 07:39:21,678 [INFO] - Training epoch stats:     Loss: 3.0141 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0375
+2023-09-23 07:40:42,039 [DEBUG] - Old lr: 0.000015 - New lr: 0.000015
+2023-09-23 07:40:42,040 [INFO] - Epoch: 60/130
+2023-09-23 07:43:51,479 [INFO] - Training epoch stats:     Loss: 3.0141 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0364
+2023-09-23 07:47:41,175 [INFO] - Validation epoch stats:   Loss: 3.1451 - Binary-Cell-Dice: 0.7775 - Binary-Cell-Jacard: 0.6964 - bPQ-Score: 0.6094 - mPQ-Score: 0.4705 - Tissue-MC-Acc.: 0.0289
+2023-09-23 07:47:41,177 [INFO] - New best model - save checkpoint
+2023-09-23 07:50:17,588 [DEBUG] - Old lr: 0.000015 - New lr: 0.000014
+2023-09-23 07:50:17,589 [INFO] - Epoch: 61/130
+2023-09-23 07:53:16,251 [INFO] - Training epoch stats:     Loss: 3.0019 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0334
+2023-09-23 07:54:31,400 [DEBUG] - Old lr: 0.000014 - New lr: 0.000013
+2023-09-23 07:54:31,402 [INFO] - Epoch: 62/130
+2023-09-23 07:57:36,633 [INFO] - Training epoch stats:     Loss: 2.9883 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0437
+2023-09-23 07:58:54,018 [DEBUG] - Old lr: 0.000013 - New lr: 0.000012
+2023-09-23 07:58:54,019 [INFO] - Epoch: 63/130
+2023-09-23 08:02:02,306 [INFO] - Training epoch stats:     Loss: 2.9901 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0382
+2023-09-23 08:03:15,962 [DEBUG] - Old lr: 0.000012 - New lr: 0.000012
+2023-09-23 08:03:15,963 [INFO] - Epoch: 64/130
+2023-09-23 08:06:24,699 [INFO] - Training epoch stats:     Loss: 2.9646 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0375
+2023-09-23 08:07:39,924 [DEBUG] - Old lr: 0.000012 - New lr: 0.000011
+2023-09-23 08:07:39,925 [INFO] - Epoch: 65/130
+2023-09-23 08:10:45,050 [INFO] - Training epoch stats:     Loss: 2.9825 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0371
+2023-09-23 08:12:02,050 [DEBUG] - Old lr: 0.000011 - New lr: 0.000011
+2023-09-23 08:12:02,051 [INFO] - Epoch: 66/130
+2023-09-23 08:15:09,235 [INFO] - Training epoch stats:     Loss: 2.9789 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0382
+2023-09-23 08:16:24,256 [DEBUG] - Old lr: 0.000011 - New lr: 0.000010
+2023-09-23 08:16:24,257 [INFO] - Epoch: 67/130
+2023-09-23 08:19:31,456 [INFO] - Training epoch stats:     Loss: 2.9751 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0364
+2023-09-23 08:20:47,118 [DEBUG] - Old lr: 0.000010 - New lr: 0.000010
+2023-09-23 08:20:47,119 [INFO] - Epoch: 68/130
+2023-09-23 08:23:55,600 [INFO] - Training epoch stats:     Loss: 2.9770 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0378
+2023-09-23 08:25:16,181 [DEBUG] - Old lr: 0.000010 - New lr: 0.000009
+2023-09-23 08:25:16,182 [INFO] - Epoch: 69/130
+2023-09-23 08:28:24,874 [INFO] - Training epoch stats:     Loss: 2.9875 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0415
+2023-09-23 08:29:39,503 [DEBUG] - Old lr: 0.000009 - New lr: 0.000009
+2023-09-23 08:29:39,504 [INFO] - Epoch: 70/130
+2023-09-23 08:32:46,685 [INFO] - Training epoch stats:     Loss: 2.9720 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0364
+2023-09-23 08:36:46,750 [INFO] - Validation epoch stats:   Loss: 3.1463 - Binary-Cell-Dice: 0.7782 - Binary-Cell-Jacard: 0.6969 - bPQ-Score: 0.6085 - mPQ-Score: 0.4703 - Tissue-MC-Acc.: 0.0293
+2023-09-23 08:38:05,672 [DEBUG] - Old lr: 0.000009 - New lr: 0.000008
+2023-09-23 08:38:05,672 [INFO] - Epoch: 71/130
+2023-09-23 08:41:05,119 [INFO] - Training epoch stats:     Loss: 2.9693 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0422
+2023-09-23 08:42:18,455 [DEBUG] - Old lr: 0.000008 - New lr: 0.000008
+2023-09-23 08:42:18,456 [INFO] - Epoch: 72/130
+2023-09-23 08:45:25,608 [INFO] - Training epoch stats:     Loss: 2.9772 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0360
+2023-09-23 08:46:45,742 [DEBUG] - Old lr: 0.000008 - New lr: 0.000007
+2023-09-23 08:46:45,743 [INFO] - Epoch: 73/130
+2023-09-23 08:49:52,996 [INFO] - Training epoch stats:     Loss: 2.9727 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0378
+2023-09-23 08:51:08,467 [DEBUG] - Old lr: 0.000007 - New lr: 0.000007
+2023-09-23 08:51:08,468 [INFO] - Epoch: 74/130
+2023-09-23 08:54:16,297 [INFO] - Training epoch stats:     Loss: 2.9454 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0356
+2023-09-23 08:55:34,663 [DEBUG] - Old lr: 0.000007 - New lr: 0.000007
+2023-09-23 08:55:34,664 [INFO] - Epoch: 75/130
+2023-09-23 08:58:43,045 [INFO] - Training epoch stats:     Loss: 2.9681 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0404
+2023-09-23 09:00:04,449 [DEBUG] - Old lr: 0.000007 - New lr: 0.000006
+2023-09-23 09:00:04,450 [INFO] - Epoch: 76/130
+2023-09-23 09:03:12,197 [INFO] - Training epoch stats:     Loss: 2.9689 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0360
+2023-09-23 09:04:26,041 [DEBUG] - Old lr: 0.000006 - New lr: 0.000006
+2023-09-23 09:04:26,043 [INFO] - Epoch: 77/130
+2023-09-23 09:07:31,002 [INFO] - Training epoch stats:     Loss: 2.9538 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0334
+2023-09-23 09:08:44,787 [DEBUG] - Old lr: 0.000006 - New lr: 0.000006
+2023-09-23 09:08:44,788 [INFO] - Epoch: 78/130
+2023-09-23 09:11:48,812 [INFO] - Training epoch stats:     Loss: 2.9522 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0389
+2023-09-23 09:13:05,641 [DEBUG] - Old lr: 0.000006 - New lr: 0.000005
+2023-09-23 09:13:05,642 [INFO] - Epoch: 79/130
+2023-09-23 09:16:09,272 [INFO] - Training epoch stats:     Loss: 2.9563 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0327
+2023-09-23 09:17:25,234 [DEBUG] - Old lr: 0.000005 - New lr: 0.000005
+2023-09-23 09:17:25,237 [INFO] - Epoch: 80/130
+2023-09-23 09:20:32,493 [INFO] - Training epoch stats:     Loss: 2.9513 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0327
+2023-09-23 09:24:26,601 [INFO] - Validation epoch stats:   Loss: 3.1496 - Binary-Cell-Dice: 0.7756 - Binary-Cell-Jacard: 0.6937 - bPQ-Score: 0.6076 - mPQ-Score: 0.4699 - Tissue-MC-Acc.: 0.0285
+2023-09-23 09:25:42,650 [DEBUG] - Old lr: 0.000005 - New lr: 0.000005
+2023-09-23 09:25:42,651 [INFO] - Epoch: 81/130
+2023-09-23 09:28:40,088 [INFO] - Training epoch stats:     Loss: 2.9501 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0382
+2023-09-23 09:29:55,400 [DEBUG] - Old lr: 0.000005 - New lr: 0.000005
+2023-09-23 09:29:55,403 [INFO] - Epoch: 82/130
+2023-09-23 09:33:00,299 [INFO] - Training epoch stats:     Loss: 2.9482 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0279
+2023-09-23 09:34:16,504 [DEBUG] - Old lr: 0.000005 - New lr: 0.000004
+2023-09-23 09:34:16,506 [INFO] - Epoch: 83/130
+2023-09-23 09:37:22,227 [INFO] - Training epoch stats:     Loss: 2.9392 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0301
+2023-09-23 09:38:38,419 [DEBUG] - Old lr: 0.000004 - New lr: 0.000004
+2023-09-23 09:38:38,420 [INFO] - Epoch: 84/130
+2023-09-23 09:41:45,655 [INFO] - Training epoch stats:     Loss: 2.9508 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0298
+2023-09-23 09:43:06,342 [DEBUG] - Old lr: 0.000004 - New lr: 0.000004
+2023-09-23 09:43:06,343 [INFO] - Epoch: 85/130
+2023-09-23 09:46:12,854 [INFO] - Training epoch stats:     Loss: 2.9442 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0294
+2023-09-23 09:47:31,506 [DEBUG] - Old lr: 0.000004 - New lr: 0.000004
+2023-09-23 09:47:31,506 [INFO] - Epoch: 86/130
+2023-09-23 09:50:40,974 [INFO] - Training epoch stats:     Loss: 2.9429 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0345
+2023-09-23 09:51:54,402 [DEBUG] - Old lr: 0.000004 - New lr: 0.000004
+2023-09-23 09:51:54,403 [INFO] - Epoch: 87/130
+2023-09-23 09:55:02,378 [INFO] - Training epoch stats:     Loss: 2.9319 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0353
+2023-09-23 09:56:17,759 [DEBUG] - Old lr: 0.000004 - New lr: 0.000003
+2023-09-23 09:56:17,760 [INFO] - Epoch: 88/130
+2023-09-23 09:59:26,258 [INFO] - Training epoch stats:     Loss: 2.9474 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0360
+2023-09-23 10:00:40,069 [DEBUG] - Old lr: 0.000003 - New lr: 0.000003
+2023-09-23 10:00:40,070 [INFO] - Epoch: 89/130
+2023-09-23 10:03:48,055 [INFO] - Training epoch stats:     Loss: 2.9213 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0312
+2023-09-23 10:05:03,596 [DEBUG] - Old lr: 0.000003 - New lr: 0.000003
+2023-09-23 10:05:03,597 [INFO] - Epoch: 90/130
+2023-09-23 10:08:13,153 [INFO] - Training epoch stats:     Loss: 2.9334 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0276
+2023-09-23 10:12:07,242 [INFO] - Validation epoch stats:   Loss: 3.1564 - Binary-Cell-Dice: 0.7800 - Binary-Cell-Jacard: 0.6995 - bPQ-Score: 0.6126 - mPQ-Score: 0.4763 - Tissue-MC-Acc.: 0.0273
+2023-09-23 10:12:07,244 [INFO] - New best model - save checkpoint
+2023-09-23 10:14:44,935 [DEBUG] - Old lr: 0.000003 - New lr: 0.000003
+2023-09-23 10:14:44,935 [INFO] - Epoch: 91/130
+2023-09-23 10:17:36,611 [INFO] - Training epoch stats:     Loss: 2.9434 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0415
+2023-09-23 10:18:52,043 [DEBUG] - Old lr: 0.000003 - New lr: 0.000003
+2023-09-23 10:18:52,045 [INFO] - Epoch: 92/130
+2023-09-23 10:21:56,475 [INFO] - Training epoch stats:     Loss: 2.9293 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0386
+2023-09-23 10:25:29,185 [DEBUG] - Old lr: 0.000003 - New lr: 0.000003
+2023-09-23 10:25:29,240 [INFO] - Epoch: 93/130
+2023-09-23 10:28:55,748 [INFO] - Training epoch stats:     Loss: 2.9410 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0400
+2023-09-23 10:32:15,121 [DEBUG] - Old lr: 0.000003 - New lr: 0.000003
+2023-09-23 10:32:15,124 [INFO] - Epoch: 94/130
+2023-09-23 10:35:07,035 [INFO] - Training epoch stats:     Loss: 2.9376 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0375
+2023-09-23 10:36:32,786 [DEBUG] - Old lr: 0.000003 - New lr: 0.000002
+2023-09-23 10:36:32,787 [INFO] - Epoch: 95/130
+2023-09-23 10:39:30,692 [INFO] - Training epoch stats:     Loss: 2.9207 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0389
+2023-09-23 10:43:33,332 [DEBUG] - Old lr: 0.000002 - New lr: 0.000002
+2023-09-23 10:43:33,374 [INFO] - Epoch: 96/130
+2023-09-23 10:46:50,788 [INFO] - Training epoch stats:     Loss: 2.9330 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0360
+2023-09-23 10:48:34,656 [DEBUG] - Old lr: 0.000002 - New lr: 0.000002
+2023-09-23 10:48:34,657 [INFO] - Epoch: 97/130
+2023-09-23 10:51:34,462 [INFO] - Training epoch stats:     Loss: 2.9209 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0331
+2023-09-23 11:00:33,648 [DEBUG] - Old lr: 0.000002 - New lr: 0.000002
+2023-09-23 11:00:33,652 [INFO] - Epoch: 98/130
+2023-09-23 11:03:27,482 [INFO] - Training epoch stats:     Loss: 2.9312 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0334
+2023-09-23 11:05:00,145 [DEBUG] - Old lr: 0.000002 - New lr: 0.000002
+2023-09-23 11:05:00,177 [INFO] - Epoch: 99/130
+2023-09-23 11:08:12,447 [INFO] - Training epoch stats:     Loss: 2.9395 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0334
+2023-09-23 11:09:52,304 [DEBUG] - Old lr: 0.000002 - New lr: 0.000002
+2023-09-23 11:09:52,306 [INFO] - Epoch: 100/130
+2023-09-23 11:12:55,590 [INFO] - Training epoch stats:     Loss: 2.9297 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0349
+2023-09-23 11:16:54,284 [INFO] - Validation epoch stats:   Loss: 3.1415 - Binary-Cell-Dice: 0.7794 - Binary-Cell-Jacard: 0.6998 - bPQ-Score: 0.6105 - mPQ-Score: 0.4766 - Tissue-MC-Acc.: 0.0285
+2023-09-23 11:20:58,543 [DEBUG] - Old lr: 0.000002 - New lr: 0.000002
+2023-09-23 11:20:58,584 [INFO] - Epoch: 101/130
+2023-09-23 11:24:22,874 [INFO] - Training epoch stats:     Loss: 2.9227 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0389
+2023-09-23 11:25:39,942 [DEBUG] - Old lr: 0.000002 - New lr: 0.000002
+2023-09-23 11:25:39,944 [INFO] - Epoch: 102/130
+2023-09-23 11:28:35,728 [INFO] - Training epoch stats:     Loss: 2.9259 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0305
+2023-09-23 11:32:38,646 [DEBUG] - Old lr: 0.000002 - New lr: 0.000002
+2023-09-23 11:32:38,683 [INFO] - Epoch: 103/130
+2023-09-23 11:35:47,984 [INFO] - Training epoch stats:     Loss: 2.9200 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0353
+2023-09-23 11:37:13,513 [DEBUG] - Old lr: 0.000002 - New lr: 0.000002
+2023-09-23 11:37:13,514 [INFO] - Epoch: 104/130
+2023-09-23 11:40:12,343 [INFO] - Training epoch stats:     Loss: 2.9287 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0382
+2023-09-23 11:42:56,636 [DEBUG] - Old lr: 0.000002 - New lr: 0.000001
+2023-09-23 11:42:56,675 [INFO] - Epoch: 105/130
+2023-09-23 11:46:12,267 [INFO] - Training epoch stats:     Loss: 2.9151 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0334
+2023-09-23 11:49:01,335 [DEBUG] - Old lr: 0.000001 - New lr: 0.000001
+2023-09-23 11:49:01,336 [INFO] - Epoch: 106/130
+2023-09-23 11:51:56,452 [INFO] - Training epoch stats:     Loss: 2.9241 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0378
+2023-09-23 11:54:32,748 [DEBUG] - Old lr: 0.000001 - New lr: 0.000001
+2023-09-23 11:54:32,782 [INFO] - Epoch: 107/130
+2023-09-23 11:57:48,484 [INFO] - Training epoch stats:     Loss: 2.9217 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0353
+2023-09-23 12:00:55,525 [DEBUG] - Old lr: 0.000001 - New lr: 0.000001
+2023-09-23 12:00:55,558 [INFO] - Epoch: 108/130
+2023-09-23 12:03:59,776 [INFO] - Training epoch stats:     Loss: 2.9262 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0338
+2023-09-23 12:05:30,012 [DEBUG] - Old lr: 0.000001 - New lr: 0.000001
+2023-09-23 12:05:30,013 [INFO] - Epoch: 109/130
+2023-09-23 12:08:28,241 [INFO] - Training epoch stats:     Loss: 2.9244 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0338
+2023-09-23 12:12:56,928 [DEBUG] - Old lr: 0.000001 - New lr: 0.000001
+2023-09-23 12:12:56,969 [INFO] - Epoch: 110/130
+2023-09-23 12:16:22,693 [INFO] - Training epoch stats:     Loss: 2.9175 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0378
+2023-09-23 12:20:15,362 [INFO] - Validation epoch stats:   Loss: 3.1477 - Binary-Cell-Dice: 0.7800 - Binary-Cell-Jacard: 0.6999 - bPQ-Score: 0.6116 - mPQ-Score: 0.4751 - Tissue-MC-Acc.: 0.0281
+2023-09-23 12:23:57,546 [DEBUG] - Old lr: 0.000001 - New lr: 0.000001
+2023-09-23 12:23:57,586 [INFO] - Epoch: 111/130
+2023-09-23 12:26:52,751 [INFO] - Training epoch stats:     Loss: 2.9225 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0345
+2023-09-23 12:28:21,092 [DEBUG] - Old lr: 0.000001 - New lr: 0.000001
+2023-09-23 12:28:21,119 [INFO] - Epoch: 112/130
+2023-09-23 12:31:24,764 [INFO] - Training epoch stats:     Loss: 2.9304 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0393
+2023-09-23 12:34:21,942 [DEBUG] - Old lr: 0.000001 - New lr: 0.000001
+2023-09-23 12:34:21,995 [INFO] - Epoch: 113/130
+2023-09-23 12:37:16,922 [INFO] - Training epoch stats:     Loss: 2.9208 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0342
+2023-09-23 12:39:11,924 [DEBUG] - Old lr: 0.000001 - New lr: 0.000001
+2023-09-23 12:39:11,958 [INFO] - Epoch: 114/130
+2023-09-23 12:42:32,819 [INFO] - Training epoch stats:     Loss: 2.9316 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0305
+2023-09-23 12:43:58,137 [DEBUG] - Old lr: 0.000001 - New lr: 0.000001
+2023-09-23 12:43:58,138 [INFO] - Epoch: 115/130
+2023-09-23 12:46:54,671 [INFO] - Training epoch stats:     Loss: 2.9180 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0353
+2023-09-23 12:49:34,648 [DEBUG] - Old lr: 0.000001 - New lr: 0.000001
+2023-09-23 12:49:34,687 [INFO] - Epoch: 116/130
+2023-09-23 12:52:56,114 [INFO] - Training epoch stats:     Loss: 2.9175 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0353
+2023-09-23 12:54:13,973 [DEBUG] - Old lr: 0.000001 - New lr: 0.000001
+2023-09-23 12:54:13,975 [INFO] - Epoch: 117/130
+2023-09-23 12:57:11,803 [INFO] - Training epoch stats:     Loss: 2.9265 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0327
+2023-09-23 12:59:06,343 [DEBUG] - Old lr: 0.000001 - New lr: 0.000001
+2023-09-23 12:59:06,373 [INFO] - Epoch: 118/130
+2023-09-23 13:02:19,340 [INFO] - Training epoch stats:     Loss: 2.9260 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0353
+2023-09-23 13:03:40,939 [DEBUG] - Old lr: 0.000001 - New lr: 0.000001
+2023-09-23 13:03:40,940 [INFO] - Epoch: 119/130
+2023-09-23 13:06:40,269 [INFO] - Training epoch stats:     Loss: 2.9161 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0356
+2023-09-23 13:08:02,695 [DEBUG] - Old lr: 0.000001 - New lr: 0.000001
+2023-09-23 13:08:02,732 [INFO] - Epoch: 120/130
+2023-09-23 13:11:27,621 [INFO] - Training epoch stats:     Loss: 2.9200 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0382
+2023-09-23 13:15:17,014 [INFO] - Validation epoch stats:   Loss: 3.1489 - Binary-Cell-Dice: 0.7764 - Binary-Cell-Jacard: 0.6956 - bPQ-Score: 0.6096 - mPQ-Score: 0.4710 - Tissue-MC-Acc.: 0.0285
+2023-09-23 13:17:29,863 [DEBUG] - Old lr: 0.000001 - New lr: 0.000001
+2023-09-23 13:17:29,895 [INFO] - Epoch: 121/130
+2023-09-23 13:20:59,230 [INFO] - Training epoch stats:     Loss: 2.9484 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0389
+2023-09-23 13:22:23,968 [DEBUG] - Old lr: 0.000001 - New lr: 0.000001
+2023-09-23 13:22:24,067 [INFO] - Epoch: 122/130
+2023-09-23 13:25:54,805 [INFO] - Training epoch stats:     Loss: 2.9244 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0353
+2023-09-23 13:28:38,388 [DEBUG] - Old lr: 0.000001 - New lr: 0.000001
+2023-09-23 13:28:38,390 [INFO] - Epoch: 123/130
+2023-09-23 13:31:38,161 [INFO] - Training epoch stats:     Loss: 2.9277 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0331
+2023-09-23 13:34:07,661 [DEBUG] - Old lr: 0.000001 - New lr: 0.000001
+2023-09-23 13:34:07,662 [INFO] - Epoch: 124/130
+2023-09-23 13:36:55,449 [INFO] - Training epoch stats:     Loss: 2.9018 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0305
+2023-09-23 13:38:32,457 [DEBUG] - Old lr: 0.000001 - New lr: 0.000001
+2023-09-23 13:38:32,485 [INFO] - Epoch: 125/130
+2023-09-23 13:41:38,335 [INFO] - Training epoch stats:     Loss: 2.9137 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0353
+2023-09-23 13:44:00,954 [DEBUG] - Old lr: 0.000001 - New lr: 0.000000
+2023-09-23 13:44:00,955 [INFO] - Epoch: 126/130
+2023-09-23 13:46:56,762 [INFO] - Training epoch stats:     Loss: 2.9352 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0353
+2023-09-23 13:49:51,535 [DEBUG] - Old lr: 0.000000 - New lr: 0.000000
+2023-09-23 13:49:51,536 [INFO] - Epoch: 127/130
+2023-09-23 13:52:45,685 [INFO] - Training epoch stats:     Loss: 2.9212 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0378
+2023-09-23 13:54:37,242 [DEBUG] - Old lr: 0.000000 - New lr: 0.000000
+2023-09-23 13:54:37,277 [INFO] - Epoch: 128/130
+2023-09-23 13:57:52,495 [INFO] - Training epoch stats:     Loss: 2.9206 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0331
+2023-09-23 13:59:23,480 [DEBUG] - Old lr: 0.000000 - New lr: 0.000000
+2023-09-23 13:59:23,480 [INFO] - Epoch: 129/130
+2023-09-23 14:02:26,686 [INFO] - Training epoch stats:     Loss: 2.9042 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0360
+2023-09-23 14:04:21,237 [DEBUG] - Old lr: 0.000000 - New lr: 0.000000
+2023-09-23 14:04:21,264 [INFO] - Epoch: 130/130
+2023-09-23 14:07:29,238 [INFO] - Training epoch stats:     Loss: 2.9239 - Binary-Cell-Dice: 0.0000 - Binary-Cell-Jacard: 0.0000 - Tissue-MC-Acc.: 0.0327
+2023-09-23 14:11:58,926 [INFO] - Validation epoch stats:   Loss: 3.1464 - Binary-Cell-Dice: 0.7750 - Binary-Cell-Jacard: 0.6933 - bPQ-Score: 0.6069 - mPQ-Score: 0.4728 - Tissue-MC-Acc.: 0.0277
+2023-09-23 14:14:26,489 [DEBUG] - Old lr: 0.000000 - New lr: 0.000000
+2023-09-23 14:14:26,492 [INFO] -

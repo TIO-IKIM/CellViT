@@ -1,75 +1,86 @@
 # Preprocessing
 
+# TODO: Has to be adapted
+
 The CLI of the main script for patch extraction ([main_extraction](preprocessing/main_extraction.py)) is as follows:
 ```bash
 python3 main_extraction.py [-h]
 usage: main_extraction.py [-h]
-                          [--wsi_paths WSI_PATHS] [--output_path OUTPUT_PATH]
-                          [--wsi_extension {svs}] [--config CONFIG]
-                          [--patch_size PATCH_SIZE] [--patch_overlap PATCH_OVERLAP]
-                          [--downsample DOWNSAMPLE] [--target_mag TARGET_MAG] [--level LEVEL]
-                          [--context_scales [CONTEXT_SCALES ...]] [--check_resolution CHECK_RESOLUTION]
-                          [--processes PROCESSES] [--patches_per_batch PATCHES_PER_BATCH]
-                          [--overwrite] [--annotation_paths ANNOTATION_PATHS]
-                          [--annotation_extension {json,xml}] [--incomplete_annotations]
-                          [--label_map_file LABEL_MAP_FILE] [--save_only_annotated_patches]
-                          [--exclude_classes EXCLUDE_CLASSES] [--store_masks] [--overlapping_labels]
-                          [--normalize_stains] [--normalization_vector_json NORMALIZATION_VECTOR_JSON]
-                          [--adjust_brightness] [--min_intersection_ratio MIN_INTERSECTION_RATIO]
-                          [--tissue_annotation TISSUE_ANNOTATION] [--masked_otsu]
-                          [--otsu_annotation OTSU_ANNOTATION] [--log_path LOG_PATH]
+                          [--wsi_paths WSI_PATHS]
+                          [--wsi_filelist WSI_FILELIST]
+                          [--output_path OUTPUT_PATH]
+                          [--wsi_extension {svs}]
+                          [--config CONFIG]
+                          [--patch_size PATCH_SIZE]
+                          [--patch_overlap PATCH_OVERLAP]
+                          [--downsample DOWNSAMPLE]
+                          [--target_mag TARGET_MAG]
+                          [--level LEVEL]
+                          [--context_scales [CONTEXT_SCALES ...]]
+                          [--check_resolution CHECK_RESOLUTION]
+                          [--processes PROCESSES]
+                          [--overwrite]
+                          [--annotation_paths ANNOTATION_PATHS]
+                          [--annotation_extension {json,xml}]
+                          [--incomplete_annotations]
+                          [--label_map_file LABEL_MAP_FILE]
+                          [--save_only_annotated_patches]
+                          [--exclude_classes EXCLUDE_CLASSES]
+                          [--store_masks]
+                          [--overlapping_labels]
+                          [--normalize_stains]
+                          [--normalization_vector_json NORMALIZATION_VECTOR_JSON]
+                          [--min_intersection_ratio MIN_INTERSECTION_RATIO]
+                          [--tissue_annotation TISSUE_ANNOTATION]
+                          [--masked_otsu]
+                          [--otsu_annotation OTSU_ANNOTATION]
+                          [--log_path LOG_PATH]
                           [--log_level {critical,error,warning,info,debug}]
+                          [--hardware_selection {cucim,openslide}]
 
 optional arguments:
   -h, --help            show this help message and exit
   --wsi_paths WSI_PATHS
-                        Path to the folder where all WSI are stored or path to a single WSI-file.
-                        (default: None)
+                        Path to the folder where all WSI are stored or path to a single WSI-file. (default: None)
+  --wsi_filelist WSI_FILELIST
+                        Path to a csv-filelist with WSI files (separator: `,`), if provided just these files are
+                        used.Must include full paths to WSIs, including suffixes.Can be used as an replacement for
+                        the wsi_paths option.If both are provided, yields an error. (default: None)
   --output_path OUTPUT_PATH
-                        Path to the folder where the resulting dataset should be stored.
-                        (default: None)
+                        Path to the folder where the resulting dataset should be stored. (default: None)
   --wsi_extension {svs}
-                        The extension types used for the WSI files, the options are: ['svs']
-                        (default: 'svs')
-  --config CONFIG       Path to a config file. The config file can hold the same parameters as the CLI.
-                        Parameters provided with the CLI are always having precedence over the parameters in the config file.
+                        The extension types used for the WSI files, the options are: ['svs'] (default: None)
+  --config CONFIG       Path to a config file. The config file can hold the same parameters as the CLI. Parameters
+                        provided with the CLI are always having precedence over the parameters in the config file.
                         (default: None)
   --patch_size PATCH_SIZE
                         The size of the patches in pixel that will be retrieved from the WSI, e.g. 256 for 256px
-                        (default: 256)
+                        (default: None)
   --patch_overlap PATCH_OVERLAP
-                        The amount pixels that should overlap between two different patches
-                        (default: 0)
+                        The percentage amount pixels that should overlap between two different patches. Please
+                        Provide as integer between 0 and 100, indicating overlap in percentage. (default: None)
   --downsample DOWNSAMPLE
-                        Each WSI level is downsampled by a factor of 2, downsample expresses which kind of downsampling
-                        should be used with respect to the highest possible resolution.
-                        Medium priority, gets overwritten by target_mag if provided, but overwrites level.
-                        (default: 1)
+                        Each WSI level is downsampled by a factor of 2, downsample expresses which kind of
+                        downsampling should be used with respect to the highest possible resolution. Medium
+                        priority, gets overwritten by target_mag if provided, but overwrites level. (default:
+                        None)
   --target_mag TARGET_MAG
                         If this parameter is provided, the output level of the WSI corresponds to the level that
-                        is at the target magnification of the WSI. Alternative to downsaple and level.
-                        Highest priority, overwrites downsample and level if provided.
-                        (default: None)
-  --level LEVEL         The tile level for sampling, alternative to downsample. Lowest priority, gets overwritten by
-                        target_mag and downsample if they are provided.
-                        (default: None)
+                        is at the target magnification of the WSI. Alternative to downsaple and level. Highest
+                        priority, overwrites downsample and level if provided. (default: None)
+  --level LEVEL         The tile level for sampling, alternative to downsample. Lowest priority, gets overwritten
+                        by target_mag and downsample if they are provided. (default: None)
   --context_scales [CONTEXT_SCALES ...]
-                        Define context scales for context patches. Context patches are centered around a central patch.
-                        The context-patch size is equal to the patch-size, but downsampling is different
+                        Define context scales for context patches. Context patches are centered around a central
+                        patch. The context-patch size is equal to the patch-size, but downsampling is different
                         (default: None)
   --check_resolution CHECK_RESOLUTION
                         If a float value is supplies, the program checks whether the resolution of all images
-                        corresponds to the given value
-                        (default: None)
+                        corresponds to the given value (default: None)
   --processes PROCESSES
-                        The number of processes to use.
-                        (default: 24)
-  --patches_per_batch PATCHES_PER_BATCH
-                        The number of patches to process in each concurrent batch
-                        (default: 10)
-  --overwrite           Overwrite the patches that have already been created in case they already exist.
-                        Removes dataset. Handle with care!
-                        (default: False)
+                        The number of processes to use. (default: None)
+  --overwrite           Overwrite the patches that have already been created in case they already exist. Removes
+                        dataset. Handle with care! (default: None)
   --annotation_paths ANNOTATION_PATHS
                         Path to the subfolder where the XML/JSON annotations are stored or path to a file
                         (default: None)
@@ -77,50 +88,39 @@ optional arguments:
                         The extension types used for the annotation files, the options are: ['json', 'xml']
                         (default: None)
   --incomplete_annotations
-                        Set to allow wsi without annotation file
-                        (default: False)
+                        Set to allow WSI without annotation file (default: None)
   --label_map_file LABEL_MAP_FILE
-                        The path to a json file that contains the  mapping between the annotation labels and some integers;
-                        an example can be found in examples
-                        (default: None)
+                        The path to a json file that contains the mapping between the annotation labels and some
+                        integers; an example can be found in examples (default: None)
   --save_only_annotated_patches
-                        If true only patches containing annotations will be stored
-                        (default: False)
+                        If true only patches containing annotations will be stored (default: None)
   --exclude_classes EXCLUDE_CLASSES
-                        Can be used to exclude annotation classes
+                        Can be used to exclude annotation classes (default: None)
+  --store_masks         Set to store masks per patch. Defaults to false (default: None)
+  --overlapping_labels  Per default, labels (annotations) are mutually exclusive. If labels overlap, they are
+                        overwritten according to the label_map.json ordering (highest number = highest priority
                         (default: None)
-  --store_masks         Set to store masks per patch. Defaults to false
-                        (default: None)
-  --overlapping_labels  Per default, labels (annotations) are mutually exclusive. If labels overlap,
-                        they are overwritten according to the label_map.json ordering
-                        (highest number = highest priority
-                        (default: False)
-  --normalize_stains    Uses Macenko normalization on a portion of the whole slide image
-                        (default: False)
+  --normalize_stains    Uses Macenko normalization on a portion of the whole slide image (default: None)
   --normalization_vector_json NORMALIZATION_VECTOR_JSON
-                        The path to a JSON file where the normalization vectors are stored
-                        (default: None)
-  --adjust_brightness   Normalize brightness in a batch by clipping to 90 percent
-                        (default: False)
+                        The path to a JSON file where the normalization vectors are stored (default: None)
+  --adjust_brightness   Normalize brightness in a batch by clipping to 90 percent. Not recommended, but kept for legacy reasons (default: None)
   --min_intersection_ratio MIN_INTERSECTION_RATIO
-                        The minimum intersection between the tissue mask and the patch.
-                        Must be between  0 and 1. 0 means that all patches are extracted.
-                        (default: 0.01)
+                        The minimum intersection between the tissue mask and the patch. Must be between 0 and 1. 0
+                        means that all patches are extracted. (default: None)
   --tissue_annotation TISSUE_ANNOTATION
                         Can be used to name a polygon annotation to determine the tissue area. If a tissue
-                        annotation is provided, no Otsu- thresholding is performed
-                        (default: None)
-  --masked_otsu         Use annotation to mask the thumbnail before otsu-thresholding is used
-                        (default: False)
+                        annotation is provided, no Otsu-thresholding is performed (default: None)
+  --masked_otsu         Use annotation to mask the thumbnail before otsu-thresholding is used (default: None)
   --otsu_annotation OTSU_ANNOTATION
-                        Can be used to name a polygon annotation to determine the area for masked otsu thresholding.
-                        Seperate multiple labels with ' ' (whitespace)
-                        (default: None)
-  --log_path LOG_PATH   Path where log files should be stored. Otherwise, log files are stored in the  output folder
-                        (default: None)
+                        Can be used to name a polygon annotation to determine the area for masked otsu
+                        thresholding. Seperate multiple labels with ' ' (whitespace) (default: None)
+  --log_path LOG_PATH   Path where log files should be stored. Otherwise, log files are stored in the output
+                        folder (default: None)
   --log_level {critical,error,warning,info,debug}
                         Set the logging level. Options are ['critical', 'error', 'warning', 'info', 'debug']
-                        (default: 'info')
+                        (default: None)
+  --hardware_selection {cucim,openslide}
+                        Select hardware device (just if available, otherwise always cucim). Defaults to cucim.)
 ```
 
 **Label-Map**:

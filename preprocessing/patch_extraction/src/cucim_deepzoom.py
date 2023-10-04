@@ -10,6 +10,7 @@
 
 import numpy as np
 from cucim import CuImage
+from cucim.clara.cache import preferred_memory_capacity
 from openslide import OpenSlide
 from openslide.deepzoom import DeepZoomGenerator
 from PIL import Image
@@ -39,7 +40,14 @@ class DeepZoomGeneratorCucim(DeepZoomGenerator):
         limit_bounds=False,
     ):
         super().__init__(osr, tile_size, overlap, limit_bounds)
+
         self._cucim_slide = cucim_slide
+        self.memory_capacity = preferred_memory_capacity(
+            self._cucim_slide, patch_size=(tile_size, tile_size)
+        )
+        self.cache = CuImage.cache(
+            "per_process", memory_capacity=self.memory_capacity, record_stat=True
+        )
 
     def get_tile(self, level: int, address: tuple[int]) -> Image:
         """Return an RGB PIL.Image for a tile
@@ -55,7 +63,6 @@ class DeepZoomGeneratorCucim(DeepZoomGenerator):
         args, z_size = self._get_tile_info(level, address)
 
         tile = self._cucim_slide.read_region(
-            num_workers=4,
             location=args[0],
             level=args[1],
             size=args[2],

@@ -1,8 +1,8 @@
 [![Python 3.9.7](https://img.shields.io/badge/python-3.9.7-blue.svg)](https://www.python.org/downloads/release/python-360/)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 [![Flake8 Status](./reports/flake8/flake8-badge.svg)](./reports/flake8/index.html)
+[![CodeFactor](https://www.codefactor.io/repository/github/tio-ikim/cellvit/badge)](https://www.codefactor.io/repository/github/tio-ikim/cellvit)
 <img src="https://img.shields.io/badge/PyTorch-EE4C2C?style=flat-square&logo=Pytorch&logoColor=white"/></a>
-[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Visitors](https://api.visitorbadge.io/api/visitors?path=https%3A%2F%2Fgithub.com%2FTIO-IKIM%2FCellViT&label=Visitors&countColor=%23263759&style=flat)](https://visitorbadge.io/status?path=https%3A%2F%2Fgithub.com%2FTIO-IKIM%2FCellViT)
 [![PWC](https://img.shields.io/endpoint.svg?url=https://paperswithcode.com/badge/cellvit-vision-transformers-for-precise-cell/panoptic-segmentation-on-pannuke)](https://paperswithcode.com/sota/panoptic-segmentation-on-pannuke?p=cellvit-vision-transformers-for-precise-cell)
 ___
@@ -21,13 +21,15 @@ ___
 
 ---
 
-> **Update**:
+> **Update 08.08.2023**:
 >
-> :ballot_box_with_check: Inference speed improved by x100 for postprocessing
+> :bangbang: We fixed a severe training bug and uploaded new checkpoints. Please make sure to pull all changes and redownload your CellViT checkpoints to get the best results :bangbang:
+>
+> :ballot_box_with_check: Improved reproducability by providing config and log files for best models (CellViT-SAM-H and CellViT-256) and adopted PanNuke inference script for an easier evaluation
+>
+> :ballot_box_with_check: Inference speed improved by x100 for postprocessing, added new preprocessing with CuCIM speedup
 >
 > :ballot_box_with_check: Fixed bug in postprocessing that may insert doubled cells during cell-detection
->
-> :ballot_box_with_check: Added mixed-precision training
 >
 > :ballot_box_with_check: Added batch-size and mixed-precision options to inference cli to support RAM limited GPUs
 >
@@ -72,12 +74,13 @@ This repository contains the code implementation of CellViT, a deep learning-bas
 This step is necessary, as we need to install `Openslide` with binary files. This is easier with conda. Otherwise, installation from [source](https://openslide.org/api/python/) needs to be performed and packages installed with pi
 3. Activate environment: `conda activate cellvit_env`
 4. Install torch for for system, as described [here](https://pytorch.org/get-started/locally/). Preferred version is 1.13, see [optional_dependencies](./optional_dependencies.txt) for help. You can find all version here: https://pytorch.org/get-started/previous-versions/
+Example for CUDA 11.7: `pip install torch==1.13.0+cu117 torchvision==0.14.0+cu117 torchaudio==0.13.0 --extra-index-url https://download.pytorch.org/whl/cu117`
 
-5. Install optional dependencies `pip install -r optional_dependencies.txt` to get a speedup using [NVIDIA-Clara](https://www.nvidia.com/de-de/clara/) and [CuCIM](https://github.com/rapidsai/cucim) for preprocessing during inference. Please select your cude versions. Help for installing cucim can be found [online](https://github.com/rapidsai/cucim).
-**Note: cannot import name CuImage from cucim**
+5. Install optional dependencies `pip install -r optional_dependencies.txt` to get a speedup using [NVIDIA-Clara](https://www.nvidia.com/de-de/clara/) and [CuCIM](https://github.com/rapidsai/cucim) for preprocessing during inference. Please select your CUDA versions. Help for installing cucim can be found [online](https://github.com/rapidsai/cucim).
+**Note Error: cannot import name CuImage from cucim**
 If you get this error, install cucim from conda to get all binary files.
 First remove your previous dependeny with `pip uninstall cupy-cuda117` and reinstall with `
-conda install -c rapidsai cucim` inside your conda environment. Also follow their [official guideline](https://github.com/rapidsai/cucim).
+conda install -c rapidsai cucim` inside your conda environment. This process is time consuming, so you should be patient. Also follow their [official guideline](https://github.com/rapidsai/cucim).
 
 ## Usage:
 
@@ -133,16 +136,30 @@ required named arguments:
   --config CONFIG       Path to a config file (default: None)
 ```
 
-The important file is the configuration file, in which all paths are set, the model configuration is given and the hyperparameters or sweeps are defined. For each specific run file, there exists an example file in the [./configs/examples/cell_segmentation](configs/examples/cell_segmentation) folder with the same naming as well as a configuration file that explains how to run WandB sweeps for hyperparameter search. All metrics defined in your trainer are logged to WandB. The WandB configuration needs to be set up in the configuration file, but also turned off by the user.
+The important file is the configuration file, in which all paths are set, the model configuration is given and the hyperparameters or sweeps are defined. For each specific run file, there exists an example file in the [`./configs/examples/cell_segmentation`](configs/examples/cell_segmentation) folder with the same naming as well as a configuration file that explains how to run WandB sweeps for hyperparameter search. All metrics defined in your trainer are logged to WandB. The WandB configuration needs to be set up in the configuration file, but also turned off by the user.
 
 An example config file is given [here](configs/examples/cell_segmentation/train_cellvit.yaml) with explanations [here](docs/readmes/example_train_config.md).
-For sweeps, we provide a sweep example file [train_cellvit_sweep.yaml](/configs/examples/cell_segmentation/train_cellvit_sweep.yaml).
+For sweeps, we provide a sweep example file [`train_cellvit_sweep.yaml`](/configs/examples/cell_segmentation/train_cellvit_sweep.yaml).
+
+We also included some exemplary PanNuke configurations files from the paper along with resulting log and inference files:
+- SAM-H: [configuration :page_facing_up:](configs/PanNuke/SAM/SAM-H/), [results :bar_chart:](results/PanNuke/SAM/SAM-H/)
+- ViT-256: [configuration :page_facing_up:](configs/PanNuke/ViT-256/), [results :bar_chart:](results/PanNuke/ViT-256/)
+
+**Pre-trained ViT models** for training initialization can be downloaded from Google Drive: [ViT-Models](https://drive.google.com/drive/folders/1zFO4bgo7yvjT9rCJi_6Mt6_07wfr0CKU?usp=sharing). Please check out the corresponding licenses before distribution and further usage! Note: We just used the teacher models for ViT-256.
+
+:exclamation: If your training crashes at some point, you can continue from a checkpoint
 
 
 #### Dataset preparation
 We use a customized dataset structure for the PanNuke and the MoNuSeg dataset.
 The dataset structures are explained in [pannuke.md](docs/readmes/pannuke.md) and [monuseg.md](docs/readmes/monuseg.md) documentation files.
 We also provide preparation scripts in the [`cell_segmentation/datasets/`](cell_segmentation/datasets/) folder.
+
+#### Evaluation
+In our paper, we did not (!) use early stopping, but rather train all models for 130 to eliminate selection bias but have the largest possible database for training. Therefore, evaluation neeeds to be performed with the `latest_checkpoint.pth` model and not the best early stopping model.
+We provide to script to create evaluation results: [`inference_cellvit_experiment.py`](cell_segmentation/inference/inference_cellvit_experiment.py) for PanNuke and [`inference_cellvit_monuseg.py`](cell_segmentation/inference/inference_cellvit_monuseg.py) for MoNuSeg.
+
+> :exclamation: We recently adapted the evaluation code and added a tag to the config files to select which checkpoint needs to be used. Please make sure to use the right checkpoint and select the appropriate dataset magnification.
 
 ### Inference
 
@@ -155,9 +172,7 @@ Model checkpoints can be downloaded here:
 
 License: [Apache 2.0 with Commons Clause](./LICENSE)
 
-Pre-trained ViT models for training initialization can be downloaded here: [ViT-Models](https://drive.google.com/drive/folders/1zFO4bgo7yvjT9rCJi_6Mt6_07wfr0CKU?usp=sharing)
-Please check out the corresponding licenses before distribution and further usage!
-Note: We just used the teacher models for ViT-256. Proved checkpoints have been trained on 90% of the data from all folds with the settings described in the publication.
+Proved checkpoints have been trained on 90% of the data from all folds with the settings described in the publication.
 
 ##### Steps
 The following steps are necessary for preprocessing:
@@ -227,7 +242,8 @@ The cell detection and segmentation results are stored in a newly created `cell_
 If the data is prepared, use the [`cell_detection.py`](inference/cell_detection.py) script inside the `cell_segmentation/inference` folder to perform inference:
 
 ```bash
-usage: cell_detection.py --model MODEL [--gpu GPU] [--magnification MAGNIFICATION] [--outdir_subdir OUTDIR_SUBDIR]
+usage: cell_detection.py --model MODEL [--gpu GPU] [--magnification MAGNIFICATION] [--mixed_precision]
+                          [--batch_size BATCH_SIZE] [--outdir_subdir OUTDIR_SUBDIR]
                           [--geojson] {process_wsi,process_dataset} ...
 
 Perform CellViT inference for given run-directory with model checkpoints and logs
@@ -238,6 +254,9 @@ optional arguments:
   --magnification MAGNIFICATION
                         Network magnification. Is used for checking patch magnification such that
                         we use the correct resolution for network. Default: 40 (default: 40)
+  --mixed_precision     Whether to use mixed precision for inference. Default: False (default: False)
+  --batch_size BATCH_SIZE
+                        Inference batch-size. Default: 8 (default: 8)
   --outdir_subdir OUTDIR_SUBDIR
                         If provided, a subdir with the given name is created in the cell_detection folder
                         where the results are stored. Default: None (default: None)
@@ -287,6 +306,8 @@ arguments:
 #### 3. Example
 We provide an example TCGA file to show the performance and usage of our algorithms.
 Files and scripts can be found in the [example](example) folder.
+The TCGA slide must be downloaded here: https://portal.gdc.cancer.gov/files/f9147f06-2902-4a64-b293-5dbf9217c668.
+Please place this file in the example folder.
 
 **Preprocessing:**
 ```bash
@@ -296,7 +317,7 @@ python3 ./preprocessing/patch_extraction/main_extraction.py --config ./example/p
 Output is stored inside `./example/output/preprocessing`
 
 **Inference:**
-Download the models and store them in `` or on your preferred location and change the model parameter.
+Download the models and store them in `./models/pretrained` or on your preferred location and change the model parameter.
 
 ```bash
 python3 ./cell_segmentation/inference/cell_detection.py \

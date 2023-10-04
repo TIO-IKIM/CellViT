@@ -1,0 +1,135 @@
+logging:
+  mode: online
+  project: Cell-Segmentation
+  notes: CellViTSAMStarDist-H-Unshared-Fold-2
+  log_comment: CellViTSAMStarDist-H-Unshared-Fold-2
+  tags:
+  - Fold-2
+  - CellViTSAMStarDist-H
+  wandb_dir: ./CellViT/results/PanNuke
+
+  group: CellViTSAMStarDist-H-Unshared-Our-Setting
+  level: Debug
+
+
+random_seed: 19
+gpu: 0
+data:
+  dataset: PanNuke
+  dataset_path: ./PanNuke/digitalhistologyhub
+  train_folds:
+  - 1
+  val_folds:
+  - 0
+  test_folds:
+  - 2
+  num_nuclei_classes: 6
+  num_tissue_classes: 19
+model:
+  backbone: SAM-H
+  pretrained_encoder: ./CellViT/models/pretrained/SAM/sam_vit_h.pth
+training:
+  drop_rate: 0
+  attn_drop_rate: 0.1
+  drop_path_rate: 0.1
+  batch_size: 16
+  epochs: 130
+  optimizer: AdamW
+  early_stopping_patience: 130
+  scheduler:
+    scheduler_type: exponential
+    hyperparameters:
+      gamma: 0.85
+  optimizer_hyperparameter:
+    betas:
+    - 0.85
+    - 0.95
+    lr: 0.0003
+    weight_decay: 0.0001
+  unfreeze_epoch: 25
+  sampling_gamma: 0.85
+  sampling_strategy: cell+tissue
+  mixed_precision: true
+  eval_every: 10
+loss:
+  nuclei_type_map:
+    bce:
+      loss_fn: xentropy_loss
+      weight: 0.5
+    dice:
+      loss_fn: dice_loss
+      weight: 0.2
+    mcfocaltverskyloss:
+      loss_fn: MCFocalTverskyLoss
+      weight: 0.5
+      args:
+        num_classes: 6
+transformations:
+  randomrotate90:
+    p: 0.5
+  horizontalflip:
+    p: 0.5
+  verticalflip:
+    p: 0.5
+  downscale:
+    p: 0.15
+    scale: 0.5
+  blur:
+    p: 0.2
+    blur_limit: 10
+  gaussnoise:
+    p: 0.25
+    var_limit: 50
+  colorjitter:
+    p: 0.2
+    scale_setting: 0.25
+    scale_color: 0.1
+  superpixels:
+    p: 0.1
+  zoomblur:
+    p: 0.1
+  randomsizedcrop:
+    p: 0.1
+  elastictransform:
+    p: 0.2
+  normalize:
+    mean:
+    - 0.5
+    - 0.5
+    - 0.5
+    std:
+    - 0.5
+    - 0.5
+    - 0.5
+eval_checkpoint: latest_checkpoint.pth
+run_sweep: false
+agent: null
+checkpoint: ./CellViT/results/PanNuke/Revision/CellViTStarDist/Common-Loss/SAM-H/Unshared-decoder/Our-Setting/2023-09-18T065152_CellViTSAMStarDist-H-Unshared-Fold-2/checkpoints/latest_checkpoint.pth
+dataset_config:
+  tissue_types:
+    Adrenal_gland: 0
+    Bile-duct: 1
+    Bladder: 2
+    Breast: 3
+    Cervix: 4
+    Colon: 5
+    Esophagus: 6
+    HeadNeck: 7
+    Kidney: 8
+    Liver: 9
+    Lung: 10
+    Ovarian: 11
+    Pancreatic: 12
+    Prostate: 13
+    Skin: 14
+    Stomach: 15
+    Testis: 16
+    Thyroid: 17
+    Uterus: 18
+  nuclei_types:
+    Background: 0
+    Neoplastic: 1
+    Inflammatory: 2
+    Connective: 3
+    Dead: 4
+    Epithelial: 5

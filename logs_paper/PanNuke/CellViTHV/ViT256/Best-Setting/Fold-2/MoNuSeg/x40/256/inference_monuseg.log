@@ -1,0 +1,12 @@
+Loading model: /homes/fhoerst/histo-projects/CellViT/results/PanNuke/Revision/CellViT/Common-Loss/ViT256/Best-Setting/Fold-2/checkpoints/latest_checkpoint.pth
+<All keys matched successfully>
+Loading inference transformations
+******************** Binary Dataset metrics ********************
+Binary-Cell-Dice-Mean:    0.8281120657920837
+Binary-Cell-Jacard-Mean:  0.7075381875038147
+bPQ:                      0.620292480610119
+bDQ:                      0.8158989159883149
+bSQ:                      0.7596088941370683
+f1_detection:             0.8429555127373523
+precision_detection:      0.8134855917020116
+recall_detection:         0.8759245721333427

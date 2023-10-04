@@ -67,6 +67,9 @@ class BaseExperiment:
         else:
             self.checkpoint = None
 
+        # seeding
+        self.seed_run(seed=self.default_conf["random_seed"])
+
     @abstractmethod
     def run_experiment(self):
         """Experiment Code
@@ -145,7 +148,7 @@ class BaseExperiment:
         )
         self.logger.info(hp)
 
-        return optimizer  # TODO: this could cause an error when using weight freezing
+        return optimizer
 
     def get_scheduler(self, optimizer: Optimizer) -> _LRScheduler:
         """Retrieve learning rate scheduler for training
@@ -357,8 +360,25 @@ class BaseExperiment:
         """
         # seeding
         torch.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+        os.environ["PYTHONHASHSEED"] = str(seed)
         np.random.seed(seed)
         random.seed(seed)
+        from packaging.version import parse, Version
+
+        try:
+            import tensorflow as tf
+        except ImportError:
+            pass
+        else:
+            if parse(tf.__version__) >= Version("2.0.0"):
+                tf.random.set_seed(seed)
+            elif parse(tf.__version__) <= Version("1.13.2"):
+                tf.set_random_seed(seed)
+            else:
+                tf.compat.v1.set_random_seed(seed)
 
     @staticmethod
     def seed_worker(worker_id) -> None:
@@ -368,6 +388,8 @@ class BaseExperiment:
             worker_id (_type_): Worker ID
         """
         worker_seed = torch.initial_seed() % 2**32
+        torch.manual_seed(worker_seed)
+        torch.cuda.manual_seed_all(worker_seed)
         np.random.seed(worker_seed)
         random.seed(worker_seed)
 
