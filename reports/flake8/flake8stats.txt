@@ -1,3 +1,25 @@
-1     E303 too many blank lines (5)
-2     W292 no newline at end of file
-7     W293 blank line contains whitespace
+4     E121 continuation line under-indented for hanging indent
+2     E123 closing bracket does not match indentation of opening bracket's line
+4     E125 continuation line with same indent as next logical line
+4     E126 continuation line over-indented for hanging indent
+2     E127 continuation line over-indented for visual indent
+2     E222 multiple spaces after operator
+6     E225 missing whitespace around operator
+9     E226 missing whitespace around arithmetic operator
+25    E231 missing whitespace after ','
+1     E241 multiple spaces after ':'
+2     E251 unexpected spaces around keyword / parameter equals
+19    E261 at least two spaces before inline comment
+1     E262 inline comment should start with '# '
+10    E265 block comment should start with '# '
+11    E302 expected 2 blank lines, found 1
+8     E303 too many blank lines (2)
+1     E305 expected 2 blank lines after class or function definition, found 1
+20    F401 'albumentations as A' imported but unused
+2     F541 f-string is missing placeholders
+2     F601 dictionary key 'output_dir' repeated with different values
+5     F811 redefinition of unused 'rm_n_mkdir' from line 80
+33    W291 trailing whitespace
+7     W292 no newline at end of file
+57    W293 blank line contains whitespace
+4     W391 blank line at end of file
