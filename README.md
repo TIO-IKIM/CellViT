@@ -70,7 +70,7 @@ This repository contains the code implementation of CellViT, a deep learning-bas
 
 1. Clone the repository:
   `git clone https://github.com/TIO-IKIM/CellViT.git`
-2. Create a conda environment with Python 3.10.12 version and install conda requirements: `conda env create -f environment.yml`. You can change the environment name by editing the `name` tag in the environment.yaml file.
+2. Create a conda environment with Python 3.9.7 version and install conda requirements: `conda env create -f environment.yml`. You can change the environment name by editing the `name` tag in the environment.yaml file.
 This step is necessary, as we need to install `Openslide` with binary files. This is easier with conda. Otherwise, installation from [source](https://openslide.org/api/python/) needs to be performed and packages installed with pi
 3. Activate environment: `conda activate cellvit_env`
 4. Install torch (>=2.0) for your system, as described [here](https://pytorch.org/get-started/locally/). Preferred version is 2.0, see [optional_dependencies](./optional_dependencies.txt) for help. You can find all version here: https://pytorch.org/get-started/previous-versions/
