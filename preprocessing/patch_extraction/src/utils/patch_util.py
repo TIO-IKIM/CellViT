@@ -26,7 +26,6 @@ from shapely.validation import make_valid
 
 from preprocessing.patch_extraction import logger
 from preprocessing.patch_extraction.src.utils.exceptions import WrongParameterException
-
 from preprocessing.patch_extraction.src.utils.masking import (
     convert_polygons_to_mask,
     generate_tissue_mask,
