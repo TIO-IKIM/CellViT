@@ -7,10 +7,18 @@
 
 from typing import List
 
-WSI_EXT: List[str] = ["svs"]
-ANNOTATION_EXT: List[str] = ["json", "xml"]
+WSI_EXT: List[str] = [
+    "svs",
+    "tiff",
+    "tif",
+    "bif",
+    "scn",
+    "ndpi",
+    "vms",
+    "vmu",
+]  # mirax not tested yet
+ANNOTATION_EXT: List[str] = ["json"]
 LOGGING_EXT: List[str] = ["critical", "error", "warning", "info", "debug"]
-
 BACKBONES: List[str] = ["ResNet50", "ResNet50Bottleneck", "ResNet18", "ResNet34"]
 
 # Currently: 30 Colors

@@ -10,15 +10,22 @@ import json
 import multiprocessing
 import os
 import random
+import warnings
 from pathlib import Path
 from shutil import rmtree
 from typing import Callable, List, Tuple, Union
 
+import matplotlib
+
+matplotlib.use("Agg")  # Agg is a non-interactive backend
+
 import numpy as np
+import torch
 from openslide import OpenSlide
 from PIL import Image
 from shapely.affinity import scale
 from shapely.geometry import Polygon
+from tqdm import tqdm
 
 from preprocessing.patch_extraction import logger
 from preprocessing.patch_extraction.src.cli import PreProcessingConfig
@@ -26,6 +33,9 @@ from preprocessing.patch_extraction.src.storage import Storage
 from preprocessing.patch_extraction.src.utils.exceptions import (
     UnalignedDataException,
     WrongParameterException,
+)
+from preprocessing.patch_extraction.src.utils.patch_dataset import (
+    load_tissue_detection_dl,
 )
 from preprocessing.patch_extraction.src.utils.patch_util import (
     DeepZoomGeneratorOS,
@@ -41,22 +51,30 @@ from preprocessing.patch_extraction.src.utils.patch_util import (
     pad_tile,
     patch_to_tile_size,
     target_mag_to_downsample,
+    target_mpp_to_downsample,
 )
 from utils.tools import end_timer, module_exists, start_timer
 
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+warnings.filterwarnings("ignore", category=UserWarning)
 
-def queue_worker(q: multiprocessing.Queue, store: Storage) -> None:
+
+def queue_worker(
+    q: multiprocessing.Queue, store: Storage, processed_count: int
+) -> None:
     """Queue Worker to save patches with metadata
 
     Args:
         q (multiprocessing.Queue): Queue for input
         store (Storage): Storage object
+        processed_count (int): Processed element count for tqdm
     """
     while True:
         item = q.get()
         if item is None:
             break
         store.save_elem_to_disk(item)
+        processed_count.value += 1
 
 
 class PreProcessor(object):
@@ -106,6 +124,9 @@ class PreProcessor(object):
             self.save_context = True
         else:
             self.save_context = False
+
+        if self.config.filter_patches is True:
+            self._set_tissue_detector()
 
         # set seed
         random.seed(42)
@@ -187,7 +208,7 @@ class PreProcessor(object):
                         "files to have the same name as the WSI files. Otherwise use incomplete_annotations=True"
                     )
 
-    def _set_hardware(self, hardware_selection: str = "cucim"):
+    def _set_hardware(self, hardware_selection: str = "cucim") -> None:
         """Either load CuCIM (GPU-accelerated) or OpenSlide
 
 
@@ -201,10 +222,7 @@ class PreProcessor(object):
         ):
             logger.info("Using CuCIM")
             from cucim import CuImage
-
-            from preprocessing.patch_extraction.src.cucim_deepzoom import (
-                DeepZoomGeneratorCucim,
-            )
+            from src.cucim_deepzoom import DeepZoomGeneratorCucim
 
             self.deepzoomgenerator = DeepZoomGeneratorCucim
             self.image_loader = CuImage
@@ -212,6 +230,52 @@ class PreProcessor(object):
             logger.info("Using OpenSlide")
             self.deepzoomgenerator = DeepZoomGeneratorOS
             self.image_loader = OpenSlide
+
+    def _set_tissue_detector(self) -> None:
+        try:
+            import torch.nn as nn
+            from torchvision.models import mobilenet_v3_small
+            from torchvision.transforms.v2 import (
+                Compose,
+                Normalize,
+                Resize,
+                ToDtype,
+                ToTensor,
+            )
+        except ImportError:
+            raise ImportError(
+                "Torch cannot be imported, Please install PyTorch==2.0 with torchvision for your system (https://pytorch.org/get-started/previous-versions/)!"
+            )
+        self.detector_device = torch.device(
+            "cuda:0" if torch.cuda.is_available() else "cpu"
+        )
+        if self.detector_device == "cpu":
+            logger.warning(
+                "No CUDA device detected - Speed may be very slow. Please consider performing extraction on CUDA device or disable tissue detector!"
+            )
+        model = mobilenet_v3_small().to(device=self.detector_device)
+        model.classifier[-1] = nn.Linear(1024, 4)
+        checkpoint = torch.load(
+            "./src/data/tissue_detector.pt", map_location=self.detector_device
+        )
+        model.load_state_dict(checkpoint["model_state_dict"])
+        model.eval()
+
+        self.detector_model = model
+        logger.info("Successfully loaded tissue classifier for patch cleaning")
+
+        # load inference transformations for performing inference
+        self.detector_transforms = Compose(
+            [
+                Resize(224),
+                ToTensor(),
+                ToDtype(torch.float32),
+                Normalize(
+                    mean=[0.485, 0.456, 0.406],
+                    std=[0.229, 0.224, 0.225],
+                ),
+            ]
+        ).to(self.detector_device)
 
     def sample_patches_dataset(self) -> None:
         """Main functiuon to create a dataset. Sample the complete dataset.
@@ -280,8 +344,53 @@ class PreProcessor(object):
             if patch_count == 0:
                 logger.warning(f"No patches sampled from {wsi_file.name}")
             logger.info(f"Total patches sampled: {patch_count}")
-
             store.clean_up(patch_distribution, patch_result_metadata)
+
+            if self.config.filter_patches:
+                patch_count = 0
+                logger.info("Start Filtering Patches")
+                # Things to Update:
+                # Remove patches
+                tissue_detection_dl = load_tissue_detection_dl(
+                    patched_wsi_path=store.wsi_path, transforms=self.detector_transforms
+                )
+                detector_model = self.detector_model.to(self.detector_device)
+                with open(store.wsi_path / "patch_metadata.json", "r") as meta_file:
+                    orig_metadata = json.load(meta_file)
+
+                keep_names = []
+                for images, image_names in tqdm(
+                    tissue_detection_dl, total=len(tissue_detection_dl)
+                ):
+                    images = images.to(self.detector_device)
+                    outputs = detector_model(images)
+                    output_probs = torch.softmax(outputs, dim=-1)
+                    predictions = torch.argmax(output_probs, dim=-1)
+
+                    for image_name, prediction in zip(image_names, predictions):
+                        if int(prediction) == 0:
+                            patch_count = patch_count + 1
+                            keep_names.append(image_name)
+                        else:
+                            # remove patch
+                            image_path = store.wsi_path / "patches" / image_name
+                            os.remove(image_path)
+                            # remove patch metadata
+                            image_metadata_patch = (
+                                store.wsi_path
+                                / "metadata"
+                                / f"{Path(image_name).stem}.yaml"
+                            )
+                            os.remove(image_metadata_patch)
+
+                # Carefull: Patch-Distribution is not updated, as we assume that if a patch distribution is calculated, no tissue filter is needed
+                cleaned_metadata = [
+                    f for f in orig_metadata if list(f.keys())[0] in keep_names
+                ]
+                store.clean_up(patch_distribution, cleaned_metadata)
+
+                logger.info(f"Total patches sampled after Filtering: {patch_count}")
+
             total_count += patch_count
 
         logger.info(f"Patches saved to: {self.config.output_path.resolve()}")
@@ -456,10 +565,36 @@ class PreProcessor(object):
         # load slide (OS and CuImage/OS)
         slide = OpenSlide(str(wsi_file))
         slide_cu = self.image_loader(str(wsi_file))
+        if "openslide.mpp-x" in slide.properties:
+            slide_mpp = float(slide.properties.get("openslide.mpp-x"))
+        elif (
+            self.config.wsi_properties is not None
+            and "slide_mpp" in self.config.wsi_properties
+        ):
+            slide_mpp = self.config.wsi_properties["slide_mpp"]
+        else:
+            raise NotImplementedError(
+                "MPP must be defined either by metadata or by config file!"
+            )
 
+        if "openslide.objective-power" in slide.properties:
+            slide_mag = float(slide.properties.get("openslide.objective-power"))
+        elif (
+            self.config.wsi_properties is not None
+            and "magnification" in self.config.wsi_properties
+        ):
+            slide_mag = self.config.wsi_properties["magnification"]
+        else:
+            raise NotImplementedError(
+                "MPP must be defined either by metadata or by config file!"
+            )
+
+        slide_properties = {"mpp": slide_mpp, "magnification": slide_mag}
         # Generate thumbnails
         logger.info("Generate thumbnails")
-        thumbnails = generate_thumbnails(slide, sample_factors=[32, 64, 128])
+        thumbnails = generate_thumbnails(
+            slide, slide_properties["mpp"], sample_factors=[32, 64, 128]
+        )  # todo
 
         # Check whether the resolution of the current image is the same as the given one
         self._check_wsi_resolution(slide.properties)
@@ -482,12 +617,21 @@ class PreProcessor(object):
             limit_bounds=True,
         )
 
+        # target mpp has highest precende
+        if self.config.target_mpp is not None:
+            if self.config.target_mpp < slide_properties["mpp"]:
+                raise WrongParameterException(
+                    f"Requested mpp resolution ({self.config.mpp}) must be greater than or equal to the base resultion {slide_properties['mpp']}"
+                )
+            self.config.downsample = target_mpp_to_downsample(
+                slide_properties["mpp"],
+                self.config.target_mpp,
+            )
         # target mag has precedence before downsample!
-        if self.config.target_mag is not None:
+        elif self.config.target_mag is not None:
             self.config.downsample = target_mag_to_downsample(
-                float(slide.properties.get("openslide.objective-power")),  # slide,
+                slide_properties["magnification"],
                 self.config.target_mag,
-                self.config.downsample,
             )
         if self.config.downsample is not None:
             # Each level is downsampled by a factor of 2
@@ -644,9 +788,14 @@ class PreProcessor(object):
         # queue setup
         queue = multiprocessing.Queue()
         processes = []
+        processed_count = multiprocessing.Value("i", 0)
+
+        pbar = tqdm(total=len(batch), desc="Retrieving patches")
 
         for _ in range(self.config.processes):
-            p = multiprocessing.Process(target=queue_worker, args=(queue, store))
+            p = multiprocessing.Process(
+                target=queue_worker, args=(queue, store, processed_count)
+            )
             p.start()
             processes.append(p)
 
@@ -656,8 +805,8 @@ class PreProcessor(object):
         patch_distribution = {v: 0 for k, v in patch_distribution.items()}
 
         start_time = start_timer()
-        # for row, col, _ in tqdm(batch, total=len(batch)):
         for row, col, _ in batch:
+            pbar.update()
             # set name
             patch_fname = f"{wsi_file.stem}_{row}_{col}.png"
             patch_yaml_name = f"{wsi_file.stem}_{row}_{col}.yaml"
@@ -755,13 +904,11 @@ class PreProcessor(object):
 
             queue_elem = (patch, patch_metadata, patch_mask, context_patches)
             queue.put(queue_elem)
-
             # store metadata for all patches
             patch_metadata.pop("wsi_metadata")
             patch_metadata["metadata_path"] = f"./metadata/{patch_yaml_name}"
 
             # context metadata
-            # TODO: Check context saving
             if self.save_context:
                 patch_metadata["context_scales"] = {}
                 for c_scale, _ in context_patches.items():
@@ -776,10 +923,17 @@ class PreProcessor(object):
         for _ in range(self.config.processes):
             queue.put(None)
 
+        pbar.close()
+        # wait for the queue to end
+        while not queue.empty():
+            print(f"Progress: {processed_count.value}/{len(batch)}", end="\r")
+            print("", end="", flush=True)
+
         # Wait for all workers to finish
         for p in processes:
             p.join()
             p.close()
+        pbar.close()
 
         logger.info("Finished Processing and Storing. Took:")
         end_timer(start_time)

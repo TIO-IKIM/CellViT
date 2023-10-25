@@ -14,9 +14,14 @@ patch_overlap:                # The percentage amount pixels that should overlap
 downsample:                   # Each WSI level is downsampled by a factor of 2, downsample
                               # expresses which kind of downsampling should be used with
                               # respect to the highest possible resolution. [int][Optional, defaults to 0]
+target_mpp:                   # If this parameter is provided, the output level of the WSI
+                              # corresponds to the level that is at the target microns per pixel of the WSI.
+                              # Alternative to target_mag, downsaple and level. Highest priority, overwrites all other setups for magnifcation, downsample, or level.
+                              # [int][Optional, defaults to None]
 target_mag:                   # If this parameter is provided, the output level of the WSI
                               # corresponds to the level that is at the target magnification of the WSI.
-                              # Alternative to downsaple and level. [int][Optional, defaults to None]
+                              # Alternative to target_mpp, downsaple and level. High priority, just target_mpp has a higher priority, overwrites downsample and level if provided.
+                              # [int][Optional, defaults to None]
 level:                        # The tile level for sampling, alternative to downsample. [int][Optional, defaults to None]
 context_scales:               # Define context scales for context patches. Context patches are centered around a central patch.
                               # The context-patch size is equal to the patch-size, but downsampling is different.
@@ -56,8 +61,11 @@ tissue_annotation:            # Can be used to name a polygon annotation to dete
 masked_otsu:                  # Use annotation to mask the thumbnail before otsu-thresholding is used. [bool][Optional, defaults to False]
 otsu_annotation:              # Can be used to name a polygon annotation to determine the area
                               # for masked otsu thresholding. [List][Optional, defaults to None]
+filter_patches:               # Post-extraction patch filtering to sort out artefacts, marker and other non-tissue patches with a DL model. Time consuming.
+                              # [bool] [Optional, defaults to False]
 
 # logging
 log_path:                     # Path where log files should be stored. Otherwise, log files are stored in the output folder. [str][Optional, defaults to None]
 log_level:                    # Set the logging level. [str][Optional, defaults to info]
 hardware_selection:           # Select hardware device (just if available, otherwise always cucim). [str] [Optional, defaults to cucim]
+wsi_properties:               # Dictionary with manual WSI metadata. Required keys are: ... TODO: add keys [dict] [Optional, default selection from files]

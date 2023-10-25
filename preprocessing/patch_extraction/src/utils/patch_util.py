@@ -25,6 +25,8 @@ from shapely.geometry import Polygon, shape
 from shapely.validation import make_valid
 
 from preprocessing.patch_extraction import logger
+from preprocessing.patch_extraction.src.utils.exceptions import WrongParameterException
+
 from preprocessing.patch_extraction.src.utils.masking import (
     convert_polygons_to_mask,
     generate_tissue_mask,
@@ -97,9 +99,7 @@ def patch_to_tile_size(patch_size: int, overlap: int) -> int:
     return patch_size - overlap * 2
 
 
-def target_mag_to_downsample(
-    base_mag: float, target_mag: float, init_downsample: int = 1
-) -> int:
+def target_mag_to_downsample(base_mag: float, target_mag: float) -> int:
     """Convert the target magnification to a specific downsampling factor based on the base magnification of an image.
 
     Resulting downsampling factor must be a power of 2
@@ -107,8 +107,9 @@ def target_mag_to_downsample(
     Args:
         base_mag (float): Base magnification of WSI
         target_mag (float): Target magnification for patches
-        init_downsample (int, optionak): Initial downsampling, returned if base magniciation can not be derived.
-            Defaults to 1.
+
+    Raises:
+        WrongParameterException: Raised when calculating error occurs
 
     Returns:
         int: Resulting downsampling
@@ -123,13 +124,42 @@ def target_mag_to_downsample(
             if np.log2((base_mag / target_mag)).is_integer():
                 downsample = int(base_mag / target_mag)
             else:
-                logger.warning(
+                raise WrongParameterException(
                     "Cannot derive downsampling, because base/target must be a power of 2"
                 )
     except KeyError:
-        logger.warning("No base magnification in metadata. Using default downsample")
-        downsample = init_downsample
+        raise WrongParameterException("No base magnification in metadata")
 
+    return downsample
+
+
+def target_mpp_to_downsample(
+    base_mpp: float, target_mpp: float, tolerance: float = 0.1
+) -> int:
+    """Calculate the downsampling factor needed to reach a target microns-per-pixel (mpp) resolution.
+
+    Args:
+        base_mpp (float): The base mpp resolution.
+        target_mpp (float): The target mpp resolution.
+        tolerance (float, optional): The relative tolerance for checking if the target is a power of the base. Defaults to 0.1.
+
+    Raises:
+        WrongParameterException: Raised when the target mpp is not a power of the base mpp, with a specified tolerance.
+
+    Returns:
+        int: The downsampling factor required to achieve the target mpp resolution.
+    """
+    exponent_fraction = np.log2((target_mpp / base_mpp))
+    nearest_integer = round(exponent_fraction)
+    is_close = np.isclose(exponent_fraction, nearest_integer, rtol=tolerance)
+    if is_close:
+        downsample = round(target_mpp / base_mpp)
+    else:
+        raise WrongParameterException(
+            f"Requested mpp resolution ({target_mpp}) is not a power of the base resultion {base_mpp}. "
+            "Currently, we just support the extraction of mpp that are a power of the base resultion with factor 2. "
+            "We plan to add continuous interpolation in a future release."
+        )
     return downsample
 
 
@@ -506,6 +536,7 @@ def compute_overlap(
 
 def generate_thumbnails(
     slide: OpenSlide,
+    slide_mpp: float,
     sample_factors: List[int] = [32, 64, 128],
     mpp_factors: List[float] = [5, 10],
 ) -> dict:
@@ -537,7 +568,7 @@ def generate_thumbnails(
             )
         )
         thumbnails[f"downsample_{sample_factor}"] = thumbnail
-    slide_mpp = float(slide.properties["openslide.mpp-x"])
+    # slide_mpp = float(slide.properties["openslide.mpp-x"])
     # matching microns per pixel
     for mpp in mpp_factors:
         sample_factor = round(mpp / slide_mpp)

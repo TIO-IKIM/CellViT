@@ -70,11 +70,10 @@ This repository contains the code implementation of CellViT, a deep learning-bas
 
 1. Clone the repository:
   `git clone https://github.com/TIO-IKIM/CellViT.git`
-2. Create a conda environment with Python 3.9.7 version and install conda requirements: `conda env create -f environment.yml`. You can change the environment name by editing the `name` tag in the environment.yaml file.
+2. Create a conda environment with Python 3.10.12 version and install conda requirements: `conda env create -f environment.yml`. You can change the environment name by editing the `name` tag in the environment.yaml file.
 This step is necessary, as we need to install `Openslide` with binary files. This is easier with conda. Otherwise, installation from [source](https://openslide.org/api/python/) needs to be performed and packages installed with pi
 3. Activate environment: `conda activate cellvit_env`
-4. Install torch for for system, as described [here](https://pytorch.org/get-started/locally/). Preferred version is 1.13, see [optional_dependencies](./optional_dependencies.txt) for help. You can find all version here: https://pytorch.org/get-started/previous-versions/
-Example for CUDA 11.7: `pip install torch==1.13.0+cu117 torchvision==0.14.0+cu117 torchaudio==0.13.0 --extra-index-url https://download.pytorch.org/whl/cu117`
+4. Install torch (>=2.0) for your system, as described [here](https://pytorch.org/get-started/locally/). Preferred version is 2.0, see [optional_dependencies](./optional_dependencies.txt) for help. You can find all version here: https://pytorch.org/get-started/previous-versions/
 
 5. Install optional dependencies `pip install -r optional_dependencies.txt` to get a speedup using [NVIDIA-Clara](https://www.nvidia.com/de-de/clara/) and [CuCIM](https://github.com/rapidsai/cucim) for preprocessing during inference. Please select your CUDA versions. Help for installing cucim can be found [online](https://github.com/rapidsai/cucim).
 **Note Error: cannot import name CuImage from cucim**
