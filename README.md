@@ -140,10 +140,6 @@ The important file is the configuration file, in which all paths are set, the mo
 An example config file is given [here](configs/examples/cell_segmentation/train_cellvit.yaml) with explanations [here](docs/readmes/example_train_config.md).
 For sweeps, we provide a sweep example file [`train_cellvit_sweep.yaml`](/configs/examples/cell_segmentation/train_cellvit_sweep.yaml).
 
-We also included some exemplary PanNuke configurations files from the paper along with resulting log and inference files:
-- SAM-H: [configuration :page_facing_up:](configs/PanNuke/SAM/SAM-H/), [results :bar_chart:](results/PanNuke/SAM/SAM-H/)
-- ViT-256: [configuration :page_facing_up:](configs/PanNuke/ViT-256/), [results :bar_chart:](results/PanNuke/ViT-256/)
-
 **Pre-trained ViT models** for training initialization can be downloaded from Google Drive: [ViT-Models](https://drive.google.com/drive/folders/1zFO4bgo7yvjT9rCJi_6Mt6_07wfr0CKU?usp=sharing). Please check out the corresponding licenses before distribution and further usage! Note: We just used the teacher models for ViT-256.
 
 :exclamation: If your training crashes at some point, you can continue from a checkpoint
