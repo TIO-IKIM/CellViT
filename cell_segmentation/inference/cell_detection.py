@@ -66,7 +66,7 @@ from models.segmentation.cell_segmentation.cellvit_shared import (
 from preprocessing.encoding.datasets.patched_wsi_inference import PatchedWSIInference
 from utils.file_handling import load_wsi_files_from_csv
 from utils.logger import Logger
-from utils.tools import unflatten_dict
+from utils.tools import unflatten_dict, get_size_of_dict
 
 warnings.filterwarnings("ignore", category=ShapelyDeprecationWarning)
 pandarallel.initialize(progress_bar=False, nb_workers=12)
@@ -88,7 +88,6 @@ TYPE_NUCLEI_DICT = {
     4: "Dead",
     5: "Epithelial",
 }
-
 
 class CellSegmentationInference:
     def __init__(
@@ -300,11 +299,15 @@ class CellSegmentationInference:
             "metadata": {"wsi_metadata": wsi.metadata, "nuclei_types": nuclei_types},
         }
         processed_patches = []
+        
+        memory_usage = 0
+        cell_count = 0
 
         with torch.no_grad():
-            for batch in tqdm.tqdm(
-                wsi_inference_dataloader, total=len(wsi_inference_dataloader)
-            ):
+            
+            pbar = tqdm.tqdm(wsi_inference_dataloader, total=len(wsi_inference_dataset))
+
+            for batch in wsi_inference_dataloader:
                 patches = batch[0].to(self.device)
 
                 metadata = batch[1]
@@ -323,6 +326,7 @@ class CellSegmentationInference:
                 for idx, (patch_instance_types, patch_metadata) in enumerate(
                     zip(instance_types, metadata)
                 ):
+                    pbar.update(1)
                     # add global patch metadata
                     patch_cell_detection = {}
                     patch_cell_detection["patch_metadata"] = patch_metadata
@@ -368,10 +372,6 @@ class CellSegmentationInference:
                                 cell["bbox"], 1024, 64
                             ),
                             "offset_global": offset_global.tolist()
-                            # optional: Local positional information
-                            # "bbox_local": cell["bbox"].tolist(),
-                            # "centroid_local": cell["centroid"].tolist(),
-                            # "contour_local": cell["contour"].tolist(),
                         }
                         cell_detection = {
                             "bbox": bbox_global.tolist(),
@@ -412,6 +412,14 @@ class CellSegmentationInference:
                         graph_data["cell_tokens"].append(cell_token)
                         graph_data["positions"].append(torch.Tensor(centroid_global))
                         graph_data["contours"].append(torch.Tensor(contour_global))
+
+                        cell_count = cell_count + 1
+                        # dict sizes
+                        memory_usage = memory_usage + get_size_of_dict(cell_dict)/(1024*1024) + get_size_of_dict(cell_detection)/(1024*1024) # + sys.getsizeof(cell_token)/(1024*1024)
+                        # pytorch 
+                        memory_usage = memory_usage + (cell_token.nelement() * cell_token.element_size())/(1024*1024) + centroid_global.nbytes/(1024*1024) + contour_global.nbytes/(1024*1024)
+
+                    pbar.set_postfix(Cells=cell_count, Memory=f"{memory_usage:.2f} MB")
 
         # post processing
         self.logger.info(f"Detected cells before cleaning: {len(cell_dict_wsi)}")
