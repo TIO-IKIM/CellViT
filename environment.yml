@@ -3,7 +3,7 @@ channels:
   - conda-forge
   - defaults
 dependencies:
-  - python=3.10.12
+  - python=3.9.7
   - libtiff=4.5.0=h6adf6a1_2
   - openslide=3.4.1=h7773abc_6
   - pip=23.0=pyhd8ed1ab_0
@@ -58,3 +58,4 @@ dependencies:
     - pre-commit==3.0.3
     - black==23.1.0
     - genbadge==1.1.0
+    - histolab==0.6.0

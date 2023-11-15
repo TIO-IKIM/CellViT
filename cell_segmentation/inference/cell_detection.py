@@ -318,7 +318,7 @@ class CellSegmentationInference:
                 instance_types, tokens = self.get_cell_predictions_with_tokens(
                     predictions, magnification=wsi.metadata["magnification"]
                 )
-
+                print(f"Token-Shape: {tokens.shape}")
                 # unpack each patch from batch
                 for idx, (patch_instance_types, patch_metadata) in enumerate(
                     zip(instance_types, metadata)
@@ -399,14 +399,15 @@ class CellSegmentationInference:
                         bb_index[0, :] = np.floor(bb_index[0, :])
                         bb_index[1, :] = np.ceil(bb_index[1, :])
                         bb_index = bb_index.astype(np.uint8)
+                        print(f"Token-Shape-Patch: {idx.shape}")
                         cell_token = tokens[
                             idx,
+                            :,
                             bb_index[0, 1] : bb_index[1, 1],
                             bb_index[0, 0] : bb_index[1, 0],
-                            :,
                         ]
                         cell_token = torch.mean(
-                            rearrange(cell_token, "H W D -> (H W) D"), dim=0
+                            rearrange(cell_token, "D H W -> (H W) D"), dim=0
                         )
 
                         graph_data["cell_tokens"].append(cell_token)

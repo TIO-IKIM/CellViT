@@ -82,7 +82,9 @@ def is_power_of_two(n: int) -> bool:
     return (n != 0) and (n & (n - 1) == 0)
 
 
-def patch_to_tile_size(patch_size: int, overlap: int) -> int:
+def patch_to_tile_size(
+    patch_size: int, overlap: int, rescaling_factor: float = 1.0
+) -> Tuple[int, int]:
     """Given patch size and overlap, it returns the size of the tile of the WSI image.
 
     The tile size must be reduced on both sides from the overlap, since OpenSlide is adding the overlap to the tile size.
@@ -91,11 +93,19 @@ def patch_to_tile_size(patch_size: int, overlap: int) -> int:
     Args:
         patch_size (int): Configured Patch Size (in pixels)
         overlap (int): The amount of overlap between adjecent patches (in pixels)
+        recaling_factor (float, optional): Rescaling of tiles after extraction to generate matching microns per pixel.
+            Defaults to 1.0 (no rescaling)
 
     Returns:
-        int: Resulting tile size reduced by overlap
+        int: Resulting tile size reduced by overlap (with optional rescaling)
+        int: Resulting overlap (with optional rescaling)
     """
-    return patch_size - overlap * 2
+    if rescaling_factor != 1.0:
+        patch_size = rescaling_factor * patch_size
+        patch_size = int(np.ceil(patch_size / 2) * 2)
+        overlap = rescaling_factor * overlap
+        overlap = int(np.ceil(overlap / 2) * 2)
+    return patch_size - overlap * 2, overlap
 
 
 def target_mag_to_downsample(base_mag: float, target_mag: float) -> int:
@@ -134,7 +144,7 @@ def target_mag_to_downsample(base_mag: float, target_mag: float) -> int:
 
 def target_mpp_to_downsample(
     base_mpp: float, target_mpp: float, tolerance: float = 0.1
-) -> int:
+) -> Tuple[int, float]:
     """Calculate the downsampling factor needed to reach a target microns-per-pixel (mpp) resolution.
 
     Args:
@@ -147,19 +157,31 @@ def target_mpp_to_downsample(
 
     Returns:
         int: The downsampling factor required to achieve the target mpp resolution.
+        float: Rescaling factor: If mpp is not on a pyramid level, we need to rescale manually.
+            If rescaling == 1, no rescaling is necessary.
     """
-    exponent_fraction = np.log2((target_mpp / base_mpp))
-    nearest_integer = round(exponent_fraction)
-    is_close = np.isclose(exponent_fraction, nearest_integer, rtol=tolerance)
-    if is_close:
-        downsample = round(target_mpp / base_mpp)
+    if target_mpp >= base_mpp:
+        exponent_fraction = np.log2((target_mpp / base_mpp))
+        nearest_integer = round(exponent_fraction)
+        is_close = np.isclose(exponent_fraction, nearest_integer, rtol=tolerance)
+        if is_close:
+            downsample = round(target_mpp / base_mpp)
+            rescaling_factor = 1.0
+        else:
+            logger.warning(
+                f"Requested mpp resolution ({target_mpp}) is not a power of the base resultion {base_mpp}. "
+                "We perform rescaling, but this may not be accurate and is very slow!"
+            )
+            downsample = int(np.floor(target_mpp / base_mpp))
+            rescaling_factor = target_mpp / base_mpp
     else:
-        raise WrongParameterException(
+        logger.warning(
             f"Requested mpp resolution ({target_mpp}) is not a power of the base resultion {base_mpp}. "
-            "Currently, we just support the extraction of mpp that are a power of the base resultion with factor 2. "
-            "We plan to add continuous interpolation in a future release."
+            "We perform rescaling, but this may not be accurate and is very slow!"
         )
-    return downsample
+        downsample = 1
+        rescaling_factor = target_mpp / base_mpp
+    return downsample, rescaling_factor
 
 
 def get_regions_xml(
@@ -260,12 +282,14 @@ def compute_interesting_patches(
     target_overlap: int,
     min_intersection_ratio: float,
     label_map: dict[str, int],
+    rescaling_factor: float = 1.0,
     full_tile_size: int = 2000,
     polygons: List[Polygon] = None,
     region_labels: List[str] = None,
     tissue_annotation: List[Polygon] = None,
     mask_otsu: bool = False,
     otsu_annotation: Union[List[str], str] = "object",
+    apply_prefilter: bool = False,
 ) -> Tuple[List[Tuple[int, int, float]], dict, dict]:
     """Compute interesting patches for a WSI.
 
@@ -289,6 +313,8 @@ def compute_interesting_patches(
         target_overlap (int): The amount pixels that should overlap between two different patches
         min_intersection_ratio (float): The minimum intersection between the tissue mask and the patch to not consider as background.
         label_map (dict[str, int]): Dictionary mapping the label names to an integer. Please ensure that background label has integer 0!
+        recaling_factor (float, optional): Rescaling of tiles after extraction to generate matching microns per pixel.
+            Defaults to 1.0 (no rescaling)
         full_tile_size (int, optional): Tile size for masking. Defaults to 2000.
         polygons (List[Polygon], optional): Annotations of this WSI as a list of polygons (referenced to highest level of WSI). Defaults to None.
         region_labels (List[str], optional): List of labels for the annotations provided as polygons parameter. Defaults to None.
@@ -297,6 +323,7 @@ def compute_interesting_patches(
         mask_otsu (bool, optional): If a mask should be used for otso thresholding. Defaults to False.
         otsu_annotation (Union[List[str], str], optional): List with annotation names or string with annotation name to use for a masked otsu thresholding.
             Defaults to "object".
+        apply_prefilter (bool, optional): If a prefilter should be used to remove markers before applying otsu. Defaults to False.
 
     Returns:
         Tuple[List[Tuple[int, int, float]], dict, dict]:
@@ -363,6 +390,7 @@ def compute_interesting_patches(
             region_labels=region_labels,
             otsu_annotation=otsu_annotation,
             downsample=int(2 ** (tiles.level_count - largest_single_level - 1)),
+            apply_prefilter=apply_prefilter,
         )
     else:
         logger.info("Using tissue geometry for background seperation")
@@ -379,12 +407,14 @@ def compute_interesting_patches(
     # Now work with the level/patch size that we actually want
     # Get the number of tiles at the level
     n_cols, n_rows = tiles.level_tiles[target_level]
-    # Find out what would be the tile size on the masked picture
-    downsample_overlap, downsample_patch_size, downsample_tile_size = (
+
+    downsample_overlap, downsample_patch_size = (
         target_overlap * 1.0,
         target_patch_size * 1.0,
-        patch_to_tile_size(target_patch_size, target_overlap) * 1.0,
     )
+    downsample_tile_size, _ = patch_to_tile_size(target_patch_size, target_overlap)
+    downsample_tile_size = downsample_tile_size * 1.0
+
     for _ in range(levels_diff):
         downsample_overlap /= 2.0
         downsample_patch_size /= 2.0

@@ -36,6 +36,7 @@ python3 main_extraction.py [-h]
                           [--masked_otsu]
                           [--otsu_annotation OTSU_ANNOTATION]
                           [--filter_patches FILTER_PATCHES]
+                          [--apply_prefilter APPLY_PREFILTER]
                           [--log_path LOG_PATH]
                           [--log_level {critical,error,warning,info,debug}]
                           [--hardware_selection {cucim,openslide}]
@@ -124,7 +125,10 @@ optional arguments:
                         Can be used to name a polygon annotation to determine the area for masked otsu
                         thresholding. Seperate multiple labels with ' ' (whitespace) (default: None)
   --filter_patches FILTER_PATCHES
-                        Post-extraction patch filtering to sort out artefacts, marker and other non-tissue patches with a DL model. Time consuming. Defaults to False.
+                        Post-extraction patch filtering to sort out artefacts, marker and other non-tissue patches with a DL model. Time consuming.
+                        (default: False)
+  --apply_prefilter APPLY_PREFILTER
+                        Pre-extraction mask filtering to remove marker from mask before applying otsu
                         (default: False)
   --log_path LOG_PATH   Path where log files should be stored. Otherwise, log files are stored in the output
                         folder (default: None)
@@ -134,7 +138,7 @@ optional arguments:
   --hardware_selection {cucim,openslide}
                         Select hardware device (just if available, otherwise always cucim). Defaults to cucim.)
   --wsi_properties WSI_PROPERTIES
-                        Can be used to pass the wsi properties manually
+                        Dictionary with manual WSI metadata, but just applies if metadata cannot be derived from OpenSlide (e.g., for .tiff files). Supported keys are slide_mpp and magnification
                         (default: None)
 ```
 
@@ -154,9 +158,10 @@ Example:
 ```
 **Precedence of Target-Magnification, Downsampling and Level**
 
-Target magnification has the highest priority. If all three are passed, always the target magnification is used for output. Level has the lowest priority.
+Target_mpp has the highest priority. If all four are passed, always the target mpp is used for output. Level has the lowest priority.
 Sorted by priority:
 
+- Target microns per pixel: Overwrites all other selections
 - Target magnification: Overwrites downsampling and level
 - Downsampling: Overwrites level
 - Level: Lowest priority, default used when neither target magnification nor downsampling is passed
@@ -169,3 +174,11 @@ A CLI is used to start the preprocessing. The entry-point is the [main_extractio
 python3 main_extraction.py --config path/to/config.yaml
 ```
 Exemplary configuration file: [patch_extraction.yaml](/configs/examples/preprocessing/patch_extraction/patch_extraction.yaml)
+
+### WSI-Properties Dictionary:
+Per default, WSI metadata are derived automatically using OpenSlide. The WSI property dict just applies if the metadata cannot be extracted automatically (e.g., .tiff files). The following keys are necessary:
+```
+wsi_properties:
+  - slide_mpp: # Microns per pixel, e.g., 0.25
+  - magnification # Objective power during scanning, e.g., 20 or 40
+```

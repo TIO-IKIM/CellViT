@@ -21,6 +21,7 @@ matplotlib.use("Agg")  # Agg is a non-interactive backend
 
 import numpy as np
 import torch
+from natsort import natsorted
 from openslide import OpenSlide
 from PIL import Image
 from shapely.affinity import scale
@@ -73,6 +74,29 @@ def queue_worker(
         item = q.get()
         if item is None:
             break
+
+        # check if size matches, otherwise rescale in multiprocessing
+        # TODO: check for context patches and masks!
+        item = list(item)
+        tile = item[0]
+        tile_size = tile.shape[0]
+        target_tile_size = item[-1]
+        if tile_size != target_tile_size:
+            tile = Image.fromarray(tile)
+            if tile_size > target_tile_size:
+                tile.thumbnail(
+                    (target_tile_size, target_tile_size),
+                    getattr(Image, "Resampling", Image).LANCZOS,
+                )
+            else:
+                tile = tile.resize(
+                    (target_tile_size, target_tile_size),
+                    getattr(Image, "Resampling", Image).LANCZOS,
+                )
+            tile = np.array(tile, dtype=np.uint8)
+            item[0] = tile
+        item.pop()
+        item = tuple(item)
         store.save_elem_to_disk(item)
         processed_count.value += 1
 
@@ -99,6 +123,7 @@ class PreProcessor(object):
         self.config = slide_processor_config
         self.files, self.annotation_files = [], []
         self.num_files = 0
+        self.rescaling_factor = 1
 
         # paths
         self.setup_output_path(self.config.output_path)
@@ -159,7 +184,7 @@ class PreProcessor(object):
                 e.g. `svs` would be valid, but `.svs`invalid.
         """
         self.files = get_files_from_dir(wsi_paths, wsi_extension)
-        self.files = sorted(self.files, key=lambda x: x.name)
+        self.files = natsorted(self.files, key=lambda x: x.name)
         self.num_files = len(self.files)
 
     def _load_wsi_filelist(self, wsi_filelist: Union[str, Path]) -> None:
@@ -168,7 +193,7 @@ class PreProcessor(object):
             csv_reader = csv.reader(csv_file)
             for row in csv_reader:
                 self.files.append(Path(row[0]))
-        self.files = sorted(self.files, key=lambda x: x.name)
+        self.files = natsorted(self.files, key=lambda x: x.name)
         self.num_files = len(self.files)
 
     def _set_annotations_paths(
@@ -193,7 +218,7 @@ class PreProcessor(object):
             files_list = get_files_from_dir(
                 annotation_paths, file_type=annotation_extension
             )
-            self.annotation_files = sorted(files_list, key=lambda x: x.name)
+            self.annotation_files = natsorted(files_list, key=lambda x: x.name)
             # filter to match WSI files
             self.annotation_files = [
                 a for f in self.files for a in self.annotation_files if f.stem == a.stem
@@ -222,6 +247,7 @@ class PreProcessor(object):
         ):
             logger.info("Using CuCIM")
             from cucim import CuImage
+
             from src.cucim_deepzoom import DeepZoomGeneratorCucim
 
             self.deepzoomgenerator = DeepZoomGeneratorCucim
@@ -247,7 +273,7 @@ class PreProcessor(object):
                 "Torch cannot be imported, Please install PyTorch==2.0 with torchvision for your system (https://pytorch.org/get-started/previous-versions/)!"
             )
         self.detector_device = torch.device(
-            "cuda:0" if torch.cuda.is_available() else "cpu"
+            "cuda:3" if torch.cuda.is_available() else "cpu"
         )
         if self.detector_device == "cpu":
             logger.warning(
@@ -256,7 +282,8 @@ class PreProcessor(object):
         model = mobilenet_v3_small().to(device=self.detector_device)
         model.classifier[-1] = nn.Linear(1024, 4)
         checkpoint = torch.load(
-            "./src/data/tissue_detector.pt", map_location=self.detector_device
+            "./preprocessing/patch_extraction/src/data/tissue_detector.pt",
+            map_location=self.detector_device,
         )
         model.load_state_dict(checkpoint["model_state_dict"])
         model.eval()
@@ -599,31 +626,9 @@ class PreProcessor(object):
         # Check whether the resolution of the current image is the same as the given one
         self._check_wsi_resolution(slide.properties)
 
-        # Zoom Recap:
-        # - Row and column of the tile within the Deep Zoom level (t_)
-        # - Pixel coordinates within the Deep Zoom level (z_)
-        # - Pixel coordinates within the slide level (l_)
-        # - Pixel coordinates within slide level 0 (l0_)
-        # Tile size is the amount of pixels that are taken from the image (without overlaps)
-        tile_size = patch_to_tile_size(
-            self.config.patch_size, self.config.patch_overlap
-        )
-
-        tiles = self.deepzoomgenerator(
-            osr=slide,
-            cucim_slide=slide_cu,
-            tile_size=tile_size,
-            overlap=self.config.patch_overlap,
-            limit_bounds=True,
-        )
-
-        # target mpp has highest precende
+        # target mpp has highest precedence
         if self.config.target_mpp is not None:
-            if self.config.target_mpp < slide_properties["mpp"]:
-                raise WrongParameterException(
-                    f"Requested mpp resolution ({self.config.mpp}) must be greater than or equal to the base resultion {slide_properties['mpp']}"
-                )
-            self.config.downsample = target_mpp_to_downsample(
+            self.config.downsample, self.rescaling_factor = target_mpp_to_downsample(
                 slide_properties["mpp"],
                 self.config.target_mpp,
             )
@@ -633,6 +638,25 @@ class PreProcessor(object):
                 slide_properties["magnification"],
                 self.config.target_mag,
             )
+
+        # Zoom Recap:
+        # - Row and column of the tile within the Deep Zoom level (t_)
+        # - Pixel coordinates within the Deep Zoom level (z_)
+        # - Pixel coordinates within the slide level (l_)
+        # - Pixel coordinates within slide level 0 (l0_)
+        # Tile size is the amount of pixels that are taken from the image (without overlaps)
+        tile_size, overlap = patch_to_tile_size(
+            self.config.patch_size, self.config.patch_overlap, self.rescaling_factor
+        )
+
+        tiles = self.deepzoomgenerator(
+            osr=slide,
+            cucim_slide=slide_cu,
+            tile_size=tile_size,
+            overlap=overlap,
+            limit_bounds=True,
+        )
+
         if self.config.downsample is not None:
             # Each level is downsampled by a factor of 2
             # downsample expresses the desired downsampling, we need to count how many times the
@@ -690,27 +714,32 @@ class PreProcessor(object):
                 slide=slide,
                 tiles=tiles,
                 target_level=level if level is not None else 1,
-                target_patch_size=self.config.patch_size,
-                target_overlap=self.config.patch_overlap,
+                target_patch_size=tile_size,  # self.config.patch_size,
+                target_overlap=overlap,  # self.config.patch_overlap,
+                rescaling_factor=self.rescaling_factor,
                 mask_otsu=self.config.masked_otsu,
                 label_map=self.config.label_map,
                 region_labels=region_labels,
                 tissue_annotation=tissue_region,
                 otsu_annotation=self.config.otsu_annotation,
                 min_intersection_ratio=self.config.min_intersection_ratio,
+                apply_prefilter=self.config.apply_prefilter,
             )
         if len(interesting_coords) == 0:
             logger.warning(f"No patches sampled from {wsi_file.name}")
         wsi_metadata = {
             "orig_n_tiles_cols": n_cols,
             "orig_n_tiles_rows": n_rows,
-            "base_magnification": slide.properties.get("openslide.objective-power"),
+            "base_magnification": slide_mag,
             "downsampling": self.config.downsample,
             "label_map": self.config.label_map,
             "patch_overlap": self.config.patch_overlap * 2,
             "patch_size": self.config.patch_size,
+            "base_mpp": slide_mpp,
+            "target_patch_mpp": slide_mpp * self.rescaling_factor,
             "stain_normalization": self.config.normalize_stains,
-            "magnification": self.config.target_mag,
+            "magnification": slide_mag
+            / (self.config.downsample * self.rescaling_factor),
             "level": level,
         }
 
@@ -760,24 +789,21 @@ class PreProcessor(object):
         slide = OpenSlide(str(wsi_file))
         slide_cu = self.image_loader(str(wsi_file))
 
-        tile_size = patch_to_tile_size(
-            self.config.patch_size, self.config.patch_overlap
+        tile_size, overlap = patch_to_tile_size(
+            self.config.patch_size, self.config.patch_overlap, self.rescaling_factor
         )
 
         tiles = self.deepzoomgenerator(
             osr=slide,
             cucim_slide=slide_cu,
             tile_size=tile_size,
-            overlap=self.config.patch_overlap,
+            overlap=overlap,
             limit_bounds=True,
         )
 
         if self.config.context_scales is not None:
             for c_scale in self.config.context_scales:
-                overlap_context = (
-                    int((c_scale - 1) * self.config.patch_size / 2)
-                    + self.config.patch_overlap
-                )
+                overlap_context = int((c_scale - 1) * tile_size / 2) + overlap
                 context_tiles[c_scale] = self.deepzoomgenerator(
                     osr=slide,
                     cucim_slide=slide_cu,
@@ -815,8 +841,10 @@ class PreProcessor(object):
                 context_patches = {scale: [] for scale in self.config.context_scales}
             else:
                 context_patches = {}
+
             # OpenSlide: Address of the tile within the level as a (column, row) tuple
             new_tile = np.array(tiles.get_tile(level, (col, row)), dtype=np.uint8)
+            patch = pad_tile(new_tile, tile_size + 2 * overlap, col, row)
 
             # calculate background ratio for every patch
             background_ratio = calculate_background_ratio(
@@ -857,8 +885,6 @@ class PreProcessor(object):
                 patch_mask = None
             else:
                 patch_metadata["mask"] = f"./masks/{Path(patch_fname).stem}_mask.npy"
-
-            patch = pad_tile(new_tile, self.config.patch_size, col, row)
 
             if self.config.context_scales is not None:
                 patch_metadata["context_scales"] = []
@@ -902,7 +928,13 @@ class PreProcessor(object):
 
             patches_count = patches_count + 1
 
-            queue_elem = (patch, patch_metadata, patch_mask, context_patches)
+            queue_elem = (
+                patch,
+                patch_metadata,
+                patch_mask,
+                context_patches,
+                self.config.patch_size,
+            )
             queue.put(queue_elem)
             # store metadata for all patches
             patch_metadata.pop("wsi_metadata")
