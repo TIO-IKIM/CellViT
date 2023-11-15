@@ -317,7 +317,7 @@ Download the models and store them in `./models/pretrained` or on your preferred
 ```bash
 python3 ./cell_segmentation/inference/cell_detection.py \
   --model ./models/pretrained/CellViT/CellViT-SAM-H-x40.pth\
-  --gpu 1 \
+  --gpu 0 \
   --geojson \
   process_wsi \
   --wsi_path ./example/TCGA-V5-A7RE-11A-01-TS1.57401526-EF9E-49AC-8FF6-B4F9652311CE.svs \
