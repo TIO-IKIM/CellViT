@@ -399,6 +399,7 @@ class PreProcessor(object):
                             patch_count = patch_count + 1
                             keep_names.append(image_name)
                         else:
+                            logger.debug(f"Filter and remove patch: {image_name}")
                             # remove patch
                             image_path = store.wsi_path / "patches" / image_name
                             os.remove(image_path)
