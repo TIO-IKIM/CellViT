@@ -24,6 +24,8 @@ from utils.logger import Logger
 class PreProcessingYamlConfig(BaseModel):
     """For explanation, see PreProcessingParser"""
 
+    # Set all to optional to allow selecting from yaml and argparse cli
+
     # dataset paths
     wsi_paths: Optional[str]
     output_path: Optional[str]
@@ -61,6 +63,7 @@ class PreProcessingYamlConfig(BaseModel):
     # finding patches
     min_intersection_ratio: Optional[float]
     tissue_annotation: Optional[str]
+    tissue_annotation_intersection_ratio: Optional[float] 
     masked_otsu: Optional[bool]
     otsu_annotation: Optional[str]
     filter_patches: Optional[bool]
@@ -129,6 +132,8 @@ class PreProcessingConfig(BaseModel):
             Must be between 0 and 1. 0 means that all patches are extracted. Defaults to 0.01.
         tissue_annotation (str, optional): Can be used to name a polygon annotation to determine the tissue area
             If a tissue annotation is provided, no Otsu-thresholding is performed. Defaults to None.
+        tissue_annotation_intersection_ratio (float, optional): Intersection ratio with tissue annotation. Helpful, if ROI annotation is passed, which should not interfere with background ratio.
+            If not provided, the default min_intersection_ratio with the background is used. Defaults to None.
         masked_otsu (bool, optional): Use annotation to mask the thumbnail before otsu-thresholding is used. Defaults to False.
         otsu_annotation (bool, optional): Can be used to name a polygon annotation to determine the area
             for masked otsu thresholding. Seperate multiple labels with ' ' (whitespace). Defaults to None.
@@ -138,7 +143,7 @@ class PreProcessingConfig(BaseModel):
         log_path (str, optional): Path where log files should be stored. Otherwise, log files are stored in the output folder. Defaults to None.
         log_level (str, optional): Set the logging level. Defaults to "info".
         hardware_selection (str, optional): Select hardware device (just if available, otherwise always cucim). Defaults to "cucim".
-        wsi_properties (dict, optional): Dictionary with manual WSI metadata. Required keys are: ... TODO: add keys
+        wsi_properties (dict, optional): Dictionary with manual WSI metadata, but just applies if metadata cannot be derived from OpenSlide (e.g., for .tiff files). Supported keys are slide_mpp and magnification
 
     Raises:
         ValueError: Patch-size must be positive
@@ -188,6 +193,7 @@ class PreProcessingConfig(BaseModel):
     # finding patches
     min_intersection_ratio: Optional[float] = 0.01
     tissue_annotation: Optional[str]
+    tissue_annotation_intersection_ratio: Optional[float]
     masked_otsu: Optional[bool] = False
     otsu_annotation: Optional[str]
     filter_patches: Optional[bool] = False
@@ -258,6 +264,7 @@ class PreProcessingConfig(BaseModel):
         Converting paths to `Pathlib` object, convert strings and stored dict.
 
         Raises:
+            RuntimeError: Please provide either wsi_paths or wsi_filelist argument
             ValueError: A label map file must be used if annotations are passed
             ValueError: Checking for right label_map format (.json) file.
         """
@@ -298,7 +305,11 @@ class PreProcessingConfig(BaseModel):
             self.tissue_annotation = self.tissue_annotation.lower()
         if len(self.exclude_classes) > 0:
             self.exclude_classes = [f.lower() for f in self.exclude_classes]
-
+        if self.tissue_annotation_intersection_ratio is None:
+            self.tissue_annotation_intersection_ratio = self.min_intersection_ratio
+        else:
+            if self.tissue_annotation_intersection_ratio < 0 and self.tissue_annotation_intersection_ratio > 1:
+                raise RuntimeError("Tissue_annotation_intersection_ratio must be between 0 and 1")
 
 class PreProcessingParser(ABCParser):
     """Configuration Parser for Preprocessing"""
@@ -460,7 +471,7 @@ class PreProcessingParser(ABCParser):
             default=None,
             help="Per default, labels (annotations) are mutually exclusive. "
             "If labels overlap, they are overwritten according to the label_map.json ordering"
-            " (highest number = highest priority",
+            " (highest number = highest priority)",
         )
 
         # macenko stain normalization
@@ -494,6 +505,12 @@ class PreProcessingParser(ABCParser):
             type=str,
             help="Can be used to name a polygon annotation to determine the tissue area. "
             "If a tissue annotation is provided, no Otsu-thresholding is performed",
+        )
+        parser.add_argument(
+            "--tissue_annotation_intersection_ratio",
+            type=float,
+            help="Intersection ratio with tissue annotation. Helpful, if ROI annotation is passed, "
+            "which should not interfere with background ratio. If not provided, the default min_intersection_ratio with the background is used."
         )
         parser.add_argument(
             "--masked_otsu",
@@ -587,7 +604,7 @@ class PreProcessingParser(ABCParser):
 
         # generate final setup
         self.preprocessconfig = PreProcessingConfig(**opt_dict)
-
+        
         # create logger
         preprocess_logger = Logger(
             level=self.preprocessconfig.log_level.upper(),

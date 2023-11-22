@@ -273,7 +273,7 @@ class PreProcessor(object):
                 "Torch cannot be imported, Please install PyTorch==2.0 with torchvision for your system (https://pytorch.org/get-started/previous-versions/)!"
             )
         self.detector_device = torch.device(
-            "cuda:3" if torch.cuda.is_available() else "cpu"
+            "cuda:0" if torch.cuda.is_available() else "cpu"
         )
         if self.detector_device == "cpu":
             logger.warning(
@@ -399,7 +399,6 @@ class PreProcessor(object):
                             patch_count = patch_count + 1
                             keep_names.append(image_name)
                         else:
-                            logger.debug(f"Filter and remove patch: {image_name}")
                             # remove patch
                             image_path = store.wsi_path / "patches" / image_name
                             os.remove(image_path)
@@ -507,7 +506,7 @@ class PreProcessor(object):
                 with open(
                     str(Path(self.config.output_path) / "processed.json"), "r"
                 ) as processed_list:
-                    processed_files = json.load(processed_list)["processed_files"]
+                    processed_files = json.load(processed_list)["processed_files"] # TODO: check
                     logger.info(
                         f"Found {len(processed_files)} files. Continue to process {len(self.files)-len(processed_files)}/{len(self.files)} files."
                     )
@@ -521,11 +520,9 @@ class PreProcessor(object):
         Args:
             processed_files (list[str]): List with processed filenames
         """
-        for file in self.files:
-            if file.stem in processed_files:
-                self.files.remove(file)
-                logger.info(f"Dropped: {file.stem}")
+        self.files = [file for file in self.files if file.stem not in processed_files]
 
+            
     def _check_wsi_resolution(self, slide_properties: dict[str, str]) -> None:
         """Check if the WSI resolution is the same for all files in the dataset. Just returns a warning message if not.
 
@@ -621,7 +618,7 @@ class PreProcessor(object):
         # Generate thumbnails
         logger.info("Generate thumbnails")
         thumbnails = generate_thumbnails(
-            slide, slide_properties["mpp"], sample_factors=[32, 64, 128]
+            slide, slide_properties["mpp"], sample_factors=[128]# [32, 64, 128]
         )  # todo
 
         # Check whether the resolution of the current image is the same as the given one
@@ -723,7 +720,7 @@ class PreProcessor(object):
                 region_labels=region_labels,
                 tissue_annotation=tissue_region,
                 otsu_annotation=self.config.otsu_annotation,
-                min_intersection_ratio=self.config.min_intersection_ratio,
+                tissue_annotation_intersection_ratio=self.config.tissue_annotation_intersection_ratio,
                 apply_prefilter=self.config.apply_prefilter,
             )
         if len(interesting_coords) == 0:
@@ -854,8 +851,9 @@ class PreProcessor(object):
 
             # patch_label
             if background_ratio > 1 - self.config.min_intersection_ratio:
+                logger.debug(f"Removing file {patch_fname} because of intersection ratio with background is too big")
                 intersected_labels = []  # Zero means background
-                ratio = []
+                ratio = {}
                 patch_mask = np.zeros((tile_size, tile_size), dtype=np.uint8)
             else:
                 intersected_labels, ratio, patch_mask = get_intersected_labels(
@@ -870,6 +868,7 @@ class PreProcessor(object):
                     overlapping_labels=self.config.overlapping_labels,
                     store_masks=self.config.store_masks,
                 )
+                ratio = {k: v for k, v in zip(intersected_labels, ratio)}
             if len(intersected_labels) == 0 and self.config.save_only_annotated_patches:
                 continue
 
@@ -1090,8 +1089,8 @@ class PreProcessor(object):
                     exclude_classes=exclude_classes,
                 )
             elif self.config.annotation_extension == "json":
-                polygons, region_labels = get_regions_json(
-                    path=annotation_file, exclude_classes=exclude_classes
+                polygons, region_labels, tissue_region = get_regions_json(
+                    path=annotation_file, exclude_classes=exclude_classes, tissue_annotation=tissue_annotation
                 )
             # downsample polygons to match the images
             polygons_downsampled = [
@@ -1105,10 +1104,7 @@ class PreProcessor(object):
             ]
 
             if tissue_annotation is not None:
-                for poly, region_label in zip(polygons, region_labels):
-                    if region_label == tissue_annotation:
-                        tissue_region.append(poly)
-                if len(region_labels) == 0:
+                if len(tissue_region) == 0:
                     raise Exception(
                         f"Tissue annotation ('{tissue_annotation}') is provided but cannot be found in given annotation files. "
                         "If no tissue annotation is existance for this file, consider using otsu_annotation as a non-strict way for passing tissue-annotations."

@@ -20,6 +20,7 @@ from configs.python.config import COLOR_DEFINITIONS
 from preprocessing.patch_extraction.src.utils.masking import get_filtered_polygons
 
 
+
 def generate_polygon_overview(
     polygons: Tuple[List[Polygon], Polygon],
     region_labels: List[str],
@@ -128,12 +129,14 @@ def generate_polygon_overview(
     final_image = image.copy()
     final_white = white_bg.copy()
     final_outline = image.copy()
+    final_grid = tissue_grid.copy()
     final_outline_draw = ImageDraw.Draw(final_outline)
     for label in sorted_labels:
         polygon_image = mask_container[label]["polygon_image"]
         opacity_mask = mask_container[label]["mask"]
         polygon_outline = mask_container[label]["polygon_outline"]
         final_image.paste(polygon_image, (0, 0), opacity_mask)
+        final_grid.paste(polygon_image, (0, 0), opacity_mask)
         final_white.paste(polygon_image, (0, 0), opacity_mask)
         [
             final_outline_draw.polygon(
@@ -148,7 +151,8 @@ def generate_polygon_overview(
     image_container["all_overlaid"] = final_image
     image_container["all_overlaid_clean"] = final_white
     image_container["all_overlaid_outline"] = final_outline
-
+    image_container["all_overlaid_grid"] = final_grid
+    
     return image_container
 
 

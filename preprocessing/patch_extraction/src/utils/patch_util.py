@@ -33,6 +33,7 @@ from preprocessing.patch_extraction.src.utils.masking import (
 from preprocessing.patch_extraction.src.utils.plotting import generate_polygon_overview
 
 
+
 def get_files_from_dir(
     file_path: Union[Path, str, List], file_type: str = "svs"
 ) -> List[Path]:
@@ -106,7 +107,7 @@ def patch_to_tile_size(
         overlap = rescaling_factor * overlap
         overlap = int(np.ceil(overlap / 2) * 2)
     return patch_size - overlap * 2, overlap
-
+    #return patch_size, overlap
 
 def target_mag_to_downsample(base_mag: float, target_mag: float) -> int:
     """Convert the target magnification to a specific downsampling factor based on the base magnification of an image.
@@ -235,7 +236,7 @@ def get_regions_xml(
 
 
 def get_regions_json(
-    path: Union[str, Path], exclude_classes: List[str] = None
+    path: Union[str, Path], exclude_classes: List[str] = None, tissue_annotation: str = None
 ) -> Tuple[List[Polygon], List[str]]:
     """Retrieve annotation regions from json file (as obtained by QuPath).
 
@@ -256,14 +257,24 @@ def get_regions_json(
         gj = geojson.load(f)
     region_labels = []
     all_geometries = []
-
-    all_geometries = [shape(feature["geometry"]).buffer(0) for feature in gj]
+    for feature in gj:
+        if feature.type == "Feature":
+            if hasattr(feature, "geometry"):
+                new_g = shape(feature["geometry"]).buffer(0)
+                all_geometries.append(new_g)
+        else:
+            raise NotImplementedError("Unknown entry in geojson. Check and prepare appropriately")
+        
+    # all_geometries = [shape(feature["geometry"]).buffer(0) for feature in gj]
 
     # filter and add label
     geometries = []
+    tissue_region = []
     for feature, geom in zip(gj, all_geometries):
         if "classification" in feature.properties:
             label = feature.properties["classification"]["name"].lower()
+            if tissue_annotation is not None and label == tissue_annotation:
+                tissue_region.append(geom)
             if exclude_classes is not None and label in exclude_classes:
                 continue
             region_labels.append(label)
@@ -271,7 +282,7 @@ def get_regions_json(
             region_labels.append("background")
         geometries.append(geom)
 
-    return geometries, region_labels
+    return geometries, region_labels, tissue_region
 
 
 def compute_interesting_patches(
@@ -280,7 +291,7 @@ def compute_interesting_patches(
     target_level: int,
     target_patch_size: int,
     target_overlap: int,
-    min_intersection_ratio: float,
+    tissue_annotation_intersection_ratio: float,
     label_map: dict[str, int],
     rescaling_factor: float = 1.0,
     full_tile_size: int = 2000,
@@ -311,7 +322,7 @@ def compute_interesting_patches(
         target_patch_size (int): The size of the patches in pixel that will be retrieved from the WSI, e.g. 256 for 256px
             (please clean with patch_to_tile_size if overlap is used)
         target_overlap (int): The amount pixels that should overlap between two different patches
-        min_intersection_ratio (float): The minimum intersection between the tissue mask and the patch to not consider as background.
+        tissue_annotation_intersection_ratio (float): The minimum intersection between the tissue mask and the patch to not consider as background.
         label_map (dict[str, int]): Dictionary mapping the label names to an integer. Please ensure that background label has integer 0!
         recaling_factor (float, optional): Rescaling of tiles after extraction to generate matching microns per pixel.
             Defaults to 1.0 (no rescaling)
@@ -338,11 +349,11 @@ def compute_interesting_patches(
         assert len(polygons) == len(
             region_labels
         ), "Polygon list and polygon labels are not having the same length"
-
-    if not is_power_of_two(target_patch_size):
+    if target_patch_size % 2 != 0:
         logger.warning(
-            f"The given patch size {target_patch_size} is not a power of 2. "
-            f"For a better background selection please consider using a power of 2."
+            f"The given patch size {target_patch_size} is not divisible by two. "
+            f"This could cause a shift in the coordinate grid during background detection and patch extraction. "
+            f"This will not result in an error, but could cause severe side effects and should not be used."
         )
     if target_overlap > 0 and not is_power_of_two(target_overlap):
         logger.warning(
@@ -412,8 +423,8 @@ def compute_interesting_patches(
         target_overlap * 1.0,
         target_patch_size * 1.0,
     )
-    downsample_tile_size, _ = patch_to_tile_size(target_patch_size, target_overlap)
-    downsample_tile_size = downsample_tile_size * 1.0
+    # downsample_tile_size, _ = patch_to_tile_size(target_patch_size, target_overlap)
+    downsample_tile_size = downsample_patch_size * 1.0 #downsample_patch_size * 1.0 #downsample_tile_size * 1.0
 
     for _ in range(levels_diff):
         downsample_overlap /= 2.0
@@ -427,6 +438,16 @@ def compute_interesting_patches(
         )
         return [(row, col, 1.0) for row in range(n_rows) for col in range(n_cols)]
 
+    if downsample_overlap % 2 != 0 or downsample_patch_size % 2 != 0:
+        logger.warning(
+            f"The given setting results in the following specifications for background detection: "
+            f"downsampling-patch-size={downsample_patch_size}, downsampling-overlap: {downsample_overlap} "
+            f"This could cause a slight shift between the background detection grid and the actual patches extracted. "
+            f"Grid is interpolated and rearranged, but side effects are possible."
+        )
+
+    pixel_missmatch = int(math.ceil(downsample_patch_size)) - downsample_patch_size
+    
     downsample_overlap = int(math.ceil(downsample_overlap))
     downsample_patch_size = int(math.ceil(downsample_patch_size))
     downsample_tile_size = int(math.ceil(downsample_tile_size))
@@ -439,6 +460,8 @@ def compute_interesting_patches(
 
     interesting_patches = []
 
+    offset_grid_row = 0
+    offset_grid_col = 0
     for row in range(n_rows):
         for col in range(n_cols):
             (
@@ -452,8 +475,10 @@ def compute_interesting_patches(
                 tile_size=downsample_tile_size,
                 grid_size=tiles.level_tiles[target_level],
                 overlap=downsample_overlap,
-            )
+                pixel_missmatch=pixel_missmatch
+            )            
             # Get the current tile
+            # Was passiert wenn down_row_end größer als shape wird?
             curr_tile = tissue_mask[
                 down_row_init:down_row_end, down_col_init:down_col_end
             ]
@@ -466,7 +491,7 @@ def compute_interesting_patches(
                 - (curr_tile.shape[0] * curr_tile.shape[1])
             )
             background_ratio = total_background_pixels / (downsample_patch_size**2)
-            if background_ratio <= 1 - min_intersection_ratio:
+            if background_ratio <= 1 - tissue_annotation_intersection_ratio:
                 interesting_patches.append((row, col, background_ratio))
                 draw.rectangle(
                     [down_col_init, down_row_init, down_col_end, down_row_end],
@@ -506,6 +531,7 @@ def compute_patch_location_in_level(
     tile_size: int,
     grid_size: Tuple[int, int],
     overlap: int,
+    pixel_missmatch: int = 0
 ) -> Tuple[int, int, int, int]:
     """Convert the row and col position of a patch into absolute coordinates.
 
@@ -522,10 +548,10 @@ def compute_patch_location_in_level(
         grid_size (Tuple[int, int]): Number of cols, rows of the image at the target level.
             Be careful: Differing from usually ordering, cols and rows are switched in their position!
         overlap (int): Overlap as integer
-
+        pixel_missmatch (int, optional): Missmatch between ceiling integer and grid. Defaults to 0 
+        
     Returns:
         Tuple[int, int, int, int]: Position of patch in absolute pixel values [row upper left, col upper left, row lower right, col lower right]
-        TODO: finish docstring when overlap is used
     """
     top, right, bottom, left = compute_overlap(row, col, grid_size, overlap)
     # Find location of the downsampled patch
@@ -533,8 +559,14 @@ def compute_patch_location_in_level(
     col_init = max(0, col * tile_size - left)
     row_end = (row + 1) * tile_size + bottom
     col_end = (col + 1) * tile_size + right
+    if pixel_missmatch != 0:
+        correction_row = int(math.floor(pixel_missmatch*row))
+        correction_col = int(math.floor(pixel_missmatch*col))
+        row_init = row_init - correction_row
+        col_init = col_init - correction_col
+        row_end = row_end - correction_row
+        col_end = col_end - correction_col
     return row_init, row_end, col_init, col_end
-
 
 def compute_overlap(
     row: int,
@@ -935,7 +967,6 @@ def get_intersected_labels(
     store_masks: bool = False,
     overlapping_labels: bool = False,
 ) -> Tuple[List[int], List[float], np.ndarray]:
-    # # list[int], list[float], np.ndarray
     """Return intersected labels for a given patch
 
     Returns a list of integer labels with intersected regions and a list with the intersection ratio.
@@ -958,6 +989,11 @@ def get_intersected_labels(
             If labels overlap, they are overwritten according to the label_map.json ordering (highest number = highest priority).
             True means that the mask array is 3D with shape (patch_size, patch_size, label_map), otherwise just (patch_size, patch_size).
             Defaults to False.
+    Returns:
+        Tuple[List[int], List[float], np.ndarray]: 
+           Labels as list
+           Ratio for each label
+           Mask 
     """
     assert isinstance(polygons, list)
 
