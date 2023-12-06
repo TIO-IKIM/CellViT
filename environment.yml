@@ -41,7 +41,7 @@ dependencies:
     - scikit-image==0.19.3
     - scikit-learn==1.2.1
     - scikit-survival==0.21.0
-    - scipy==1.10.0
+    - scipy<1.8.2
     - seaborn==0.12.2
     - SimpleITK==2.2.1
     - Shapely==1.8.5.post1

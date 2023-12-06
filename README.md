@@ -81,6 +81,30 @@ If you get this error, install cucim from conda to get all binary files.
 First remove your previous dependeny with `pip uninstall cupy-cuda117` and reinstall with `
 conda install -c rapidsai cucim` inside your conda environment. This process is time consuming, so you should be patient. Also follow their [official guideline](https://github.com/rapidsai/cucim).
 
+### FAQ: Environment problems
+
+**ResolvePackageNotFound: -gcc**
+
+- Fix: Comment out the gcc package in the environment.yml file
+
+**ResolvePackageNotFound: -libtiff==4.5.0=h6adf6a1_2, -openslide==3.4.1=h7773abc_6**
+
+- Fix: Remove the version hash from environment.yml file, such that:
+  ```yaml
+  ...
+  dependencies:
+    ...
+    - libtiff=4.5.0
+    - openslide=3.4.1
+  
+  pip:
+  ...
+  ```
+
+**PyDantic Validation Errors for the CLI**
+
+Please install the pydantic version specified (`pydantic==1.10.4`), otherwise validation errors could occur for the CLI.
+
 ## Usage:
 
 ### Project Structure
