@@ -19,26 +19,75 @@ from torch.optim import Optimizer
 from torch.optim.lr_scheduler import _LRScheduler
 from torch.utils.data import DataLoader
 from utils.tools import flatten_dict
+from typing import Dict, Any
 
 
 class BaseTrainer:
     """
-    Base class for all trainers with important ML components
+    Base class for all trainers with important ML components.
 
     Args:
-        model (nn.Module):  Model that should be trained
-        loss_fn (_Loss): Loss function
-        optimizer (Optimizer): Optimizer
-        scheduler (_LRScheduler): Learning rate scheduler
+        model (nn.Module): Model that should be trained.
+        loss_fn (_Loss): Loss function.
+        optimizer (Optimizer): Optimizer.
+        scheduler (_LRScheduler): Learning rate scheduler.
         device (str): Cuda device to use, e.g., cuda:0.
-        logger (logging.Logger): Logger module
-        logdir (Union[Path, str]): Logging directory
-        experiment_config (dict): Configuration of this experiment
+        logger (logging.Logger): Logger module.
+        logdir (Union[Path, str]): Logging directory.
+        experiment_config (dict): Configuration of this experiment.
         early_stopping (EarlyStopping, optional): Early Stopping Class. Defaults to None.
         accum_iter (int, optional): Accumulation steps for gradient accumulation.
             Provide a number greater than 1 for activating gradient accumulation. Defaults to 1.
         mixed_precision (bool, optional): If mixed-precision should be used. Defaults to False.
         log_images (bool, optional): If images should be logged to WandB. Defaults to False.
+
+    Attributes:
+        model (nn.Module): Model that should be trained.
+        loss_fn (_Loss): Loss function.
+        optimizer (Optimizer): Optimizer.
+        scheduler (_LRScheduler): Learning rate scheduler.
+        device (str): Cuda device to use, e.g., cuda:0.
+        logger (logging.Logger): Logger module.
+        logdir (Path): Logging directory.
+        early_stopping (EarlyStopping): Early Stopping Class.
+        accum_iter (int): Accumulation steps for gradient accumulation.
+        start_epoch (int): Starting epoch number.
+        experiment_config (dict): Configuration of this experiment.
+        log_images (bool): If images should be logged to WandB.
+        mixed_precision (bool): If mixed-precision should be used.
+        scaler (torch.cuda.amp.GradScaler): Gradient scaler for mixed-precision training.
+
+    Methods:
+        train_epoch(epoch: int, train_loader: DataLoader, **kwargs) -> Tuple[dict, dict]:
+            Training logic for a training epoch.
+
+        validation_epoch(epoch: int, val_dataloader: DataLoader) -> Tuple[dict, dict, float]:
+            Training logic for a validation epoch.
+
+        train_step(batch: object, batch_idx: int, num_batches: int):
+            Training logic for one training batch.
+
+        validation_step(batch, batch_idx: int):
+            Training logic for one validation batch.
+
+        fit(
+            epochs: int,
+            train_dataloader: DataLoader,
+            val_dataloader: DataLoader,
+            metric_init: dict = None,
+            eval_every: int = 1,
+            **kwargs,
+        ):
+            Fitting function to start training and validation of the trainer.
+
+        save_checkpoint(epoch: int, checkpoint_name: str):
+            Save the current model checkpoint.
+
+        resume_checkpoint(checkpoint):
+            Resume training from a saved checkpoint.
+
+    Raises:
+        NotImplementedError: If a required method is not implemented.
     """
 
     def __init__(
@@ -250,7 +299,19 @@ class BaseTrainer:
         filename = str(checkpoint_dir / checkpoint_name)
         torch.save(state, filename)
 
-    def resume_checkpoint(self, checkpoint):
+    def resume_checkpoint(self, checkpoint: Dict[str, Any]) -> None:
+        """
+        Resume training from a saved checkpoint.
+
+        Args:
+            checkpoint (Dict[str, Any]): The saved checkpoint.
+
+        Raises:
+            KeyError: If any required state_dict is missing in the checkpoint.
+
+        Returns:
+            None
+        """
         self.logger.info("Loading checkpoint")
         self.logger.info("Loading Model")
         self.model.load_state_dict(checkpoint["model_state_dict"])

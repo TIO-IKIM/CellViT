@@ -30,6 +30,8 @@ configs/TCGA
 
 # pretrained models
 *.pth
+*.pt
+*.torch
 docker/
 
 # Notebooks
@@ -52,3 +54,6 @@ results/
 # other
 .DS_Store
 Orig-Metrics
+Copilotcall.md
+
+3dhistech

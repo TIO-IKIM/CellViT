@@ -8,7 +8,7 @@
 import json
 from json.decoder import JSONDecodeError
 from pathlib import Path
-from typing import List, Union
+from typing import Dict, List, Union, Tuple, Any, Optional
 
 import numpy as np
 import yaml
@@ -43,6 +43,33 @@ class Storage:
         store_masks (bool, optional): Set to store masks per patch. Defaults to False.
         save_context (bool, optional): If context patches are provided. Defaults to False.
         context_scales (List[int], optional): List with context scales. Defaults to None.
+
+    Attributes:
+        wsi_name (str): Name of the WSI.
+        output_path (Path): Path to the folder where the resulting dataset is stored.
+        save_context (bool): Flag indicating if context patches are provided.
+        wsi_path (Path): Path to the WSI folder.
+        patches_path (Path): Path to the patches folder.
+        patch_metadata_path (Path): Path to the metadata folder.
+        thumbnail_path (Path): Path to the thumbnails folder.
+        tissue_mask_path (Path): Path to the tissue masks folder.
+        annotation_mask_path (Path): Path to the annotation masks folder.
+        context_path (Path): Path to the context folder.
+        masks_path (Path): Path to the masks folder.
+        metadata (dict): Metadata of the WSI.
+
+    Methods:
+        save_meta_data(): Store arbitrary meta data in a yaml file on the WSI output folder.
+        save_masks(mask_images: dict): Save tissue masks.
+        save_annotation_mask(mask_images_annotations: dict): Save annotation masks.
+        save_thumbnails(thumbnails: dict): Save thumbnails of WSI.
+        save_elem_to_disk(patch_result): Save patch and its metadata to disk.
+        save_neighbourhood_patch(patch_result): Save patch and its metadata to disk for neighborhood patches.
+        clean_up(patch_distribution: dict, patch_metadata_list: list[dict]): Clean-up function called after WSI processing.
+
+    Raises:
+        AssertionError: If context scales are not provided when save_context is True.
+
     """
 
     def __init__(
@@ -109,7 +136,7 @@ class Storage:
                 allow_unicode=True,
             )
 
-    def save_masks(self, mask_images: dict):
+    def save_masks(self, mask_images: dict) -> None:
         """Save tissue masks
 
         Args:
@@ -123,7 +150,7 @@ class Storage:
             mask.save(str(mask_path))
         mask_images["mask"].save(self.wsi_path / "mask.png")
 
-    def save_annotation_mask(self, mask_images_annotations: dict):
+    def save_annotation_mask(self, mask_images_annotations: dict) -> None:
         """Save annotation masks
 
         Args:
@@ -132,11 +159,11 @@ class Storage:
         """
         for mask_name, mask in mask_images_annotations.items():
             mask_path = self.annotation_mask_path / f"{mask_name}.png"
-            mask_path_eps = self.annotation_mask_path / f"{mask_name}.eps"
+            # mask_path_eps = self.annotation_mask_path / f"{mask_name}.eps"
             mask.save(str(mask_path))
-            mask.save(str(mask_path_eps))
+            # mask.save(str(mask_path_eps))
 
-    def save_thumbnails(self, thumbnails: dict):
+    def save_thumbnails(self, thumbnails: dict) -> None:
         """Save thumbnails of WSI
 
         Args:
@@ -150,7 +177,24 @@ class Storage:
             thumbnail.save(str(thumbnail_path))
         thumbnails["thumbnail"].save(self.wsi_path / "thumbnail.png")
 
-    def save_elem_to_disk(self, patch_result) -> None:
+    def save_elem_to_disk(
+        self,
+        patch_result: Tuple[
+            np.ndarray, Dict[str, Any], Optional[np.ndarray], Dict[int, np.ndarray]
+        ],
+    ) -> None:
+        """Save a patch and its metadata to disk.
+
+        Args:
+            patch_result (Tuple[np.ndarray, Dict[str, Any], Optional[np.ndarray], Dict[int, np.ndarray]]):
+                Tuple containing the patch, patch metadata, patch mask, and context images.
+
+        Returns:
+            None
+
+        Example:
+            storage.save_elem_to_disk(patch_result)
+        """
         patch, patch_metadata, patch_mask, context = patch_result
 
         row = patch_metadata["row"]
@@ -184,7 +228,38 @@ class Storage:
                 )
                 patch_metadata["context_scales"][scale] = f"./context/{context_name}"
 
-    def clean_up(self, patch_distribution: dict, patch_metadata_list: list[dict]):
+    def save_neighbourhood_patch(
+        self, patch_result: Tuple[np.ndarray, Dict[str, Any]]
+    ) -> None:
+        """Save a neighborhood patch and its metadata to disk.
+
+        Args:
+            patch_result (Tuple[np.ndarray, Dict[str, Any]]):
+                Tuple containing the patch and patch metadata.
+
+        Returns:
+            None
+
+        Example:
+            storage.save_neighbourhood_patch(patch_result)
+        """
+        patch, patch_metadata = patch_result
+
+        row = patch_metadata["row"]
+        col = patch_metadata["col"]
+        patch_fname = f"{self.wsi_name}_{row}_{col}.png"
+        patch_yaml_name = f"{self.wsi_name}_{row}_{col}.yaml"
+
+        Image.fromarray(patch).save(self.patches_path / patch_fname)
+        # Save the metadata
+        with open(self.patch_metadata_path / patch_yaml_name, "w") as yaml_file:
+            yaml.dump(
+                patch_metadata, yaml_file, default_flow_style=False, sort_keys=False
+            )
+
+    def clean_up(
+        self, patch_distribution: dict, patch_metadata_list: list[dict]
+    ) -> None:
         """Clean-Up function, called after WSI has been processed. Appends WSI to `processed.json` file
         and generated a metadata file in root folder called `patch_metadata.json` with merged metadata for all patches
         in one file.

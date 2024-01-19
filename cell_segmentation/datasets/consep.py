@@ -24,19 +24,43 @@ logger.addHandler(logging.NullHandler())
 
 
 class CoNSePDataset(Dataset):
+    """CoNSeP Dataset.
+
+    Args:
+        dataset_path (Union[Path, str]): Path to the dataset.
+        transforms (Callable, optional): Transformations to apply on images. Defaults to None.
+
+    Attributes:
+        dataset (Path): Path to the dataset.
+        transforms (Callable): Transformations to apply on images.
+        masks (List[Path]): List of mask paths.
+        img_names (List[str]): List of image names.
+        images (List[Path]): List of image paths.
+
+    Methods:
+        __getitem__(index: int) -> Tuple[torch.Tensor, dict, str]:
+            Get one item from the dataset.
+        __len__() -> int:
+            Return the length of the dataset.
+        set_transforms(transforms: Callable) -> None:
+            Set the transformations for the dataset.
+
+    Raises:
+        FileNotFoundError: If no ground-truth annotation file was found in the path.
+
+    Returns:
+        Tuple[torch.Tensor, dict, str]: A tuple containing the image, ground-truth values, and filename.
+
+    Example:
+        dataset = CoNSePDataset(dataset_path='path/to/dataset', transforms=transforms)
+        img, masks, filename = dataset[0]
+    """
+
     def __init__(
         self,
         dataset_path: Union[Path, str],
         transforms: Callable = None,
     ) -> None:
-        """MoNuSeg Dataset
-
-        Args:
-            dataset_path (Union[Path, str]): Path to dataset
-            transforms (Callable, optional): Transformations to apply on images. Defaults to None.
-        Raises:
-            FileNotFoundError: If no ground-truth annotation file was found in path
-        """
         self.dataset = Path(dataset_path).resolve()
         self.transforms = transforms
         self.masks = []

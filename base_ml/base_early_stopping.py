@@ -14,12 +14,39 @@ import wandb
 
 
 class EarlyStopping:
-    """Early Stopping Class
+    """Early Stopping Class.
 
     Args:
-        patience (int): Patience to wait before stopping
+        patience (int): Patience to wait before stopping.
         strategy (str, optional): Optimization strategy.
             Please select 'minimize' or 'maximize' for strategy. Defaults to "minimize".
+
+    Attributes:
+        patience (int): Patience to wait before stopping.
+        counter (int): Counter to keep track of the number of epochs without improvement.
+        strategy (str): Optimization strategy.
+        best_metric (float): Best metric value achieved so far.
+        best_epoch (int): Epoch number corresponding to the best metric value.
+        early_stop (bool): Flag indicating whether to stop the training process.
+
+    Methods:
+        __init__(patience: int, strategy: str = "minimize"): Initialize the EarlyStopping class.
+        __call__(metric: float, epoch: int) -> bool: Update the early stopping criteria.
+
+    Examples:
+        # Create an instance of EarlyStopping with patience of 5 and maximize strategy
+        early_stopping = EarlyStopping(patience=5, strategy="maximize")
+
+        # Inside the training loop
+        for epoch in range(num_epochs):
+            # Calculate the metric for the current epoch
+            metric = calculate_metric()
+
+            # Check if early stopping criteria is met
+            if early_stopping(metric, epoch):
+                # Save the model or perform other necessary actions
+                save_model()
+                break
     """
 
     def __init__(self, patience: int, strategy: str = "minimize"):

@@ -18,11 +18,33 @@ from abc import abstractmethod
 
 
 class CellDataset(Dataset):
+    """Dataset for cell segmentation tasks.
+
+    It provides methods for loading cell count data,
+    calculating sampling weights based on tissue and cell type statistics, and combining the weights.
+
+    Attributes:
+        transforms (Callable): Transformations to be applied to the dataset.
+
+    Methods:
+        set_transforms(transforms: Callable) -> None:
+            Set the transformations to be applied to the dataset.
+        load_cell_count() -> None:
+            Load cell count data from a CSV file.
+        get_sampling_weights_tissue(gamma: float = 1) -> torch.Tensor:
+            Calculate sampling weights based on tissue type statistics.
+        get_sampling_weights_cell(gamma: float = 1) -> torch.Tensor:
+            Calculate sampling weights based on cell type statistics.
+        get_sampling_weights_cell_tissue(gamma: float = 1) -> torch.Tensor:
+            Calculate combined sampling weights based on tissue and cell type statistics.
+
+    """
+
     def set_transforms(self, transforms: Callable) -> None:
         self.transforms = transforms
 
     @abstractmethod
-    def load_cell_count(self):
+    def load_cell_count(self) -> None:
         """Load Cell count from cell_count.csv file. File must be located inside the fold folder
 
         Example file beginning:

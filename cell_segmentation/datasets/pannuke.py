@@ -42,10 +42,61 @@ class PanNukeDataset(CellDataset):
         transforms (Callable, optional): PyTorch transformations. Defaults to None.
         stardist (bool, optional): Return StarDist labels. Defaults to False
         regression (bool, optional): Return Regression of cells in x and y direction. Defaults to False
-        cache_dataset: If the dataset should be loaded to host memory in first epoch.
-            Be careful, workers in DataLoader needs to be persistent to have speedup.
-            Recommended to false, just use if you have enough RAM and your I/O operations might be limited.
-            Defaults to False.
+        cache_dataset (bool, optional): If the dataset should be loaded to host memory in first epoch. Be careful, workers in DataLoader needs to be persistent to have speedup. Recommended to false, just use if you have enough RAM and your I/O operations might be limited. Defaults to False.
+
+    Attributes:
+        dataset (Path): The resolved path to the PanNuke dataset.
+        transforms (Callable): PyTorch transformations for the dataset.
+        images (List[Path]): List of image paths in the dataset.
+        masks (List[Path]): List of mask paths in the dataset.
+        types (Dict[str, str]): Dictionary mapping image names to their corresponding types.
+        img_names (List[str]): List of image names in the dataset.
+        folds (List[int]): List of folds used for this dataset.
+        cache_dataset (bool): Flag indicating whether the dataset should be cached in host memory.
+        stardist (bool): Flag indicating whether to return StarDist labels.
+        regression (bool): Flag indicating whether to return Regression of cells in x and y direction.
+        cached_idx (List[int]): List of indices that are cached.
+        cached_imgs (Dict[int, np.ndarray]): Dictionary mapping cached indices to their corresponding image arrays.
+        cached_masks (Dict[int, np.ndarray]): Dictionary mapping cached indices to their corresponding mask arrays.
+
+    Methods:
+        getitem__(self, index: int) -> Tuple[torch.Tensor, dict, str, str]:
+            Retrieves the item at the specified index from the dataset.
+        __len__() -> int:
+            Returns the length of the dataset
+        set_transforms(transforms: Callable) -> None:
+            Set the transformations to be applied to the dataset.
+        load_imgfile(index) -> np.ndarray:
+            Load image from file (disk).
+        load_maskfile(index) -> np.ndarray:
+            Load mask from file (disk).
+        load_cell_count() -> None:
+            Load cell count data from a CSV file.
+        get_sampling_weights_tissue(gamma: float = 1) -> torch.Tensor:
+            Calculate sampling weights based on tissue type statistics.
+        get_sampling_weights_cell(gamma: float = 1) -> torch.Tensor:
+            Calculate sampling weights based on cell type statistics.
+        get_sampling_weights_cell_tissue(gamma: float = 1) -> torch.Tensor:
+            Calculate combined sampling weights based on tissue and cell type statistics.s
+        gen_instance_hv_map(inst_map: np.ndarray) -> np.ndarray:
+            Obtain the horizontal and vertical distance maps for each nuclear instance.
+        gen_distance_prob_maps(inst_map: np.ndarray) -> np.ndarray:
+            Generate distance probability maps.
+        gen_stardist_maps(inst_map: np.ndarray) -> np.ndarray:
+            Generate StarDist map with 32 nrays.
+        gen_regression_map(inst_map: np.ndarray) -> np.ndarray:
+            Generate regression map for cells in x and y direction.
+
+    Raises:
+        None
+
+    Returns:
+        None
+
+    Example:
+        dataset = PanNukeDataset(dataset_path, folds=[1, 2, 3], transforms=transforms.Compose([transforms.ToTensor()]), stardist=True)
+        length = len(dataset)
+        item = dataset[0]
     """
 
     def __init__(
@@ -229,7 +280,7 @@ class PanNukeDataset(CellDataset):
         mask = np.stack([inst_map, type_map], axis=-1)
         return mask
 
-    def load_cell_count(self):
+    def load_cell_count(self) -> None:
         """Load Cell count from cell_count.csv file. File must be located inside the fold folder
         and named "cell_count.csv"
 
@@ -509,7 +560,39 @@ class PanNukeDataset(CellDataset):
         return dist.transpose(2, 0, 1)
 
     @staticmethod
-    def gen_regression_map(inst_map: np.ndarray):
+    def gen_regression_map(inst_map: np.ndarray) -> np.ndarray:
+        """Generates a regression map from an instance map.
+
+        Args:
+            inst_map (np.ndarray): The instance map.
+
+        Returns:
+            np.ndarray: The regression map.
+
+        Raises:
+            None
+
+        Notes:
+            - This function generates a regression map from an instance map.
+            - The regression map represents the distance of each pixel to the center of its corresponding instance.
+            - The regression map has two channels: one for the x-direction distance and one for the y-direction distance.
+            - The instance map should be a 2D numpy array where each unique value represents a different instance.
+            - The background pixels should have a value of 0.
+
+        Example:
+            inst_map = np.array([[0, 0, 1, 1],
+                                [0, 2, 2, 0],
+                                [3, 3, 0, 0]])
+            regression_map = gen_regression_map(inst_map)
+            # Output:
+            # array([[[ 0.,  0., -1., -1.],
+            #         [ 0.,  0., -1., -1.],
+            #         [ 0.,  0.,  0.,  0.]],
+            #
+            #        [[ 0.,  0.,  0.,  0.],
+            #         [ 0., -1., -1.,  0.],
+            #         [ 0., -1., -1.,  0.]]], dtype=float32)
+        """
         n_directions = 2
         dist = np.zeros(inst_map.shape + (n_directions,), np.float32).transpose(2, 0, 1)
         inst_map = fix_duplicates(inst_map)

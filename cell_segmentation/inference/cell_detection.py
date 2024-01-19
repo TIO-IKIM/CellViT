@@ -89,24 +89,81 @@ TYPE_NUCLEI_DICT = {
     5: "Epithelial",
 }
 
+
 class CellSegmentationInference:
+    """Performs cell segmentation inference using a trained model.
+
+    Args:
+        model_path (Union[Path, str]): The path to the trained model.
+        gpu (int): The index of the GPU to use for inference.
+        enforce_mixed_precision (bool, optional): Whether to enforce mixed precision for inference. Defaults to False.
+
+    Attributes:
+        model_path (Path): The path to the trained model.
+        device (str): The device (GPU) to use for inference.
+        logger (Logger): The logger instance for logging.
+        run_conf (dict): The configuration of the model run.
+        model (nn.Module): The trained model for inference.
+        inference_transforms (Compose): The transformations to apply to the input during inference.
+        mixed_precision (bool): Whether mixed precision is enforced for inference.
+
+    Methods:
+        __instantiate_logger() -> None:
+            Instantiates the logger for logging.
+        __load_model() -> None:
+            Loads the trained model and its checkpoint.
+        __get_model(model_type: str) -> Union[
+            CellViT,
+            CellViTShared,
+            CellViT256,
+            CellViT256Shared,
+            CellViTSAM,
+            CellViTSAMShared,
+        ]:
+            Returns the trained model for inference.
+        __load_inference_transforms() -> None:
+            Loads the inference transformations.
+         __setup_amp(enforce_mixed_precision: bool = False) -> None::
+            Sets up automated mixed precision for inference.
+        process_wsi(
+            wsi: WSI,
+            subdir_name: str = None,
+            patch_size: int = 1024,
+            overlap: int = 64,
+            batch_size: int = 8,
+            geojson: bool = False,
+        ) -> None:
+            Performs cell segmentation inference on a WSI.
+        get_cell_predictions_with_tokens(
+            predictions: dict, magnification: int = 40
+        ) -> Tuple[List[dict], torch.Tensor]:
+            Takes the raw predictions, applies softmax and calculates type instances.
+        post_process_edge_cells(cell_list: List[dict]) -> List[int]:
+            Uses the CellPostProcessor to remove multiple cells and merge due to overlap.
+        convert_geojson(
+            cell_list: list[dict], polygons: bool = False
+        ) -> List[dict]:
+            Converts a list of cells to a geojson object.
+
+    Raises:
+        NotImplementedError:
+            If an unknown model type is specified.
+
+    Returns:
+        None
+
+    Note:
+        This class assumes that the model has been trained and the trained model file is available at the specified `model_path`.
+        The `gpu` parameter specifies the index of the GPU to use for inference.
+        If `enforce_mixed_precision` is set to `True`, the inference will be performed using mixed precision for improved performance.
+    """
+
     def __init__(
         self,
         model_path: Union[Path, str],
         gpu: int,
         enforce_mixed_precision: bool = False,
     ) -> None:
-        """Cell Segmentation Inference class.
-
-        After setup, a WSI can be processed by calling process_wsi method
-
-        Args:
-            model_path (Union[Path, str]): Path to model checkpoint
-            gpu (int): CUDA GPU id to use
-            enforce_mixed_precision (bool, optional): Using PyTorch autocasting with dtype float16 to speed up inference. Also good for trained amp networks.
-                Can be used to enforce amp inference even for networks trained without amp. Otherwise, the network setting is used.
-                Defaults to False.
-        """
         self.model_path = Path(model_path)
         self.device = f"cuda:{gpu}"
         self.__instantiate_logger()
@@ -211,7 +268,7 @@ class CellSegmentationInference:
             )
         return model
 
-    def __load_inference_transforms(self):
+    def __load_inference_transforms(self) -> None:
         """Load the inference transformations from the run_configuration"""
         self.logger.info("Loading inference transformations")
 
@@ -299,12 +356,11 @@ class CellSegmentationInference:
             "metadata": {"wsi_metadata": wsi.metadata, "nuclei_types": nuclei_types},
         }
         processed_patches = []
-        
+
         memory_usage = 0
         cell_count = 0
 
         with torch.no_grad():
-            
             pbar = tqdm.tqdm(wsi_inference_dataloader, total=len(wsi_inference_dataset))
 
             for batch in wsi_inference_dataloader:
@@ -321,7 +377,6 @@ class CellSegmentationInference:
                 instance_types, tokens = self.get_cell_predictions_with_tokens(
                     predictions, magnification=wsi.metadata["magnification"]
                 )
-                print(f"Token-Shape: {tokens.shape}")
                 # unpack each patch from batch
                 for idx, (patch_instance_types, patch_metadata) in enumerate(
                     zip(instance_types, metadata)
@@ -350,6 +405,15 @@ class CellSegmentationInference:
                         - (patch_metadata["col"] + 0.5) * overlap
                     )
 
+                    # x_global = int(
+                    #     patch_metadata["row"] * patch_size
+                    #     - (patch_metadata["row"] + 0.5) * overlap
+                    # )
+                    # y_global = int(
+                    #     patch_metadata["col"] * patch_size
+                    #     - (patch_metadata["col"] + 0.5) * overlap
+                    # )
+
                     # extract cell information
                     for cell in patch_instance_types.values():
                         if cell["type"] == nuclei_types["Background"]:
@@ -357,7 +421,10 @@ class CellSegmentationInference:
                         offset_global = np.array([x_global, y_global])
                         centroid_global = cell["centroid"] + np.flip(offset_global)
                         contour_global = cell["contour"] + np.flip(offset_global)
+                        # centroid_global = cell["centroid"] + np.flip(offset_global) * wsi_scaling_factor
+                        # contour_global = cell["contour"] + np.flip(offset_global) * wsi_scaling_factor
                         bbox_global = cell["bbox"] + offset_global
+                        # bbox_global = (cell["bbox"] + offset_global) * wsi_scaling_factor
                         cell_dict = {
                             "bbox": bbox_global.tolist(),
                             "centroid": centroid_global.tolist(),
@@ -371,7 +438,7 @@ class CellSegmentationInference:
                             "cell_status": get_cell_position_marging(
                                 cell["bbox"], 1024, 64
                             ),
-                            "offset_global": offset_global.tolist()
+                            "offset_global": offset_global.tolist(),
                         }
                         cell_detection = {
                             "bbox": bbox_global.tolist(),
@@ -399,7 +466,6 @@ class CellSegmentationInference:
                         bb_index[0, :] = np.floor(bb_index[0, :])
                         bb_index[1, :] = np.ceil(bb_index[1, :])
                         bb_index = bb_index.astype(np.uint8)
-                        print(f"Token-Shape-Patch: {idx.shape}")
                         cell_token = tokens[
                             idx,
                             :,
@@ -416,9 +482,19 @@ class CellSegmentationInference:
 
                         cell_count = cell_count + 1
                         # dict sizes
-                        memory_usage = memory_usage + get_size_of_dict(cell_dict)/(1024*1024) + get_size_of_dict(cell_detection)/(1024*1024) # + sys.getsizeof(cell_token)/(1024*1024)
-                        # pytorch 
-                        memory_usage = memory_usage + (cell_token.nelement() * cell_token.element_size())/(1024*1024) + centroid_global.nbytes/(1024*1024) + contour_global.nbytes/(1024*1024)
+                        memory_usage = (
+                            memory_usage
+                            + get_size_of_dict(cell_dict) / (1024 * 1024)
+                            + get_size_of_dict(cell_detection) / (1024 * 1024)
+                        )  # + sys.getsizeof(cell_token)/(1024*1024)
+                        # pytorch
+                        memory_usage = (
+                            memory_usage
+                            + (cell_token.nelement() * cell_token.element_size())
+                            / (1024 * 1024)
+                            + centroid_global.nbytes / (1024 * 1024)
+                            + contour_global.nbytes / (1024 * 1024)
+                        )
 
                     pbar.set_postfix(Cells=cell_count, Memory=f"{memory_usage:.2f} MB")
 
@@ -877,6 +953,33 @@ def get_cell_position_marging(
 
 
 def get_edge_patch(position, row, col):
+    """Returns the coordinates of the edge patch based on the given position.
+
+    Args:
+        position (List[int]): The position of the edge patch, represented as a list of four binary values.
+            The order of the values corresponds to [top, right, bottom, left].
+        row (int): The row index of the current patch.
+        col (int): The column index of the current patch.
+
+    Returns:
+        List[List[int]]: The coordinates of the edge patch as a list of [row, col] pairs.
+
+    Raises:
+        None
+
+    Notes:
+        - This function returns the coordinates of the edge patch based on the given position.
+        - The position is represented as a list of four binary values, where 1 indicates the presence of an edge in that direction.
+        - The function returns the coordinates of the neighboring patches that form the edge patch.
+        - The coordinates are returned as a list of [row, col] pairs.
+
+    Example:
+        position = [1, 0, 0, 1]
+        row = 2
+        col = 3
+        edge_patch = get_edge_patch(position, row, col)
+        # Output: [[2, 2], [1, 2], [1, 3]]
+    """
     # row starting on bottom or on top?
     if position == [1, 0, 0, 0]:
         # top

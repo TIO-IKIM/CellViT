@@ -25,6 +25,41 @@ logger.addHandler(logging.NullHandler())
 
 
 class MoNuSegDataset(Dataset):
+    """MoNuSeg Dataset.
+
+    Args:
+        dataset_path (Union[Path, str]): Path to the dataset.
+        transforms (Callable, optional): Transformations to apply on images. Defaults to None.
+        patching (bool, optional): If patches with size 256px should be used. Otherwise, the entire MoNuSeg images are loaded. Defaults to False.
+        overlap (int, optional): If overlap should be used for patch sampling. Overlap in pixels. Recommended value other than 0 is 64. Defaults to 0.
+
+    Attributes:
+        dataset (Path): Path to the dataset.
+        transforms (Callable): Transformations to apply on images.
+        masks (List[Path]): List of mask paths.
+        img_names (List[str]): List of image names.
+        patching (bool): Flag indicating whether patches with size 256px are used.
+        overlap (int): Overlap in pixels for patch sampling.
+
+    Methods:
+        __getitem__(index: int) -> Tuple[torch.Tensor, dict, str]:
+            Get one item from the dataset.
+        __len__() -> int:
+            Return the length of the dataset.
+        set_transforms(transforms: Callable) -> None:
+            Set the transformations for the dataset.
+
+    Raises:
+        FileNotFoundError: If no ground-truth annotation file was found in the path.
+
+    Returns:
+        Tuple[torch.Tensor, dict, str]: A tuple containing the image, ground-truth values, and filename.
+
+    Example:
+        dataset = MoNuSegDataset(dataset_path='path/to/dataset', transforms=transforms, patching=True, overlap=64)
+        img, masks, filename = dataset[0]
+    """
+
     def __init__(
         self,
         dataset_path: Union[Path, str],
@@ -32,17 +67,6 @@ class MoNuSegDataset(Dataset):
         patching: bool = False,
         overlap: int = 0,
     ) -> None:
-        """MoNuSeg Dataset
-
-        Args:
-            dataset_path (Union[Path, str]): Path to dataset
-            transforms (Callable, optional): Transformations to apply on images. Defaults to None.
-            patching (bool, optional): If patches with size 256px should be used Otherwise, the entire MoNuSeg images are loaded. Defaults to False.
-            overlap: (bool, optional): If overlap should be used for patch sampling. Overlap in pixels.
-                Recommended value other than 0 is 64. Defaults to 0.
-        Raises:
-            FileNotFoundError: If no ground-truth annotation file was found in path
-        """
         self.dataset = Path(dataset_path).resolve()
         self.transforms = transforms
         self.masks = []

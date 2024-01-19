@@ -5,7 +5,7 @@ output_path: ./example/output/preprocessing
 # basic setups
 patch_size: 1024
 patch_overlap: 6.25
-target_mag: 40
+target_mag: 20
 processes: 8
 overwrite: True
 

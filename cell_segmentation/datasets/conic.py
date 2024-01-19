@@ -26,17 +26,43 @@ logger.addHandler(logging.NullHandler())
 
 
 class CoNicDataset(CellDataset):
-    """Lizzard dataset
+    """Lizzard dataset.
 
-    This dataset is always cached
+    This dataset is always cached.
 
     Args:
         dataset_path (Union[Path, str]): Path to Lizzard dataset. Structure is described under ./docs/readmes/cell_segmentation.md
         folds (Union[int, list[int]]): Folds to use for this dataset
         transforms (Callable, optional): PyTorch transformations. Defaults to None.
-        stardist (bool, optional): Return StarDist labels. Defaults to False
-        regression (bool, optional): Return Regression of cells in x and y direction. Defaults to False
-        **kwargs are irgnored
+        stardist (bool, optional): Return StarDist labels. Defaults to False.
+        regression (bool, optional): Return Regression of cells in x and y direction. Defaults to False.
+        **kwargs: Additional keyword arguments.
+
+    Attributes:
+        dataset (Path): Path to Lizzard dataset.
+        transforms (Callable): PyTorch transformations.
+        images (List[Path]): List of image paths.
+        masks (List[Path]): List of mask paths.
+        img_names (List[str]): List of image names.
+        folds (List[int]): List of folds used for this dataset.
+        stardist (bool): Flag indicating whether to return StarDist labels.
+        regression (bool): Flag indicating whether to return Regression of cells.
+        loaded_imgs (List[np.ndarray]): List of loaded images.
+        loaded_masks (List[np.ndarray]): List of loaded masks.
+        cell_count (pd.DataFrame): DataFrame containing cell count information.
+
+    Methods:
+        __getitem__(index: int) -> Tuple[torch.Tensor, dict, str, str]:
+            Get one dataset item consisting of transformed image, masks, and tissue type.
+        __len__() -> int:
+            Return the length of the dataset.
+        set_transforms(transforms: Callable) -> None:
+            Set the transformations for the dataset.
+        load_cell_count() -> None:
+            Load cell count information from the cell_count.csv file.
+        get_sampling_weights_cell(gamma: float = 1) -> torch.Tensor:
+            Get sampling weights calculated by cell type statistics.
+
     """
 
     def __init__(

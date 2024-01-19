@@ -21,6 +21,9 @@ class CellGraphDataWSI(GraphDataWSI):
 
     Args:
         contours (List[torch.Tensor]): Contour Data for each object.
+
+    Attributes:
+        contours (List[torch.Tensor]): Contour data for each object.
     """
 
     contours: List[torch.Tensor]

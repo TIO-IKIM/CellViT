@@ -39,13 +39,66 @@ from utils.tools import flatten_dict, remove_parameter_tag, unflatten_dict
 class BaseExperiment:
     """BaseExperiment Class
 
-    An experiment consistsn of the follwing key methods:
+    An experiment consists of the following key methods:
 
-        * run_experiment: Main Code for running the experiment with implemented coordinaten and training call
-        *
-        *
+        * run_experiment: Main Code for running the experiment with implemented coordination and training call
+        * get_train_model: Retrieve torch model for training
+        * get_loss_fn: Retrieve torch loss function for training
+        * get_optimizer: Retrieve optimizer for training
+        * get_scheduler: Retrieve learning rate scheduler for training
+        * get_sampler: Retrieve data sampler for training
+        * get_train_dataset: Retrieve training dataset
+        * get_val_dataset: Retrieve validation dataset
+
+    Other helpful methods are implemented as well and can be found below.
+
     Args:
         default_conf (dict): Default configuration
+        checkpoint (Optional): Checkpoint for loading model weights
+
+    Attributes:
+        default_conf (dict): Default configuration
+        run_conf (dict): Run configuration
+        logger (Logger): Logger instance
+        checkpoint (Optional): Checkpoint for loading model weights
+
+    Methods:
+        __init__(default_conf: dict, checkpoint=None) -> None:
+            Initializes the BaseExperiment instance.
+        run_experiment() -> None:
+            Main code for running the experiment.
+        get_train_model() -> nn.Module:
+            Retrieves the torch model for training.
+        get_loss_fn() -> _Loss:
+            Retrieves the torch loss function for training.
+        get_optimizer(model: nn.Module, optimizer_name: str, hp: dict) -> Optimizer:
+            Retrieves the optimizer for training.
+        get_scheduler(optimizer: Optimizer) -> _LRScheduler:
+            Retrieves the learning rate scheduler for training.
+        get_sampler() -> Sampler:
+            Retrieves the data sampler for training.
+        get_train_dataset() -> Dataset:
+            Retrieves the training dataset.
+        get_val_dataset() -> Dataset:
+            Retrieves the validation dataset.
+        load_file_split(fold: int = None) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+            Loads the file split for training, validation, and test.
+        instantiate_logger() -> Logger:
+            Instantiates a logger.
+        create_output_dir(folder_path: Union[str, Path]) -> None:
+            Creates a folder at the given path.
+        store_config() -> None:
+            Stores the config file in the logging directory.
+        extract_sweep_arguments(config: dict) -> Tuple[Union[BaseModel, dict]]:
+            Extracts sweep arguments from the provided dictionary.
+        overwrite_sweep_values(run_conf: dict, sweep_run_conf: dict) -> None:
+            Overwrites run_conf file with the sweep values.
+        seed_run(seed: int) -> None:
+            Seeds the experiment.
+        seed_worker(worker_id) -> None:
+            Seeds a worker.
+        close_remaining_logger() -> None:
+            Closes all remaining loggers.
     """
 
     def __init__(self, default_conf: dict, checkpoint=None) -> None:
