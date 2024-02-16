@@ -73,14 +73,37 @@ This repository contains the code implementation of CellViT, a deep learning-bas
 2. Create a conda environment with Python 3.9.7 version and install conda requirements: `conda env create -f environment.yml`. You can change the environment name by editing the `name` tag in the environment.yaml file.
 This step is necessary, as we need to install `Openslide` with binary files. This is easier with conda. Otherwise, installation from [source](https://openslide.org/api/python/) needs to be performed and packages installed with pi
 3. Activate environment: `conda activate cellvit_env`
-4. Install torch for for system, as described [here](https://pytorch.org/get-started/locally/). Preferred version is 1.13, see [optional_dependencies](./optional_dependencies.txt) for help. You can find all version here: https://pytorch.org/get-started/previous-versions/
-Example for CUDA 11.7: `pip install torch==1.13.0+cu117 torchvision==0.14.0+cu117 torchaudio==0.13.0 --extra-index-url https://download.pytorch.org/whl/cu117`
+4. Install torch (>=2.0) for your system, as described [here](https://pytorch.org/get-started/locally/). Preferred version is 2.0, see [optional_dependencies](./optional_dependencies.txt) for help. You can find all version here: https://pytorch.org/get-started/previous-versions/
 
 5. Install optional dependencies `pip install -r optional_dependencies.txt` to get a speedup using [NVIDIA-Clara](https://www.nvidia.com/de-de/clara/) and [CuCIM](https://github.com/rapidsai/cucim) for preprocessing during inference. Please select your CUDA versions. Help for installing cucim can be found [online](https://github.com/rapidsai/cucim).
 **Note Error: cannot import name CuImage from cucim**
 If you get this error, install cucim from conda to get all binary files.
 First remove your previous dependeny with `pip uninstall cupy-cuda117` and reinstall with `
 conda install -c rapidsai cucim` inside your conda environment. This process is time consuming, so you should be patient. Also follow their [official guideline](https://github.com/rapidsai/cucim).
+
+### FAQ: Environment problems
+
+**ResolvePackageNotFound: -gcc**
+
+- Fix: Comment out the gcc package in the environment.yml file
+
+**ResolvePackageNotFound: -libtiff==4.5.0=h6adf6a1_2, -openslide==3.4.1=h7773abc_6**
+
+- Fix: Remove the version hash from environment.yml file, such that:
+  ```yaml
+  ...
+  dependencies:
+    ...
+    - libtiff=4.5.0
+    - openslide=3.4.1
+  
+  pip:
+  ...
+  ```
+
+**PyDantic Validation Errors for the CLI**
+
+Please install the pydantic version specified (`pydantic==1.10.4`), otherwise validation errors could occur for the CLI.
 
 ## Usage:
 
@@ -140,10 +163,6 @@ The important file is the configuration file, in which all paths are set, the mo
 
 An example config file is given [here](configs/examples/cell_segmentation/train_cellvit.yaml) with explanations [here](docs/readmes/example_train_config.md).
 For sweeps, we provide a sweep example file [`train_cellvit_sweep.yaml`](/configs/examples/cell_segmentation/train_cellvit_sweep.yaml).
-
-We also included some exemplary PanNuke configurations files from the paper along with resulting log and inference files:
-- SAM-H: [configuration :page_facing_up:](configs/PanNuke/SAM/SAM-H/), [results :bar_chart:](results/PanNuke/SAM/SAM-H/)
-- ViT-256: [configuration :page_facing_up:](configs/PanNuke/ViT-256/), [results :bar_chart:](results/PanNuke/ViT-256/)
 
 **Pre-trained ViT models** for training initialization can be downloaded from Google Drive: [ViT-Models](https://drive.google.com/drive/folders/1zFO4bgo7yvjT9rCJi_6Mt6_07wfr0CKU?usp=sharing). Please check out the corresponding licenses before distribution and further usage! Note: We just used the teacher models for ViT-256.
 
@@ -322,7 +341,7 @@ Download the models and store them in `./models/pretrained` or on your preferred
 ```bash
 python3 ./cell_segmentation/inference/cell_detection.py \
   --model ./models/pretrained/CellViT/CellViT-SAM-H-x40.pth\
-  --gpu 1 \
+  --gpu 0 \
   --geojson \
   process_wsi \
   --wsi_path ./example/TCGA-V5-A7RE-11A-01-TS1.57401526-EF9E-49AC-8FF6-B4F9652311CE.svs \

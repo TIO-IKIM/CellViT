@@ -1,9 +1,11 @@
 # Preprocessing
 
+In our Pre-Processing pipeline, we are able to extract quadratic patches from detected tissue areas, load annotation files (`.json`) and apply color normlizations. We make use of the popular [OpenSlide](https://openslide.org/) library, but extended it with the [RAPIDS cuCIM](https://github.com/rapidsai/cucim) framework for a speedup in patch-extraction.
+
 The CLI of the main script for patch extraction ([main_extraction](preprocessing/main_extraction.py)) is as follows:
+
 ```bash
 python3 main_extraction.py [-h]
-usage: main_extraction.py [-h]
                           [--wsi_paths WSI_PATHS]
                           [--wsi_filelist WSI_FILELIST]
                           [--output_path OUTPUT_PATH]
@@ -11,8 +13,9 @@ usage: main_extraction.py [-h]
                           [--config CONFIG]
                           [--patch_size PATCH_SIZE]
                           [--patch_overlap PATCH_OVERLAP]
-                          [--downsample DOWNSAMPLE]
+                          [--target_mpp TARGET_MPP]
                           [--target_mag TARGET_MAG]
+                          [--downsample DOWNSAMPLE]
                           [--level LEVEL]
                           [--context_scales [CONTEXT_SCALES ...]]
                           [--check_resolution CHECK_RESOLUTION]
@@ -32,9 +35,12 @@ usage: main_extraction.py [-h]
                           [--tissue_annotation TISSUE_ANNOTATION]
                           [--masked_otsu]
                           [--otsu_annotation OTSU_ANNOTATION]
+                          [--filter_patches FILTER_PATCHES]
+                          [--apply_prefilter APPLY_PREFILTER]
                           [--log_path LOG_PATH]
                           [--log_level {critical,error,warning,info,debug}]
                           [--hardware_selection {cucim,openslide}]
+                          [--wsi_properties DICT]
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -62,10 +68,16 @@ optional arguments:
                         downsampling should be used with respect to the highest possible resolution. Medium
                         priority, gets overwritten by target_mag if provided, but overwrites level. (default:
                         None)
+  --target_mpp TARGET_MPP
+                        If this parameter is provided, the output level of the WSI corresponds to the level that
+                        is at the target microns per pixel of the WSI. Alternative to target_mag, downsaple and level.
+                        Highest priority,
+                        overwrites target_mag, downsample and level if provided. (default: None)
   --target_mag TARGET_MAG
                         If this parameter is provided, the output level of the WSI corresponds to the level that
-                        is at the target magnification of the WSI. Alternative to downsaple and level. Highest
-                        priority, overwrites downsample and level if provided. (default: None)
+                        is at the target magnification of the WSI. Alternative to target_mpp, downsaple and level.
+                        High priority, just target_mpp has a higher priority,
+                        overwrites downsample and level if provided. (default: None)
   --level LEVEL         The tile level for sampling, alternative to downsample. Lowest priority, gets overwritten
                         by target_mag and downsample if they are provided. (default: None)
   --context_scales [CONTEXT_SCALES ...]
@@ -112,6 +124,12 @@ optional arguments:
   --otsu_annotation OTSU_ANNOTATION
                         Can be used to name a polygon annotation to determine the area for masked otsu
                         thresholding. Seperate multiple labels with ' ' (whitespace) (default: None)
+  --filter_patches FILTER_PATCHES
+                        Post-extraction patch filtering to sort out artefacts, marker and other non-tissue patches with a DL model. Time consuming.
+                        (default: False)
+  --apply_prefilter APPLY_PREFILTER
+                        Pre-extraction mask filtering to remove marker from mask before applying otsu
+                        (default: False)
   --log_path LOG_PATH   Path where log files should be stored. Otherwise, log files are stored in the output
                         folder (default: None)
   --log_level {critical,error,warning,info,debug}
@@ -119,6 +137,9 @@ optional arguments:
                         (default: None)
   --hardware_selection {cucim,openslide}
                         Select hardware device (just if available, otherwise always cucim). Defaults to cucim.)
+  --wsi_properties WSI_PROPERTIES
+                        Dictionary with manual WSI metadata, but just applies if metadata cannot be derived from OpenSlide (e.g., for .tiff files). Supported keys are slide_mpp and magnification
+                        (default: None)
 ```
 
 **Label-Map**:
@@ -137,9 +158,10 @@ Example:
 ```
 **Precedence of Target-Magnification, Downsampling and Level**
 
-Target magnification has the highest priority. If all three are passed, always the target magnification is used for output. Level has the lowest priority.
+Target_mpp has the highest priority. If all four are passed, always the target mpp is used for output. Level has the lowest priority.
 Sorted by priority:
 
+- Target microns per pixel: Overwrites all other selections
 - Target magnification: Overwrites downsampling and level
 - Downsampling: Overwrites level
 - Level: Lowest priority, default used when neither target magnification nor downsampling is passed
@@ -152,3 +174,11 @@ A CLI is used to start the preprocessing. The entry-point is the [main_extractio
 python3 main_extraction.py --config path/to/config.yaml
 ```
 Exemplary configuration file: [patch_extraction.yaml](/configs/examples/preprocessing/patch_extraction/patch_extraction.yaml)
+
+### WSI-Properties Dictionary:
+Per default, WSI metadata are derived automatically using OpenSlide. The WSI property dict just applies if the metadata cannot be extracted automatically (e.g., .tiff files). The following keys are necessary:
+```
+wsi_properties:
+  - slide_mpp: # Microns per pixel, e.g., 0.25
+  - magnification # Objective power during scanning, e.g., 20 or 40
+```

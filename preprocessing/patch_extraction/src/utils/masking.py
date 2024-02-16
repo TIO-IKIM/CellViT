@@ -15,6 +15,7 @@ import rasterio
 import skimage.color as sk_color
 import skimage.filters as sk_filters
 import skimage.morphology as sk_morphology
+from histolab.filters.image_filters import BluePenFilter, GreenPenFilter, RedPenFilter
 from PIL import Image
 from rasterio.mask import mask as rasterio_mask
 from shapely.affinity import scale
@@ -30,6 +31,7 @@ def generate_tissue_mask(
     region_labels: List[str] = None,
     otsu_annotation: Union[List[str], str] = "object",
     downsample: int = 1,
+    apply_prefilter: bool = False,
 ) -> np.ndarray:
     """Generate a tissue mask using otsu thresholding.
 
@@ -45,6 +47,7 @@ def generate_tissue_mask(
             Defaults to "object".
         downsample (int, optional): Downsampling of the tissue tile compared to highest WSI level. Used for matching annotations with tissue-tile size.
             Defaults to 1.
+        apply_prefilter (bool, optional): If a prefilter should be used to remove markers before applying otsu. Defaults to False.
 
     Returns:
         np.ndarray: Binary tissue mask with shape (height, width)
@@ -73,6 +76,10 @@ def generate_tissue_mask(
                 "Annotation with given label does not exist. Using unmasked thresholding"
             )
     # apply otsu thresholding
+
+    if apply_prefilter:
+        tissue_tile = remove_marker_filters(tile=tissue_tile)
+
     tissue_mask = apply_otsu_thresholding(tile=tissue_tile)
     assert len(np.unique(tissue_mask)) <= 2, "Mask is not binary"
 
@@ -258,3 +265,33 @@ def mask_rgb(rgb: np.ndarray, mask: np.ndarray) -> np.ndarray:
     masked_image = positive + negative
 
     return np.clip(masked_image, a_min=0, a_max=255)
+
+
+def remove_marker_filters(tile: np.ndarray) -> np.ndarray:
+    """Generate a binary tissue mask by using Otsu thresholding
+
+    Args:
+        tile (np.ndarray): Tile with tissue with shape (height, width, 3)
+
+    Returns:
+        np.ndarray: Binary mask with shape (height, width)
+    """
+    red_pen_filter = RedPenFilter()
+    green_pen_filter = GreenPenFilter()
+    blue_pen_filter = BluePenFilter()
+
+    tile = Image.fromarray(tile.astype(np.uint8))
+
+    tile = blue_pen_filter(tile)
+    tile = green_pen_filter(tile)
+    tile = red_pen_filter(tile)
+
+    image_rgb_np = np.array(tile)
+    black_pixels = (
+        (image_rgb_np[:, :, 0] == 0)
+        & (image_rgb_np[:, :, 1] == 0)
+        & (image_rgb_np[:, :, 2] == 0)
+    )
+    image_rgb_np[black_pixels] = [255, 255, 255]
+
+    return image_rgb_np

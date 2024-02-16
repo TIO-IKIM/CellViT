@@ -8,6 +8,8 @@
 
 import importlib
 import logging
+import sys
+
 import types
 from datetime import timedelta
 from timeit import default_timer as timer
@@ -224,3 +226,10 @@ def remove_parameter_tag(d: dict, sep: str = ".") -> dict:
         param_dict[joined_key][unflattened_keys[-1]] = v
 
     return param_dict
+
+def get_size_of_dict(d: dict) -> int:
+    size = sys.getsizeof(d)
+    for key, value in d.items():
+        size += sys.getsizeof(key)
+        size += sys.getsizeof(value)
+    return size
