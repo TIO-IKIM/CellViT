@@ -401,12 +401,12 @@ class CellSegmentationInference:
                         bb_index = bb_index.astype(np.uint8)
                         cell_token = tokens[
                             idx,
-                            bb_index[0, 1] : bb_index[1, 1],
-                            bb_index[0, 0] : bb_index[1, 0],
                             :,
+                            bb_index[0, 0] : bb_index[1, 0],
+                            bb_index[0, 1] : bb_index[1, 1]
                         ]
                         cell_token = torch.mean(
-                            rearrange(cell_token, "H W D -> (H W) D"), dim=0
+                            rearrange(cell_token, "D H W -> (H W) D"), dim=0
                         )
 
                         graph_data["cell_tokens"].append(cell_token)
