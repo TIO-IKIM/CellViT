@@ -367,12 +367,15 @@ Stay tuned for updates on the availability of the Docker image, as we are active
 
 ## Citation
 ```latex
-@misc{hörst2023cellvit,
-      title={CellViT: Vision Transformers for Precise Cell Segmentation and Classification},
-      author={Fabian Hörst and Moritz Rempe and Lukas Heine and Constantin Seibold and Julius Keyl and Giulia Baldini and Selma Ugurel and Jens Siveke and Barbara Grünwald and Jan Egger and Jens Kleesiek},
-      year={2023},
-      eprint={2306.15350},
-      archivePrefix={arXiv},
-      primaryClass={eess.IV}
+@article{CellViT,
+    title = {CellViT: Vision Transformers for precise cell segmentation and classification},
+    journal = {Medical Image Analysis},
+    volume = {94},
+    pages = {103143},
+    year = {2024},
+    issn = {1361-8415},
+    doi = {https://doi.org/10.1016/j.media.2024.103143},
+    url = {https://www.sciencedirect.com/science/article/pii/S1361841524000689},
+    author = {Fabian Hörst and Moritz Rempe and Lukas Heine and Constantin Seibold and Julius Keyl and Giulia Baldini and Selma Ugurel and Jens Siveke and Barbara Grünwald and Jan Egger and Jens Kleesiek},
 }
 ```
