@@ -84,7 +84,7 @@ class PreProcessingConfig(BaseModel):
     Args:
         wsi_paths (str): Path to the folder where all WSI are stored or path to a single WSI-file.
         output_path (str): Path to the folder where the resulting dataset should be stored.
-        wsi_extension (str, optional): The extension of the WSI-files. Defaults to "svs.
+        wsi_extension (str, optional): The extension of the WSI-files. Defaults to "svs".
         wsi_filelist (str, optional): Path to a csv-filelist with WSI files (separator: `,`), if provided just these files are used. Must include full paths to WSIs, including suffixes.
             Can be used as an replacement for the wsi_paths option. If both are provided, yields an error. Defaults to None.
         patch_size (int, optional): The size of the patches in pixel that will be retrieved from the WSI, e.g. 256 for 256px. Defaults to 256.
