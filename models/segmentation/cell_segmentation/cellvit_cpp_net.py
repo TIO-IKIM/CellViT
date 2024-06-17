@@ -359,7 +359,7 @@ class CellViTCPP(CellViT):
             z0, z1, z2, z3, z4, self.dist_decoder
         )
         type_map_features = self._forward_upsample(
-            z0, z1, z2, z3, z4, self.dist_decoder
+            z0, z1, z2, z3, z4, self.nuclei_type_maps_decoder
         )
 
         stardist_head_out = self.stardist_head(stardist_features)
@@ -603,7 +603,7 @@ class CellViTSAMCPP(CellViTCPP, CellViTSAM):
             z0, z1, z2, z3, z4, self.dist_decoder
         )
         type_map_features = self._forward_upsample(
-            z0, z1, z2, z3, z4, self.dist_decoder
+            z0, z1, z2, z3, z4, self.nuclei_type_maps_decoder
         )
 
         stardist_head_out = self.stardist_head(stardist_features)
