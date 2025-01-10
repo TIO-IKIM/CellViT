@@ -5,6 +5,17 @@
 <img src="https://img.shields.io/badge/PyTorch-EE4C2C?style=flat-square&logo=Pytorch&logoColor=white"/></a>
 [![Visitors](https://api.visitorbadge.io/api/visitors?path=https%3A%2F%2Fgithub.com%2FTIO-IKIM%2FCellViT&label=Visitors&countColor=%23263759&style=flat)](https://visitorbadge.io/status?path=https%3A%2F%2Fgithub.com%2FTIO-IKIM%2FCellViT)
 [![PWC](https://img.shields.io/endpoint.svg?url=https://paperswithcode.com/badge/cellvit-vision-transformers-for-precise-cell/panoptic-segmentation-on-pannuke)](https://paperswithcode.com/sota/panoptic-segmentation-on-pannuke?p=cellvit-vision-transformers-for-precise-cell)
+[![Update](https://img.shields.io/badge/Update-CellViT++-green?labelColor=Red&style=flat&logo=github&link=https://github.com/TIO-IKIM/CellViT-plus-plus)](https://github.com/TIO-IKIM/CellViT-plus-plus)
+___
+> [!IMPORTANT]
+> [![Update](https://img.shields.io/badge/Update-CellViT++-green?labelColor=Red&style=flat&logo=github&link=https://github.com/TIO-IKIM/CellViT-plus-plus)](https://github.com/TIO-IKIM/CellViT-plus-plus)
+> 
+> This repository has been superseded by our new implementation!
+> 
+> Please visit our new repository at [CellViT++](https://github.com/TIO-IKIM/CellViT-Plus-Plus).
+> The new version includes significant improvements in performance, usability, and features.
+While this repository remains available for reference, we strongly recommend using CellViT-2.0 for all new projects.
+
 ___
 <p align="center">
   <img src="./docs/figures/banner.png"/>
@@ -18,6 +29,15 @@ ___
 [Key Features](#key-features) • [Installation](#installation) • [Usage](#usage) • [Training](#training) • [Inference](#inference) • [Examples](#examples) • [Roadmap](#Roadmap) • [Citation](#Citation)
 
 </div>
+
+---
+> **Update 10.01.2025**:
+> 
+> CellViT++ is out now!
+> 
+>[![Update](https://img.shields.io/badge/Update-CellViT++-green?labelColor=Red&style=flat&logo=github&link=https://github.com/TIO-IKIM/CellViT-plus-plus)](https://github.com/TIO-IKIM/CellViT-plus-plus)
+
+---
 
 ---
 
