@@ -7,6 +7,13 @@
 [![PWC](https://img.shields.io/endpoint.svg?url=https://paperswithcode.com/badge/cellvit-vision-transformers-for-precise-cell/panoptic-segmentation-on-pannuke)](https://paperswithcode.com/sota/panoptic-segmentation-on-pannuke?p=cellvit-vision-transformers-for-precise-cell)
 [![Update](https://img.shields.io/badge/Update-CellViT++-green?labelColor=Red&style=flat&logo=github&link=https://github.com/TIO-IKIM/CellViT-plus-plus)](https://github.com/TIO-IKIM/CellViT-plus-plus)
 ___
+
+> [!IMPORTANT]
+> [![Update](https://img.shields.io/badge/Update-PyPI-green?labelColor=Red&style=flat&logo=pypi&link=https://pypi.org/project/cellvit/)](https://pypi.org/project/cellvit/)
+>
+> If you just want to run inference, checkout the [PyPI package](https://pypi.org/project/cellvit/) and the corresponding [GitHub repo](https://github.com/TIO-IKIM/CellViT-Inference)
+
+
 > [!IMPORTANT]
 > [![Update](https://img.shields.io/badge/Update-CellViT++-green?labelColor=Red&style=flat&logo=github&link=https://github.com/TIO-IKIM/CellViT-plus-plus)](https://github.com/TIO-IKIM/CellViT-plus-plus)
 > 
@@ -14,7 +21,6 @@ ___
 > 
 > Please visit our new repository at [CellViT++](https://github.com/TIO-IKIM/CellViT-Plus-Plus).
 > The new version includes significant improvements in performance, usability, and features.
-While this repository remains available for reference, we strongly recommend using CellViT-2.0 for all new projects.
 
 ___
 <p align="center">
