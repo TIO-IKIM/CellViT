@@ -1,5 +1,5 @@
-```text
-LICENSE  
+
+LICENSE
 This repository contains three components with distinct licensing terms:  
 
 -----------------------------------------------------------------------
@@ -281,4 +281,5 @@ Original/Inference Code | Apache 2.0 + Commons Clause | No commercial sale; mand
 
 =======================================================================  
 By using this software, you agree to comply with all applicable terms.  
-```
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES..
