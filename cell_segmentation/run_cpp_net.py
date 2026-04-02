@@ -8,6 +8,8 @@
 import inspect
 import os
 import sys
+import torch
+import gc
 
 currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
 parentdir = os.path.dirname(currentdir)
@@ -36,6 +38,9 @@ if __name__ == "__main__":
             default_conf=configuration, checkpoint=configuration["checkpoint"]
         )
         outdir = experiment.run_experiment()
+        del experiment     
+        gc.collect()      
+        torch.cuda.empty_cache()      
         inference = InferenceCellViTCPP(
             run_dir=outdir,
             gpu=configuration["gpu"],
@@ -76,6 +81,9 @@ if __name__ == "__main__":
         else:
             # casual run
             outdir = experiment.run_experiment()
+            del experiment     
+            gc.collect()      
+            torch.cuda.empty_cache()      
             inference = InferenceCellViTCPP(
                 run_dir=outdir,
                 gpu=configuration["gpu"],
